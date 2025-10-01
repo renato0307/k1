@@ -45,7 +45,7 @@ func (l *Layout) SetSize(width, height int) {
 
 // CalculateBodyHeight returns the available height for the body content
 func (l *Layout) CalculateBodyHeight() int {
-	// Reserve space for: header (1) + title (1) + help (1) + message (1) + padding
+	// Reserve space for: header (1) + empty line (1) + help (1) + message (1) + padding
 	reserved := 5
 	bodyHeight := l.height - reserved
 	if bodyHeight < 3 {
@@ -60,29 +60,11 @@ func (l *Layout) Render(header, title, body, help, message, filter string) strin
 
 	if header != "" {
 		sections = append(sections, header)
+		// Add empty line after header
+		sections = append(sections, "")
 	}
 
-	// Combine title and filter on same row
-	if title != "" || filter != "" {
-		titleRendered := titleStyle.Render(title)
-
-		var titleRow string
-		if filter != "" {
-			filterRendered := filterStyle.Render(filter)
-			// Calculate spacing to push filter to the right
-			titleWidth := lipgloss.Width(titleRendered)
-			filterWidth := lipgloss.Width(filterRendered)
-			spacing := l.width - titleWidth - filterWidth
-			if spacing < 2 {
-				spacing = 2
-			}
-			spacer := lipgloss.NewStyle().Width(spacing).Render("")
-			titleRow = lipgloss.JoinHorizontal(lipgloss.Top, titleRendered, spacer, filterRendered)
-		} else {
-			titleRow = titleRendered
-		}
-		sections = append(sections, titleRow)
-	}
+	// Skip title row - screen name is now in header
 
 	if body != "" {
 		sections = append(sections, body)

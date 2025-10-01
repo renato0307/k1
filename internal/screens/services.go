@@ -7,10 +7,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"timoneiro/internal/k8s"
 	"timoneiro/internal/types"
+	"timoneiro/internal/ui"
 )
 
 type ServicesScreen struct {
@@ -19,9 +19,10 @@ type ServicesScreen struct {
 	services []k8s.Service
 	filtered []k8s.Service
 	filter   string
+	theme    *ui.Theme
 }
 
-func NewServicesScreen(repo k8s.Repository) *ServicesScreen {
+func NewServicesScreen(repo k8s.Repository, theme *ui.Theme) *ServicesScreen {
 	columns := []table.Column{
 		{Title: "Namespace", Width: 20},
 		{Title: "Name", Width: 30},
@@ -38,21 +39,12 @@ func NewServicesScreen(repo k8s.Repository) *ServicesScreen {
 		table.WithHeight(10),
 	)
 
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(false)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
+	t.SetStyles(theme.ToTableStyles())
 
 	return &ServicesScreen{
 		repo:  repo,
 		table: t,
+		theme: theme,
 	}
 }
 

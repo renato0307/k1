@@ -33,11 +33,14 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 
 	// Register all screens with theme
 	registry.Register(screens.NewPodsScreen(repo, theme))
-	registry.Register(screens.NewDeploymentsScreen(repo))
-	registry.Register(screens.NewServicesScreen(repo))
+	registry.Register(screens.NewDeploymentsScreen(repo, theme))
+	registry.Register(screens.NewServicesScreen(repo, theme))
 
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")
+
+	header := components.NewHeader("Timoneiro", theme)
+	header.SetScreenTitle(initialScreen.Title())
 
 	return Model{
 		state: types.AppState{
@@ -47,7 +50,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 		},
 		registry:       registry,
 		currentScreen:  initialScreen,
-		header:         components.NewHeader("Timoneiro"),
+		header:         header,
 		layout:         components.NewLayout(80, 24),
 		screenPicker:   modals.NewScreenPickerModal(registry.All()),
 		commandPalette: modals.NewCommandPaletteModal(initialScreen.Operations()),
@@ -146,6 +149,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state.ShowScreenPicker = false
 			m.commandPalette.UpdateOperations(screen.Operations())
 
+			// Update header with screen title
+			m.header.SetScreenTitle(screen.Title())
+
 			bodyHeight := m.layout.CalculateBodyHeight()
 			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
 				screenWithSize.SetSize(m.state.Width, bodyHeight)
@@ -172,10 +178,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.ToggleScreenPickerMsg:
 		m.state.ShowScreenPicker = !m.state.ShowScreenPicker
+		// Reset and focus filter when opening
+		if m.state.ShowScreenPicker {
+			m.screenPicker.Init()
+		}
 		return m, nil
 
 	case types.ToggleCommandPaletteMsg:
 		m.state.ShowCommandPalette = !m.state.ShowCommandPalette
+		// Reset and focus filter when opening
+		if m.state.ShowCommandPalette {
+			m.commandPalette.Init()
+		}
 		return m, nil
 	}
 

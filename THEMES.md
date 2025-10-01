@@ -372,9 +372,207 @@ For the prototype phase:
 3. **Phase 3**: Add runtime theme switching with keybinding
 4. **Phase 4**: Add config file support for persistence
 
+## Modal Dimming and Overlays
+
+### Current Implementation
+
+Timoneiro uses `github.com/rmhubbert/bubbletea-overlay` for modal rendering:
+
+```go
+// From internal/app/app.go
+if m.state.ShowScreenPicker {
+    modalView := m.screenPicker.CenteredView(m.state.Width, m.state.Height)
+    bg := &simpleModel{content: baseRendered}
+    fg := &simpleModel{content: modalView}
+    overlayModel := overlay.New(fg, bg, overlay.Center, overlay.Center, 0, 0)
+    return overlayModel.View()
+}
+```
+
+**How it works:**
+- Overlay library composites foreground (modal) onto background (main view)
+- Positioning: `overlay.Top`, `overlay.Right`, `overlay.Bottom`, `overlay.Left`, `overlay.Center`
+- Offsets available for fine-tuning position
+- Compositing algorithm preserves background text where modal doesn't cover
+
+**Key limitation:** The overlay library does NOT provide built-in dimming - it simply overlays the modal on top of the existing view without modifying background colors.
+
+### Dimming Techniques
+
+#### Option 1: Unicode Box Drawing Characters (Current Best Option)
+
+The most idiomatic approach in TUI applications is to **not dim the background** but instead use strong visual separation:
+
+```go
+// Modal with distinct background and border
+modalStyle := lipgloss.NewStyle().
+    Border(lipgloss.RoundedBorder()).
+    BorderForeground(theme.Primary).
+    Background(theme.Background).  // Solid background
+    Padding(1, 2)
+```
+
+**Advantages:**
+- Clean, terminal-native approach
+- Works across all terminal types
+- No color blending complexity
+- Used by popular TUI apps (gum, huh, soft-serve)
+
+**Best practices:**
+- Use solid background color for modal (not transparent)
+- Apply prominent border with theme color
+- Add padding inside modal for breathing room
+- Ensure modal background contrasts with foreground text
+
+#### Option 2: ANSI 256-Color Dimming (Experimental)
+
+For terminals supporting 256 colors, you can create a "dimmed" appearance by rendering background with darker/muted colors:
+
+```go
+// 1. Render background with muted/darker styles
+dimmedStyle := lipgloss.NewStyle().
+    Foreground(lipgloss.Color("240")).  // Gray out text
+    Faint(true)  // ANSI faint attribute (not widely supported)
+
+// 2. Re-render entire background with dimmed colors
+dimmedBg := renderWithDimmedColors(baseView)
+
+// 3. Composite modal on top
+overlayModel := overlay.New(modal, dimmedBg, overlay.Center, overlay.Center, 0, 0)
+```
+
+**Challenges:**
+- Requires re-rendering entire background with modified styles
+- Performance cost (must traverse and re-style all content)
+- `Faint()` ANSI attribute poorly supported across terminals
+- No true transparency - must manually adjust colors
+
+#### Option 3: Character Overlay Pattern (Advanced)
+
+Render semi-transparent effect by overlaying characters in uncovered areas:
+
+```go
+// Render background with overlay characters
+func dimBackground(bg string, width, height int, modalBounds Rect) string {
+    lines := strings.Split(bg, "\n")
+    dimChar := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("235")).
+        Render("░")  // Light shade character
+
+    for y := 0; y < len(lines); y++ {
+        if y >= modalBounds.Y && y < modalBounds.Y+modalBounds.Height {
+            continue  // Skip modal area
+        }
+        // Overlay dim pattern on line
+        lines[y] = overlayDimPattern(lines[y], dimChar)
+    }
+    return strings.Join(lines, "\n")
+}
+```
+
+**Challenges:**
+- Complex implementation - must track modal bounds
+- Can interfere with background text readability
+- May look "busy" or noisy
+- Not commonly used in production TUI apps
+
+### Recommended Approach
+
+**Use solid modal backgrounds with strong borders** (Option 1):
+
+```go
+// Add to Theme struct
+type Theme struct {
+    // ... existing fields
+
+    Modal ModalStyles
+}
+
+type ModalStyles struct {
+    Background  lipgloss.Style  // Solid modal background
+    Border      lipgloss.Style  // Prominent border
+    Title       lipgloss.Style  // Modal title
+    Content     lipgloss.Style  // Modal content text
+}
+
+// In ThemeCharm()
+t.Modal.Background = lipgloss.NewStyle().
+    Background(lipgloss.Color("235")).  // Dark solid background
+    Padding(1, 2).
+    Border(lipgloss.RoundedBorder()).
+    BorderForeground(t.Primary)
+
+t.Modal.Title = lipgloss.NewStyle().
+    Foreground(t.Primary).
+    Bold(true).
+    Padding(0, 0, 1, 0)
+
+t.Modal.Content = lipgloss.NewStyle().
+    Foreground(lipgloss.Color("252"))
+```
+
+**Apply to modals:**
+
+```go
+// In command_palette.go or screen_picker.go
+func (m *Modal) View() string {
+    title := m.theme.Modal.Title.Render("Command Palette")
+    content := m.list.View()
+
+    body := lipgloss.JoinVertical(lipgloss.Left, title, content)
+
+    return m.theme.Modal.Background.Render(body)
+}
+```
+
+### Why NOT True Dimming?
+
+Terminal limitations make true dimming impractical:
+
+1. **No Transparency**: Terminals don't support alpha/opacity - colors are always solid
+2. **ANSI Limits**: `Faint` attribute poorly supported, no native dimming
+3. **Performance**: Re-rendering background with modified colors is expensive
+4. **Complexity**: Tracking which cells to dim vs. not dim is error-prone
+5. **UX Convention**: TUI apps traditionally use solid backgrounds + borders for modals
+
+### Examples from Popular TUI Apps
+
+- **gum**: Solid modal backgrounds with borders, no dimming
+- **huh**: Focused components have distinct backgrounds, no screen dimming
+- **lazygit**: Panels have solid backgrounds, active panel highlighted
+- **k9s**: Modals use bold borders and solid backgrounds
+
+The TUI convention is clear visual separation, not dimming.
+
+### Alternative: Focus Indicators
+
+Instead of dimming, emphasize the modal:
+
+```go
+// Animate border or add shadow effect
+modalWithShadow := lipgloss.NewStyle().
+    Border(lipgloss.ThickBorder()).  // Thicker border
+    BorderForeground(theme.Accent).  // Bright accent color
+    Render(modalContent)
+```
+
+### Implementation Checklist
+
+For production-ready modal styling:
+
+- [ ] Add `Modal` styles to Theme struct
+- [ ] Use solid backgrounds for all modals
+- [ ] Apply prominent rounded/thick borders
+- [ ] Ensure high contrast (modal bg vs. modal text)
+- [ ] Add padding inside modals (1-2 chars)
+- [ ] Consider box shadow effect with unicode characters (`▄▀`)
+- [ ] Test in light and dark terminal modes
+- [ ] Avoid attempting true transparency/dimming
+
 ## References
 
 - Huh library themes: `.tmp/huh/theme.go`
 - Soft-serve styles: `.tmp/soft-serve/pkg/ui/styles/styles.go`
 - Lipgloss documentation: https://github.com/charmbracelet/lipgloss
 - Bubble Tea examples: `.tmp/bubbletea/examples/`
+- Overlay library: `github.com/rmhubbert/bubbletea-overlay`

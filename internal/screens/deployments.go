@@ -7,10 +7,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"timoneiro/internal/k8s"
 	"timoneiro/internal/types"
+	"timoneiro/internal/ui"
 )
 
 type DeploymentsScreen struct {
@@ -19,9 +19,10 @@ type DeploymentsScreen struct {
 	deployments []k8s.Deployment
 	filtered    []k8s.Deployment
 	filter      string
+	theme       *ui.Theme
 }
 
-func NewDeploymentsScreen(repo k8s.Repository) *DeploymentsScreen {
+func NewDeploymentsScreen(repo k8s.Repository, theme *ui.Theme) *DeploymentsScreen {
 	columns := []table.Column{
 		{Title: "Namespace", Width: 20},
 		{Title: "Name", Width: 40},
@@ -37,21 +38,12 @@ func NewDeploymentsScreen(repo k8s.Repository) *DeploymentsScreen {
 		table.WithHeight(10),
 	)
 
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(false)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
+	t.SetStyles(theme.ToTableStyles())
 
 	return &DeploymentsScreen{
 		repo:  repo,
 		table: t,
+		theme: theme,
 	}
 }
 

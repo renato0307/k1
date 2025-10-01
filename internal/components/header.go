@@ -5,31 +5,27 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-)
 
-var (
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("205")).
-			Background(lipgloss.Color("235")).
-			Padding(0, 1)
-
-	timingStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Background(lipgloss.Color("235")).
-			Padding(0, 1)
+	"timoneiro/internal/ui"
 )
 
 type Header struct {
 	appName     string
+	screenTitle string
 	refreshTime time.Duration
 	width       int
+	theme       *ui.Theme
 }
 
-func NewHeader(appName string) *Header {
+func NewHeader(appName string, theme *ui.Theme) *Header {
 	return &Header{
 		appName: appName,
+		theme:   theme,
 	}
+}
+
+func (h *Header) SetScreenTitle(title string) {
+	h.screenTitle = title
 }
 
 func (h *Header) SetRefreshTime(d time.Duration) {
@@ -41,7 +37,20 @@ func (h *Header) SetWidth(width int) {
 }
 
 func (h *Header) View() string {
-	left := headerStyle.Render(h.appName)
+	// Build header style from theme
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(h.theme.Primary)
+
+	timingStyle := lipgloss.NewStyle().
+		Foreground(h.theme.Muted).
+		Padding(0, 1)
+
+	title := h.appName
+	if h.screenTitle != "" {
+		title = fmt.Sprintf("%s > %s", h.appName, h.screenTitle)
+	}
+	left := headerStyle.Render(title)
 
 	var right string
 	if h.refreshTime > 0 {
@@ -57,7 +66,6 @@ func (h *Header) View() string {
 	}
 
 	spacer := lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
 		Width(spacing).
 		Render("")
 
