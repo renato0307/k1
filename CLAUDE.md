@@ -163,6 +163,6 @@ This is an early-stage project focused on prototyping. The codebase structure wi
    - Better kubeconfig error messages
    - Handle disconnections gracefully
    - Show informer sync errors in UI
-- Compile the code using "go build"
+- Compile the code using "go build" but delete the binary after testing
 - Execute go mod tidy to fix dependencies
 - if you need to download repositories, save them into .tmp
