@@ -121,8 +121,7 @@ cmd/
 internal/
   app/app.go                - Root Bubble Tea model with screen routing
   screens/                  - Screen implementations (pods, deployments, services)
-  modals/                   - Modal dialogs (command palette, screen picker)
-  components/               - Reusable UI components (header, layout)
+  components/               - Reusable UI components (header, layout, commandbar)
   k8s/repository.go         - Kubernetes data access layer
   types/types.go            - Shared types (Screen interface, messages)
   ui/theme.go               - Theme definitions and styling
@@ -131,10 +130,10 @@ internal/
 ### Key Patterns
 
 1. **Root Model**: `internal/app/app.go` contains the main application model that:
-   - Routes messages to current screen
-   - Manages global state (window size, filter mode, modals)
-   - Handles global keybindings (ctrl+c, ctrl+p, ctrl+s)
-   - Coordinates screen switching
+   - Routes messages to current screen and command bar
+   - Manages global state (window size, layout dimensions)
+   - Handles global keybindings (ctrl+c, q)
+   - Coordinates screen switching and dynamic body height calculations
 
 2. **Screen Interface**: All screens implement `types.Screen` interface:
    ```go
@@ -158,10 +157,12 @@ internal/
    - Supports multiple themes: charm (default), dracula, catppuccin
    - Passed to screens at initialization
 
-5. **Modal Overlays**: Modals use `bubbletea-overlay` library:
-   - Rendered on top of base screen using overlay compositing
-   - Screen Picker (ctrl+s): Switch between screens
-   - Command Palette (ctrl+p): Execute screen operations
+5. **Command Bar**: `internal/components/commandbar.go` provides expandable bottom UI:
+   - State machine: Hidden, Filter, SuggestionPalette, Input, Confirmation, LLMPreview, Result
+   - Filter mode: just start typing to filter current list with fuzzy search
+   - Palette mode: `:` for navigation, `/` for commands
+   - Dynamic height calculation with proper body coordination
+   - Arrow keys navigate palette when active, list otherwise
 
 ### Message Flow
 
@@ -169,8 +170,8 @@ internal/
 - `types.ScreenSwitchMsg`: Triggers screen change
 - `types.RefreshCompleteMsg`: Updates after data refresh
 - `types.ErrorMsg`: Displays temporary error message
-- `types.ToggleScreenPickerMsg`: Shows/hides screen picker modal
-- `types.ToggleCommandPaletteMsg`: Shows/hides command palette modal
+- `types.FilterUpdateMsg`: Updates filter on current screen (from command bar)
+- `types.ClearFilterMsg`: Clears filter on current screen
 
 ## Prototype Learnings (cmd/proto-pods-tui)
 
@@ -309,11 +310,13 @@ The project has moved beyond prototyping into a structured application:
 - Core Bubble Tea application structure with screen routing
 - Screen registry system for managing multiple views
 - Three screens: Pods, Deployments, Services
-- Modal system: Screen Picker (ctrl+s), Command Palette (ctrl+p)
+- **Command bar component** with expandable states (Phase 1 complete)
+- Filter mode: real-time fuzzy search with negation support
+- Suggestion palette: `:` for navigation, `/` for commands
 - Theming system with multiple themes (charm, dracula, catppuccin)
-- Global keybindings: filter mode (/), quit (q/ctrl+c)
+- Global keybindings: quit (q/ctrl+c)
 - Header component with refresh time display
-- Layout component for consistent screen structure
+- Layout component with dynamic body height calculation
 - Repository pattern with both dummy and live Kubernetes data sources
 - Live Kubernetes integration via informers (Pods only, with protobuf)
 - Command-line flags: -kubeconfig, -context, -theme, -dummy
@@ -321,10 +324,13 @@ The project has moved beyond prototyping into a structured application:
 - **Makefile** with test/build/run targets
 
 ### 🚧 In Progress / To Do
+- Command registry and palette filtering (Phase 2)
+- Navigation commands (:pods, :deployments, :services) (Phase 3)
+- Resource commands (/yaml, /describe, /delete) (Phase 3)
+- Full-screen views for YAML/logs (Phase 4)
+- Command history (Phase 5)
 - Real-time updates (1-second refresh ticker)
 - Live informers for Deployments and Services
-- Implement screen operations (logs, describe, delete, etc.)
-- Fuzzy search filtering (infrastructure exists, needs integration)
 - Persistent configuration (~/.config/timoneiro/)
 - Additional screens (Namespaces, ConfigMaps, Secrets, etc.)
 - Detail view for resources
@@ -335,6 +341,8 @@ The project has moved beyond prototyping into a structured application:
 - **design/DDR-02.md**: Theming system implementation and styling guidelines
 - **design/DDR-03.md**: Kubernetes informer-based repository design
 - **design/DDR-04.md**: Testing strategy with envtest (shared TestMain pattern)
+- **design/DDR-05.md**: Command-enhanced list browser UI/UX design
+- **plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
@@ -393,11 +401,12 @@ The project has moved beyond prototyping into a structured application:
 
 ### Global Keybindings
 - `q` or `ctrl+c`: Quit
-- `/`: Enter filter mode
-- `esc`: Exit filter mode or close modals
-- `ctrl+s`: Toggle screen picker
-- `ctrl+p`: Toggle command palette
-- `↑/↓`: Navigate lists/tables
+- **Type any character**: Enter filter mode (fuzzy search with negation support)
+- `:`: Open navigation palette (screens, namespaces)
+- `/`: Open command palette (resource operations)
+- `esc`: Exit filter mode or dismiss palette
+- `↑/↓`: Navigate lists (when filter active) or palette items (when palette active)
+- `enter`: Apply filter or execute selected command
 
 ### Adding a New Screen
 1. Create file in `internal/screens/`
@@ -485,3 +494,4 @@ Store design decisions in `design/` folder:
 - Plans should be reviewable in 2-3 minutes
 - Leave room for discovery and adaptation during implementation
 - during this prototype phase, please don't run tests, not needed
+- keep claude authoring stuff of of generated code or commit messages
