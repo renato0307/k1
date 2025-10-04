@@ -13,13 +13,17 @@ import (
 	"timoneiro/internal/ui"
 )
 
+// tickMsg triggers periodic refresh
+type tickMsg time.Time
+
 type PodsScreen struct {
-	repo     k8s.Repository
-	table    table.Model
-	pods     []k8s.Pod
-	filtered []k8s.Pod
-	filter   string
-	theme    *ui.Theme
+	repo           k8s.Repository
+	table          table.Model
+	pods           []k8s.Pod
+	filtered       []k8s.Pod
+	filter         string
+	theme          *ui.Theme
+	selectedPodKey string // namespace/name to track cursor across refreshes
 }
 
 func NewPodsScreen(repo k8s.Repository, theme *ui.Theme) *PodsScreen {
@@ -89,17 +93,36 @@ func (s *PodsScreen) Operations() []types.Operation {
 }
 
 func (s *PodsScreen) Init() tea.Cmd {
-	return s.refresh()
+	return tea.Batch(
+		s.refresh(),
+		s.tickCmd(), // Start periodic refresh
+	)
 }
 
 func (s *PodsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case tickMsg:
+		// Periodic refresh
+		return s, tea.Batch(
+			s.refresh(),
+			s.tickCmd(), // Schedule next tick
+		)
+
 	case types.RefreshCompleteMsg:
-		// Already handled in app.go
+		// Restore cursor position after refresh
+		s.restoreCursorPosition()
 		return s, nil
+
 	case types.ErrorMsg:
-		// Already handled in app.go
+		// Error already handled in app.go, continue ticking
 		return s, nil
+
+	case tea.KeyMsg:
+		// Track cursor position on navigation
+		var cmd tea.Cmd
+		s.table, cmd = s.table.Update(msg)
+		s.updateSelectedPodKey()
+		return s, cmd
 	}
 
 	var cmd tea.Cmd
@@ -121,6 +144,13 @@ func (s *PodsScreen) SetFilter(filter string) {
 	s.applyFilter()
 }
 
+// tickCmd returns a command that sends a tick message after 1 second
+func (s *PodsScreen) tickCmd() tea.Cmd {
+	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 func (s *PodsScreen) refresh() tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
@@ -133,6 +163,39 @@ func (s *PodsScreen) refresh() tea.Cmd {
 		s.applyFilter()
 
 		return types.RefreshCompleteMsg{Duration: time.Since(start)}
+	}
+}
+
+// updateSelectedPodKey stores the currently selected pod's key
+func (s *PodsScreen) updateSelectedPodKey() {
+	cursor := s.table.Cursor()
+	if cursor >= 0 && cursor < len(s.filtered) {
+		pod := s.filtered[cursor]
+		s.selectedPodKey = fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	}
+}
+
+// restoreCursorPosition restores cursor to the previously selected pod
+func (s *PodsScreen) restoreCursorPosition() {
+	if s.selectedPodKey == "" {
+		return
+	}
+
+	// Find the pod in the filtered list
+	for i, pod := range s.filtered {
+		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		if podKey == s.selectedPodKey {
+			s.table.SetCursor(i)
+			return
+		}
+	}
+
+	// If pod not found (deleted or filtered out), keep cursor at safe position
+	if len(s.filtered) > 0 {
+		cursor := s.table.Cursor()
+		if cursor >= len(s.filtered) {
+			s.table.SetCursor(len(s.filtered) - 1)
+		}
 	}
 }
 
@@ -169,6 +232,12 @@ func (s *PodsScreen) updateTable() {
 		}
 	}
 	s.table.SetRows(rows)
+
+	// Set initial selected pod key if not set
+	if s.selectedPodKey == "" && len(s.filtered) > 0 {
+		pod := s.filtered[0]
+		s.selectedPodKey = fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	}
 }
 
 func formatDuration(d time.Duration) string {
