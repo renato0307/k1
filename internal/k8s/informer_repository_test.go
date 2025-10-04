@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -251,6 +252,234 @@ func TestInformerRepository_GetPods_SortByAge(t *testing.T) {
 	assert.Equal(t, "old-pod", retrievedPods[1].Name, "Second pod should be oldest")
 }
 
+func TestInformerRepository_GetDeployments_EmptyCluster(t *testing.T) {
+	ns := createTestNamespace(t)
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+
+	deployments, err := repo.GetDeployments()
+	require.NoError(t, err)
+	assert.Empty(t, deployments)
+}
+
+func TestInformerRepository_GetDeployments_WithData(t *testing.T) {
+	ns := createTestNamespace(t)
+	now := time.Now()
+	replicas := int32(3)
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-deploy",
+			Namespace:         ns,
+			CreationTimestamp: metav1.NewTime(now.Add(-1 * time.Hour)),
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "img"}}},
+			},
+		},
+	}
+
+	created, err := testClient.AppsV1().Deployments(ns).Create(context.Background(), deployment, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	created.Status = appsv1.DeploymentStatus{
+		Replicas:          3,
+		ReadyReplicas:     2,
+		UpdatedReplicas:   3,
+		AvailableReplicas: 2,
+	}
+	_, err = testClient.AppsV1().Deployments(ns).UpdateStatus(context.Background(), created, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	deployments, err := repo.GetDeployments()
+	require.NoError(t, err)
+	require.Len(t, deployments, 1)
+
+	assert.Equal(t, "test-deploy", deployments[0].Name)
+	assert.Equal(t, "2/3", deployments[0].Ready)
+	assert.Equal(t, int32(3), deployments[0].UpToDate)
+	assert.Equal(t, int32(2), deployments[0].Available)
+}
+
+func TestInformerRepository_GetServices_EmptyCluster(t *testing.T) {
+	ns := createTestNamespace(t)
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+
+	services, err := repo.GetServices()
+	require.NoError(t, err)
+	assert.Empty(t, services)
+}
+
+func TestInformerRepository_GetServices_ServiceTypes(t *testing.T) {
+	tests := []struct {
+		name              string
+		serviceType       corev1.ServiceType
+		ports             []corev1.ServicePort
+		externalIPs       []string
+		loadBalancerIP    string
+		loadBalancerHost  string
+		expectedType      string
+		expectedExtIP     string
+		checkPorts        func(t *testing.T, ports string)
+	}{
+		{
+			name:        "ClusterIP service with regular ports",
+			serviceType: corev1.ServiceTypeClusterIP,
+			ports: []corev1.ServicePort{
+				{Name: "http", Port: 80, Protocol: corev1.ProtocolTCP},
+			},
+			expectedType:  "ClusterIP",
+			expectedExtIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "80/TCP", ports)
+			},
+		},
+		{
+			name:        "NodePort service with NodePort mapping",
+			serviceType: corev1.ServiceTypeNodePort,
+			ports: []corev1.ServicePort{
+				{Name: "http", Port: 80, NodePort: 30080, Protocol: corev1.ProtocolTCP},
+				{Name: "https", Port: 443, NodePort: 30443, Protocol: corev1.ProtocolTCP},
+			},
+			expectedType:  "NodePort",
+			expectedExtIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Contains(t, ports, "80:30080/TCP")
+				assert.Contains(t, ports, "443:30443/TCP")
+			},
+		},
+		{
+			name:           "Service with external IPs from spec",
+			serviceType:    corev1.ServiceTypeClusterIP,
+			ports:          []corev1.ServicePort{{Port: 443, Protocol: corev1.ProtocolTCP}},
+			externalIPs:    []string{"203.0.113.1", "203.0.113.2"},
+			expectedType:   "ClusterIP",
+			expectedExtIP:  "203.0.113.1,203.0.113.2",
+			checkPorts:     func(t *testing.T, ports string) { assert.Equal(t, "443/TCP", ports) },
+		},
+		{
+			name:           "LoadBalancer with IP in status",
+			serviceType:    corev1.ServiceTypeLoadBalancer,
+			ports:          []corev1.ServicePort{{Port: 80, Protocol: corev1.ProtocolTCP}},
+			loadBalancerIP: "198.51.100.1",
+			expectedType:   "LoadBalancer",
+			expectedExtIP:  "198.51.100.1",
+			checkPorts:     func(t *testing.T, ports string) { assert.Contains(t, ports, "80:") },
+		},
+		{
+			name:             "LoadBalancer with hostname in status",
+			serviceType:      corev1.ServiceTypeLoadBalancer,
+			ports:            []corev1.ServicePort{{Port: 80, Protocol: corev1.ProtocolTCP}},
+			loadBalancerHost: "lb.example.com",
+			expectedType:     "LoadBalancer",
+			expectedExtIP:    "lb.example.com",
+			checkPorts:       func(t *testing.T, ports string) { assert.Contains(t, ports, "80:") },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ns := createTestNamespace(t)
+
+			service := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-svc",
+					Namespace: ns,
+				},
+				Spec: corev1.ServiceSpec{
+					Type:        tt.serviceType,
+					Ports:       tt.ports,
+					ExternalIPs: tt.externalIPs,
+					Selector:    map[string]string{"app": "test"},
+				},
+			}
+
+			created, err := testClient.CoreV1().Services(ns).Create(context.Background(), service, metav1.CreateOptions{})
+			require.NoError(t, err)
+
+			// Update status if LoadBalancer IP/Hostname specified
+			if tt.loadBalancerIP != "" || tt.loadBalancerHost != "" {
+				created.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
+					{IP: tt.loadBalancerIP, Hostname: tt.loadBalancerHost},
+				}
+				_, err = testClient.CoreV1().Services(ns).UpdateStatus(context.Background(), created, metav1.UpdateOptions{})
+				require.NoError(t, err)
+			}
+
+			repo := createTestRepository(t, ns)
+			defer repo.Close()
+			time.Sleep(100 * time.Millisecond)
+
+			services, err := repo.GetServices()
+			require.NoError(t, err)
+			require.Len(t, services, 1)
+
+			assert.Equal(t, "test-svc", services[0].Name)
+			assert.Equal(t, tt.expectedType, services[0].Type)
+			assert.NotEmpty(t, services[0].ClusterIP)
+			assert.Equal(t, tt.expectedExtIP, services[0].ExternalIP)
+			tt.checkPorts(t, services[0].Ports)
+		})
+	}
+}
+
+func TestInformerRepository_GetServices_SortByAge(t *testing.T) {
+	ns := createTestNamespace(t)
+	now := time.Now()
+
+	// Create services with different ages
+	services := []*corev1.Service{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "old-svc",
+				Namespace:         ns,
+				CreationTimestamp: metav1.NewTime(now.Add(-3 * time.Hour)),
+			},
+			Spec: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeClusterIP,
+				Ports: []corev1.ServicePort{{Port: 80, Protocol: corev1.ProtocolTCP}},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "new-svc",
+				Namespace:         ns,
+				CreationTimestamp: metav1.NewTime(now.Add(-15 * time.Minute)),
+			},
+			Spec: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeClusterIP,
+				Ports: []corev1.ServicePort{{Port: 8080, Protocol: corev1.ProtocolTCP}},
+			},
+		},
+	}
+
+	for _, svc := range services {
+		_, err := testClient.CoreV1().Services(ns).Create(context.Background(), svc, metav1.CreateOptions{})
+		require.NoError(t, err)
+	}
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	retrievedServices, err := repo.GetServices()
+	require.NoError(t, err)
+	require.Len(t, retrievedServices, 2)
+
+	// Should be sorted by age (newest first)
+	assert.Equal(t, "new-svc", retrievedServices[0].Name)
+	assert.Equal(t, "old-svc", retrievedServices[1].Name)
+}
+
 func TestInformerRepository_Close(t *testing.T) {
 	// Create unique namespace for test isolation
 	ns := createTestNamespace(t)
@@ -284,24 +513,37 @@ func createTestRepository(t *testing.T, namespace string) *InformerRepository {
 	podInformer := factory.Core().V1().Pods().Informer()
 	podLister := factory.Core().V1().Pods().Lister()
 
+	// Create deployment informer
+	deploymentInformer := factory.Apps().V1().Deployments().Informer()
+	deploymentLister := factory.Apps().V1().Deployments().Lister()
+
+	// Create service informer
+	serviceInformer := factory.Core().V1().Services().Informer()
+	serviceLister := factory.Core().V1().Services().Lister()
+
 	// Create context for lifecycle management
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start informers in background
 	factory.Start(ctx.Done())
 
-	// Wait for cache to sync
-	synced := cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced)
+	// Wait for all caches to sync
+	synced := cache.WaitForCacheSync(ctx.Done(),
+		podInformer.HasSynced,
+		deploymentInformer.HasSynced,
+		serviceInformer.HasSynced)
 	if !synced {
 		cancel()
 	}
-	require.True(t, synced, "Failed to sync pod cache")
+	require.True(t, synced, "Failed to sync caches")
 
 	return &InformerRepository{
-		clientset: testClient,
-		factory:   factory,
-		podLister: podLister,
-		ctx:       ctx,
-		cancel:    cancel,
+		clientset:        testClient,
+		factory:          factory,
+		podLister:        podLister,
+		deploymentLister: deploymentLister,
+		serviceLister:    serviceLister,
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 }

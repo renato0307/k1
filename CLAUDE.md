@@ -40,11 +40,13 @@ go mod tidy
 
 ### Running Tests
 
+**IMPORTANT**: Always use Makefile targets for testing:
+
 ```bash
 # One-time setup: Install envtest binaries
 make setup-envtest
 
-# Run all tests
+# Run all tests (preferred method)
 make test
 
 # Run tests with coverage report
@@ -53,7 +55,22 @@ make test-coverage
 # View coverage in browser
 make test-coverage-html
 
-# Alternatively, run tests manually
+# Build the application
+make build
+
+# Clean build artifacts
+make clean
+
+# Run with dummy data
+make run-dummy
+
+# Run with live cluster
+make run
+```
+
+Manual commands (only use when necessary):
+```bash
+# Manually run tests (if Makefile is not available)
 export KUBEBUILDER_ASSETS=$(setup-envtest use -p path)
 go test -v ./... -timeout 60s
 ```
@@ -322,15 +339,55 @@ The project has moved beyond prototyping into a structured application:
 
 ## Development Guidelines
 
-1. **Build and Clean**: After building with `go build`, always delete the binary
-2. **Dependencies**: Run `go mod tidy` after adding/removing imports
-3. **External Downloads**: Save external repos to `.tmp/` directory
-4. **Screens**: New screens go in `internal/screens/`, implement `types.Screen` interface
-5. **Modals**: New modals go in `internal/modals/`, follow existing pattern
-6. **Components**: Reusable UI elements go in `internal/components/`
-7. **Themes**: Add theme styles to `internal/ui/theme.go`
-8. **Messages**: Custom messages go in `internal/types/types.go`
-9. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
+1. **Git Workflow**: ALWAYS create a new branch from main before starting work on a new plan or feature
+   ```bash
+   git checkout main
+   git pull
+   git checkout -b feat/plan-XX-short-description
+   ```
+   **If you realize you're on the wrong branch:**
+
+   **Option A: Stash (simpler, preferred):**
+   ```bash
+   # NEVER use git reset --hard with uncommitted work!
+   # Save work with stash:
+   git stash
+
+   # Switch to correct branch:
+   git checkout main
+   git pull
+   git checkout -b feat/correct-branch-name
+
+   # Apply stashed changes:
+   git stash pop  # May have conflicts - resolve them manually
+
+   # If conflicts occur, resolve them and continue:
+   git add .
+   # Then continue implementation
+   ```
+
+   **Option B: Commit and cherry-pick (when stash conflicts are complex):**
+   ```bash
+   # Commit on wrong branch:
+   git add .
+   git commit -m "temp: implementation on wrong branch"
+
+   # Create correct branch and cherry-pick:
+   git checkout main
+   git pull
+   git checkout -b feat/correct-branch-name
+   git cherry-pick <commit-hash>
+   ```
+2. **Prefer Makefile**: Always use Makefile targets when available (e.g., `make test`, `make build`, `make run`)
+3. **Build and Clean**: After building with `go build`, always delete the binary (or use `make build` + `make clean`)
+4. **Dependencies**: Run `go mod tidy` after adding/removing imports
+5. **External Downloads**: Save external repos to `.tmp/` directory
+6. **Screens**: New screens go in `internal/screens/`, implement `types.Screen` interface
+7. **Modals**: New modals go in `internal/modals/`, follow existing pattern
+8. **Components**: Reusable UI elements go in `internal/components/`
+9. **Themes**: Add theme styles to `internal/ui/theme.go`
+10. **Messages**: Custom messages go in `internal/types/types.go`
+11. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
 
 ## Quick Reference
 
