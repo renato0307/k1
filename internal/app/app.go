@@ -19,6 +19,8 @@ type Model struct {
 	header             *components.Header
 	layout             *components.Layout
 	commandBar         *components.CommandBar
+	fullScreen         *components.FullScreen
+	fullScreenMode     bool
 	repo               k8s.Repository
 	theme              *ui.Theme
 }
@@ -93,6 +95,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		// If in full-screen mode, handle ESC to return to list
+		if m.fullScreenMode {
+			if msg.String() == "esc" {
+				return m.Update(types.ExitFullScreenMsg{})
+			}
+			// Forward to full-screen component
+			updatedFS, fsCmd := m.fullScreen.Update(msg)
+			m.fullScreen = updatedFS
+			return m, fsCmd
+		}
+
 		// Update command bar with current selection context
 		if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
 			m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
@@ -153,6 +166,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case types.ClearErrorMsg:
 		m.state.ErrorMessage = ""
 		return m, nil
+
+	case types.ShowFullScreenMsg:
+		// Create full-screen view
+		m.fullScreen = components.NewFullScreen(
+			components.FullScreenViewType(msg.ViewType),
+			msg.ResourceName,
+			msg.Content,
+			m.theme,
+		)
+		m.fullScreen.SetSize(m.state.Width, m.state.Height)
+		m.fullScreenMode = true
+		return m, nil
+
+	case types.ExitFullScreenMsg:
+		// Return to list view
+		m.fullScreenMode = false
+		m.fullScreen = nil
+		return m, nil
 	}
 
 	// Forward messages to current screen
@@ -163,6 +194,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	// If in full-screen mode, show full-screen view instead of list
+	if m.fullScreenMode && m.fullScreen != nil {
+		return m.fullScreen.View()
+	}
+
 	// Build main layout
 	header := m.header.View()
 	body := m.currentScreen.View()

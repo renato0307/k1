@@ -3,7 +3,7 @@
 **Plan ID:** PLAN-03
 **Date:** 2025-10-04
 **Related Design:** DDR-05
-**Status:** In Progress (Phase 3 complete - ready for Phase 4)
+**Status:** In Progress (Phase 4 complete - ready for Phase 5)
 
 ## Overview
 
@@ -75,12 +75,24 @@ responses for LLM simulation (no real API calls).
 - [x] Update all command Execute functions to use CommandContext (shows selected resource in messages)
 
 ### Phase 4: Full-Screen Views
-- [ ] Create `internal/components/fullscreen.go` component
-- [ ] Implement YAML viewer with syntax highlighting
-- [ ] Implement describe viewer with formatted output
-- [ ] Add list state preservation (selection, filter, scroll position)
+- [x] Create `internal/components/fullscreen.go` component
+- [x] Implement YAML viewer with syntax highlighting
+- [x] Implement describe viewer with formatted output
+- [x] Add list state preservation (selection, filter, scroll position)
+- [x] Wire up ShowFullScreenMsg and ExitFullScreenMsg messages
+- [x] Update /yaml and /describe commands to show full-screen views
+- [x] Add scrolling support (↑↓/jk, PgUp/PgDn, g/G)
 
-### Phase 5: Command History
+### Phase 5: Add shortcuts for commands
+- [ ] Implement global keybindings in app.go
+- [ ] Keybindings must show in the command palette
+- [ ] Add `ctrl+y` shortcut for `/yaml` command
+- [ ] Add `ctrl+d` shortcut for `/describe` command
+- [ ] Add `ctrl+l` shortcut for `/logs` command
+- [ ] Add `ctrl+x` shortcut for `/delete` command
+
+
+### Phase 6: Command History
 - [ ] Add in-memory history storage
 - [ ] Implement arrow key navigation (↑/↓)
 - [ ] Test history across different command types
@@ -88,9 +100,10 @@ responses for LLM simulation (no real API calls).
 ### Small Fixes (To Handle Later)
 - [ ] When search text is small the list is returning empty and the list on the screen is being cleared
 - [x] Typing after `:` and `/` does not filter the command/screen list - FIXED with refactoring
-- [ ] Add margins on the table columns (when text is larger than column width, the ... is too close to the text)
+- [x] Add margins on the table columns (when text is larger than column width, the ... is too close to the text) - FIXED by adding PaddingLeft(1) and PaddingRight(1) to Cell styles
 - [ ] Uses themes all over the place (lipgloss styles)
 - [ ] Tables are not occupying full width of the screen
+- [ ] Column widths are not dynamic (hardcoded values)
 
 ## Major Phases
 

@@ -94,3 +94,13 @@ type FilterUpdateMsg struct {
 }
 
 type ClearFilterMsg struct{}
+
+// ShowFullScreenMsg triggers display of full-screen content
+type ShowFullScreenMsg struct {
+	ViewType     int    // 0=YAML, 1=Describe, 2=Logs
+	ResourceName string
+	Content      string
+}
+
+// ExitFullScreenMsg returns from full-screen view to list
+type ExitFullScreenMsg struct{}

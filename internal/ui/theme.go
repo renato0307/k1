@@ -65,7 +65,9 @@ func ThemeCharm() *Theme {
 		BorderBottom(true).
 		Bold(false)
 
-	t.Table.Cell = lipgloss.NewStyle()
+	t.Table.Cell = lipgloss.NewStyle().
+		PaddingLeft(1).
+		PaddingRight(1)
 
 	t.Table.SelectedRow = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("229")).
@@ -110,7 +112,9 @@ func ThemeDracula() *Theme {
 		Foreground(t.Primary).
 		Bold(true)
 
-	t.Table.Cell = lipgloss.NewStyle()
+	t.Table.Cell = lipgloss.NewStyle().
+		PaddingLeft(1).
+		PaddingRight(1)
 
 	t.Table.SelectedRow = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#282a36")).
@@ -155,7 +159,9 @@ func ThemeCatppuccin() *Theme {
 		Foreground(t.Primary).
 		Bold(true)
 
-	t.Table.Cell = lipgloss.NewStyle()
+	t.Table.Cell = lipgloss.NewStyle().
+		PaddingLeft(1).
+		PaddingRight(1)
 
 	t.Table.SelectedRow = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#1e1e2e")).

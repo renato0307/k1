@@ -97,13 +97,63 @@ func NewRegistry() *Registry {
 				Category:      CategoryResource,
 				ResourceTypes: []string{}, // Applies to all resource types
 				Execute: func(ctx CommandContext) tea.Cmd {
-					// Phase 3: Show context in placeholder message
+					// Phase 4: Show full-screen YAML view with dummy data
 					resourceName := "unknown"
+					namespace := "default"
 					if name, ok := ctx.Selected["name"].(string); ok {
 						resourceName = name
 					}
+					if ns, ok := ctx.Selected["namespace"].(string); ok {
+						namespace = ns
+					}
+
+					// Generate dummy YAML content
+					yamlContent := `apiVersion: v1
+kind: ` + capitalizeFirst(ctx.ResourceType) + `
+metadata:
+  name: ` + resourceName + `
+  namespace: ` + namespace + `
+  labels:
+    app: example
+    version: v1.0.0
+  annotations:
+    description: "This is dummy YAML for demonstration"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: example
+  template:
+    metadata:
+      labels:
+        app: example
+    spec:
+      containers:
+      - name: main
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+status:
+  phase: Running
+  conditions:
+  - type: Ready
+    status: "True"
+    lastProbeTime: null
+    lastTransitionTime: "2025-10-04T10:00:00Z"`
+
 					return func() tea.Msg {
-						return types.ErrorMsg{Error: "YAML for " + ctx.ResourceType + "/" + resourceName + " - Coming in Phase 4"}
+						return types.ShowFullScreenMsg{
+							ViewType:     0, // YAML
+							ResourceName: namespace + "/" + resourceName,
+							Content:      yamlContent,
+						}
 					}
 				},
 			},
@@ -113,13 +163,70 @@ func NewRegistry() *Registry {
 				Category:      CategoryResource,
 				ResourceTypes: []string{}, // Applies to all resource types
 				Execute: func(ctx CommandContext) tea.Cmd {
-					// Phase 3: Show context in placeholder message
+					// Phase 4: Show full-screen describe view with dummy data
 					resourceName := "unknown"
+					namespace := "default"
 					if name, ok := ctx.Selected["name"].(string); ok {
 						resourceName = name
 					}
+					if ns, ok := ctx.Selected["namespace"].(string); ok {
+						namespace = ns
+					}
+
+					// Generate dummy describe output
+					describeContent := `Name:         ` + resourceName + `
+Namespace:    ` + namespace + `
+Labels:       app=example
+              version=v1.0.0
+Annotations:  description: This is dummy describe output for demonstration
+Status:       Running
+IP:           10.244.0.5
+Node:         node-1/192.168.1.10
+Start Time:   Thu, 04 Oct 2025 10:00:00 +0000
+
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+
+Containers:
+  main:
+    Container ID:   docker://abc123def456
+    Image:          nginx:latest
+    Image ID:       docker-pullable://nginx@sha256:123456
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Thu, 04 Oct 2025 10:00:30 +0000
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     1
+      memory:  512Mi
+    Requests:
+      cpu:        100m
+      memory:     128Mi
+    Environment:  <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-xyz (ro)
+
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  5m    default-scheduler  Successfully assigned ` + namespace + `/` + resourceName + ` to node-1
+  Normal  Pulling    5m    kubelet            Pulling image "nginx:latest"
+  Normal  Pulled     4m    kubelet            Successfully pulled image "nginx:latest"
+  Normal  Created    4m    kubelet            Created container main
+  Normal  Started    4m    kubelet            Started container main`
+
 					return func() tea.Msg {
-						return types.ErrorMsg{Error: "Describe " + ctx.ResourceType + "/" + resourceName + " - Coming in Phase 4"}
+						return types.ShowFullScreenMsg{
+							ViewType:     1, // Describe
+							ResourceName: namespace + "/" + resourceName,
+							Content:      describeContent,
+						}
 					}
 				},
 			},
@@ -298,4 +405,12 @@ func (r *Registry) Get(name string, category CommandCategory) *Command {
 		}
 	}
 	return nil
+}
+
+// capitalizeFirst capitalizes the first letter of a string
+func capitalizeFirst(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[0:1]) + s[1:]
 }
