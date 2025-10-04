@@ -40,6 +40,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 
 	commandBar := components.NewCommandBar(theme)
 	commandBar.SetWidth(80)
+	commandBar.SetScreen("pods") // Set initial screen context
 
 	layout := components.NewLayout(80, 24)
 
@@ -92,6 +93,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		// Update command bar with current selection context
+		if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+			m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+		}
+
 		// Update command bar
 		oldState := m.commandBar.GetState()
 		updatedBar, barCmd := m.commandBar.Update(msg)
@@ -117,6 +123,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if screen, ok := m.registry.Get(msg.ScreenID); ok {
 			m.currentScreen = screen
 			m.state.CurrentScreen = msg.ScreenID
+
+			// Update command bar with current screen context for command filtering
+			m.commandBar.SetScreen(msg.ScreenID)
 
 			// Update header with screen title
 			m.header.SetScreenTitle(screen.Title())

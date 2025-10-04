@@ -47,6 +47,10 @@ type CommandBar struct {
 	// Command registry
 	registry *commands.Registry
 
+	// Current screen context (for filtering resource commands and execution)
+	screenID         string
+	selectedResource map[string]interface{} // Currently selected resource data
+
 	// History
 	history    []string
 	historyIdx int
@@ -55,6 +59,12 @@ type CommandBar struct {
 	paletteVisible bool
 	paletteItems   []commands.Command // Palette command items
 	paletteIdx     int
+
+	// Pending command (for confirmation/preview states)
+	pendingCommand *commands.Command
+
+	// LLM translation result (for LLM preview state)
+	llmTranslation *commands.MockLLMTranslation
 }
 
 // NewCommandBar creates a new command bar component
@@ -73,12 +83,33 @@ func NewCommandBar(theme *ui.Theme) *CommandBar {
 		paletteVisible: false,
 		paletteItems:   []commands.Command{},
 		paletteIdx:     0,
+		pendingCommand: nil,
+		llmTranslation: nil,
 	}
 }
 
 // SetWidth updates the command bar width
 func (cb *CommandBar) SetWidth(width int) {
 	cb.width = width
+}
+
+// SetScreen updates the current screen context for command filtering
+func (cb *CommandBar) SetScreen(screenID string) {
+	cb.screenID = screenID
+}
+
+// SetSelectedResource updates the selected resource info for command execution
+func (cb *CommandBar) SetSelectedResource(resource map[string]interface{}) {
+	cb.selectedResource = resource
+}
+
+// buildCommandContext creates a CommandContext for command execution
+func (cb *CommandBar) buildCommandContext(args string) commands.CommandContext {
+	return commands.CommandContext{
+		ResourceType: cb.screenID,
+		Selected:     cb.selectedResource,
+		Args:         args,
+	}
 }
 
 // GetHeight returns the current height of the command bar (including separators, not hints)
@@ -153,39 +184,11 @@ func (cb *CommandBar) handleKeyMsg(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 	switch msg.String() {
 	case ":":
-		// Enter suggestion palette for navigation
-		cb.state = StateSuggestionPalette
-		cb.input = ":"
-		cb.inputType = CommandTypeNavigation
-		cb.cursorPos = 1
-		cb.paletteVisible = true
-		// Load navigation items from registry
-		cb.paletteItems = cb.registry.GetByCategory(commands.CategoryNavigation)
-		cb.paletteIdx = 0
-		// Calculate height: 1 (input line) + number of items (max 8)
-		itemCount := len(cb.paletteItems)
-		if itemCount > 8 {
-			itemCount = 8
-		}
-		cb.height = 1 + itemCount
+		cb.transitionToPalette(":", CommandTypeNavigation)
 		return cb, nil
 
 	case "/":
-		// Enter suggestion palette for commands
-		cb.state = StateSuggestionPalette
-		cb.input = "/"
-		cb.inputType = CommandTypeResource
-		cb.cursorPos = 1
-		cb.paletteVisible = true
-		// Load resource commands from registry
-		cb.paletteItems = cb.registry.GetByCategory(commands.CategoryResource)
-		cb.paletteIdx = 0
-		// Calculate height: 1 (input line) + number of items (max 8)
-		itemCount := len(cb.paletteItems)
-		if itemCount > 8 {
-			itemCount = 8
-		}
-		cb.height = 1 + itemCount
+		cb.transitionToPalette("/", CommandTypeResource)
 		return cb, nil
 
 	default:
@@ -281,8 +284,40 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		// Select item from palette
 		if cb.paletteIdx >= 0 && cb.paletteIdx < len(cb.paletteItems) {
 			selected := cb.paletteItems[cb.paletteIdx]
-			// TODO: Execute the selected command
-			// For now, just return to hidden
+
+			// Special handling for /x (LLM commands)
+			if selected.Category == commands.CategoryLLM && selected.Name == "x" {
+				// Transition to input mode for LLM
+				cb.state = StateInput
+				cb.input = "/x "
+				cb.inputType = CommandTypeLLM
+				cb.cursorPos = 3
+				cb.height = 1
+				cb.paletteVisible = false
+				cb.paletteItems = []commands.Command{}
+				cb.paletteIdx = 0
+				return cb, nil
+			}
+
+			// Check if command needs confirmation
+			if selected.NeedsConfirmation {
+				// Store command and transition to confirmation state
+				cb.pendingCommand = &selected
+				cb.state = StateConfirmation
+				cb.height = 5 // Expand to show confirmation (3-5 lines)
+				cb.paletteVisible = false
+				cb.paletteItems = []commands.Command{}
+				return cb, nil
+			}
+
+			// Execute command
+			var cmd tea.Cmd
+			if selected.Execute != nil {
+				ctx := cb.buildCommandContext("")
+				cmd = selected.Execute(ctx)
+			}
+
+			// Return to hidden state
 			cb.state = StateHidden
 			cb.input = ""
 			cb.cursorPos = 0
@@ -290,7 +325,8 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 			cb.paletteVisible = false
 			cb.paletteItems = []commands.Command{}
 			cb.paletteIdx = 0
-			_ = selected // Will use this to execute command
+
+			return cb, cmd
 		}
 		return cb, nil
 
@@ -313,13 +349,11 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		if len(cb.input) > 1 { // Keep prefix (: or /)
 			cb.input = cb.input[:len(cb.input)-1]
 			cb.cursorPos--
-			// Re-filter palette items based on new query
+			// Re-filter palette
 			query := cb.input[1:] // Remove prefix
-			category := cb.getCommandCategory()
-			cb.paletteItems = cb.registry.Filter(query, category)
-			// Reset selection to top
+			cb.paletteItems = cb.getPaletteItems(cb.inputType, query)
 			cb.paletteIdx = 0
-			// Recalculate height based on filtered items
+			// Recalculate height
 			itemCount := len(cb.paletteItems)
 			if itemCount > 8 {
 				itemCount = 8
@@ -342,13 +376,23 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		if len(msg.String()) == 1 {
 			cb.input += msg.String()
 			cb.cursorPos++
-			// Re-filter palette items based on new query
+
+			// Check if user typed space after /x - transition to LLM input mode
+			if cb.input == "/x " {
+				cb.state = StateInput
+				cb.inputType = CommandTypeLLM
+				cb.height = 1
+				cb.paletteVisible = false
+				cb.paletteItems = []commands.Command{}
+				cb.paletteIdx = 0
+				return cb, nil
+			}
+
+			// Re-filter palette
 			query := cb.input[1:] // Remove prefix
-			category := cb.getCommandCategory()
-			cb.paletteItems = cb.registry.Filter(query, category)
-			// Reset selection to top
+			cb.paletteItems = cb.getPaletteItems(cb.inputType, query)
 			cb.paletteIdx = 0
-			// Recalculate height based on filtered items
+			// Recalculate height
 			itemCount := len(cb.paletteItems)
 			if itemCount > 8 {
 				itemCount = 8
@@ -362,19 +406,182 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 
 // handleInputState handles direct command input
 func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
-	// TODO: Implement direct input handling
-	return cb, nil
+	switch msg.String() {
+	case "esc":
+		// Cancel input and return to hidden
+		cb.state = StateHidden
+		cb.input = ""
+		cb.cursorPos = 0
+		cb.height = 1
+		return cb, nil
+
+	case "enter":
+		// Execute the command
+		// Check if it's an LLM command (/x prefix)
+		if strings.HasPrefix(cb.input, "/x ") {
+			// Extract prompt (remove "/x " prefix)
+			prompt := strings.TrimPrefix(cb.input, "/x ")
+			prompt = strings.TrimSpace(prompt)
+
+			if prompt == "" {
+				// Empty prompt, just dismiss
+				cb.state = StateHidden
+				cb.input = ""
+				cb.height = 1
+				return cb, nil
+			}
+
+			// Translate with mock LLM
+			translation := commands.TranslateWithMockLLM(prompt)
+			cb.llmTranslation = &translation
+
+			// Transition to LLM preview state
+			cb.state = StateLLMPreview
+			cb.height = 6 // 4-6 lines for preview
+			return cb, nil
+		}
+
+		// For other commands, try to find and execute
+		// Parse command (e.g., ":pods" or "/yaml")
+		if len(cb.input) > 1 {
+			prefix := cb.input[:1]
+			cmdName := cb.input[1:]
+
+			var category commands.CommandCategory
+			if prefix == ":" {
+				category = commands.CategoryNavigation
+			} else if prefix == "/" {
+				category = commands.CategoryResource
+			}
+
+			cmd := cb.registry.Get(cmdName, category)
+			if cmd != nil {
+				// Check if needs confirmation
+				if cmd.NeedsConfirmation {
+					cb.pendingCommand = cmd
+					cb.state = StateConfirmation
+					cb.height = 5
+					return cb, nil
+				}
+
+				// Execute command
+				var execCmd tea.Cmd
+				if cmd.Execute != nil {
+					ctx := cb.buildCommandContext("")
+					execCmd = cmd.Execute(ctx)
+				}
+
+				// Return to hidden
+				cb.state = StateHidden
+				cb.input = ""
+				cb.height = 1
+				return cb, execCmd
+			}
+		}
+
+		// Unknown command, return to hidden
+		cb.state = StateHidden
+		cb.input = ""
+		cb.height = 1
+		return cb, nil
+
+	case "backspace":
+		// Remove character
+		if len(cb.input) > 0 {
+			cb.input = cb.input[:len(cb.input)-1]
+			cb.cursorPos--
+		}
+		// If input is empty, return to hidden
+		if len(cb.input) == 0 {
+			cb.state = StateHidden
+			cb.height = 1
+			return cb, nil
+		}
+		// If we backspaced to a prefix (: or / or /x), show palette
+		if cb.input == ":" {
+			cb.transitionToPalette(":", CommandTypeNavigation)
+			return cb, nil
+		}
+		if cb.input == "/" {
+			cb.transitionToPalette("/", CommandTypeResource)
+			return cb, nil
+		}
+		if cb.input == "/x" {
+			cb.transitionToPalette("/x", CommandTypeResource)
+			return cb, nil
+		}
+		return cb, nil
+
+	default:
+		// Add character
+		if len(msg.String()) == 1 {
+			cb.input += msg.String()
+			cb.cursorPos++
+		}
+		return cb, nil
+	}
 }
 
 // handleConfirmationState handles confirmation prompts
 func (cb *CommandBar) handleConfirmationState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
-	// TODO: Implement confirmation handling
+	switch msg.String() {
+	case "esc":
+		// Cancel confirmation
+		cb.state = StateHidden
+		cb.input = ""
+		cb.height = 1
+		cb.pendingCommand = nil
+		return cb, nil
+
+	case "enter":
+		// Execute pending command
+		var cmd tea.Cmd
+		if cb.pendingCommand != nil && cb.pendingCommand.Execute != nil {
+			ctx := cb.buildCommandContext("")
+			cmd = cb.pendingCommand.Execute(ctx)
+		}
+
+		// Return to hidden state
+		cb.state = StateHidden
+		cb.input = ""
+		cb.height = 1
+		cb.pendingCommand = nil
+		return cb, cmd
+	}
 	return cb, nil
 }
 
 // handleLLMPreviewState handles LLM command preview
 func (cb *CommandBar) handleLLMPreviewState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
-	// TODO: Implement LLM preview handling
+	switch msg.String() {
+	case "esc":
+		// Cancel LLM preview
+		cb.state = StateHidden
+		cb.input = ""
+		cb.height = 1
+		cb.llmTranslation = nil
+		return cb, nil
+
+	case "enter":
+		// Execute the generated command
+		// For now, just show a success message
+		// In Phase 4+, this would actually execute the kubectl command
+		cb.state = StateResult
+		cb.input = "Command would execute: " + cb.llmTranslation.Command
+		cb.height = 2
+		cb.llmTranslation = nil
+		return cb, nil
+
+	case "e":
+		// Edit mode - transition to input state with generated command
+		// For this prototype, we'll skip edit mode
+		// Just dismiss for now
+		cb.state = StateHidden
+		cb.input = ""
+		cb.height = 1
+		cb.llmTranslation = nil
+		return cb, nil
+	}
 	return cb, nil
 }
 
@@ -437,7 +644,7 @@ func (cb *CommandBar) ViewHints() string {
 	// Show hints only when command bar is hidden or in filter mode
 	// (When palette is active, options are already visible in the palette)
 	if cb.state == StateHidden || cb.state == StateFilter {
-		hints := hintStyle.Render("[: screens  / commands]")
+		hints := hintStyle.Render("[: screens  / commands  /x ai]")
 		return lipgloss.JoinVertical(lipgloss.Left, separator, hints, separator)
 	}
 
@@ -517,14 +724,81 @@ func (cb *CommandBar) viewInput() string {
 
 // viewConfirmation renders confirmation state
 func (cb *CommandBar) viewConfirmation() string {
-	// TODO: Implement confirmation view
-	return ""
+	if cb.pendingCommand == nil {
+		return ""
+	}
+
+	// Create styles
+	titleStyle := lipgloss.NewStyle().
+		Foreground(cb.theme.Error).
+		Bold(true).
+		Width(cb.width).
+		Padding(0, 1)
+
+	textStyle := lipgloss.NewStyle().
+		Foreground(cb.theme.Foreground).
+		Width(cb.width).
+		Padding(0, 1)
+
+	hintStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241")).
+		Width(cb.width).
+		Padding(0, 1)
+
+	// Build confirmation content
+	lines := []string{}
+	lines = append(lines, titleStyle.Render("⚠ Confirm Action"))
+	lines = append(lines, textStyle.Render(""))
+	lines = append(lines, textStyle.Render("Command: /"+cb.pendingCommand.Name))
+	lines = append(lines, textStyle.Render("This action cannot be undone."))
+	lines = append(lines, hintStyle.Render("[Enter] Confirm  [ESC] Cancel"))
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 // viewLLMPreview renders LLM preview state
 func (cb *CommandBar) viewLLMPreview() string {
-	// TODO: Implement LLM preview view
-	return ""
+	if cb.llmTranslation == nil {
+		return ""
+	}
+
+	// Create styles
+	titleStyle := lipgloss.NewStyle().
+		Foreground(cb.theme.Primary).
+		Bold(true).
+		Width(cb.width).
+		Padding(0, 1)
+
+	promptStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("243")).
+		Italic(true).
+		Width(cb.width).
+		Padding(0, 1)
+
+	commandStyle := lipgloss.NewStyle().
+		Foreground(cb.theme.Success).
+		Width(cb.width).
+		Padding(0, 1)
+
+	explanationStyle := lipgloss.NewStyle().
+		Foreground(cb.theme.Foreground).
+		Width(cb.width).
+		Padding(0, 1)
+
+	hintStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241")).
+		Width(cb.width).
+		Padding(0, 1)
+
+	// Build LLM preview content
+	lines := []string{}
+	lines = append(lines, titleStyle.Render("🤖 AI Command Preview"))
+	lines = append(lines, promptStyle.Render("Prompt: "+cb.llmTranslation.Prompt))
+	lines = append(lines, commandStyle.Render("Command: "+cb.llmTranslation.Command))
+	lines = append(lines, explanationStyle.Render(cb.llmTranslation.Explanation))
+	lines = append(lines, hintStyle.Render("[Enter] Execute  [e] Edit  [ESC] Cancel"))
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 // viewResult renders result state
@@ -551,4 +825,69 @@ func (cb *CommandBar) getCommandCategory() commands.CommandCategory {
 	default:
 		return commands.CategoryNavigation // Default to navigation
 	}
+}
+
+// getPaletteItems returns palette items for the given command type and query
+// Handles special case of /x for LLM commands
+// Filters resource commands by current screen (resource type)
+func (cb *CommandBar) getPaletteItems(cmdType CommandType, query string) []commands.Command {
+	var items []commands.Command
+
+	switch cmdType {
+	case CommandTypeNavigation:
+		category := commands.CategoryNavigation
+		if query == "" {
+			items = cb.registry.GetByCategory(category)
+		} else {
+			items = cb.registry.Filter(query, category)
+		}
+
+	case CommandTypeResource:
+		category := commands.CategoryResource
+		if query == "" {
+			items = cb.registry.GetByCategory(category)
+		} else {
+			items = cb.registry.Filter(query, category)
+		}
+
+		// Filter by current screen (resource type)
+		items = cb.registry.FilterByResourceType(items, cb.screenID)
+
+		// Add /x option if it matches the query
+		if strings.HasPrefix("x", strings.ToLower(query)) || query == "" {
+			items = append(items, commands.Command{
+				Name:        "x",
+				Description: "Natural language AI commands",
+				Category:    commands.CategoryLLM,
+				Execute:     nil,
+			})
+		}
+	}
+
+	return items
+}
+
+// transitionToPalette transitions to palette state with the given input and type
+func (cb *CommandBar) transitionToPalette(input string, cmdType CommandType) {
+	cb.state = StateSuggestionPalette
+	cb.input = input
+	cb.inputType = cmdType
+	cb.cursorPos = len(input)
+	cb.paletteVisible = true
+
+	// Extract query (everything after the prefix)
+	query := ""
+	if len(input) > 1 {
+		query = input[1:]
+	}
+
+	cb.paletteItems = cb.getPaletteItems(cmdType, query)
+	cb.paletteIdx = 0
+
+	// Calculate height: 1 (input line) + number of items (max 8)
+	itemCount := len(cb.paletteItems)
+	if itemCount > 8 {
+		itemCount = 8
+	}
+	cb.height = 1 + itemCount
 }

@@ -3,7 +3,7 @@
 **Plan ID:** PLAN-03
 **Date:** 2025-10-04
 **Related Design:** DDR-05
-**Status:** Proposed
+**Status:** In Progress (Phase 3 complete - ready for Phase 4)
 
 ## Overview
 
@@ -51,14 +51,28 @@ responses for LLM simulation (no real API calls).
 - [x] Add keyboard navigation and context-aware filtering
 - [x] Wire up `:` for navigation (screens) and `/` for resource commands
 - [x] Test palette + command bar unified bottom component
+- [x] Add `/x` option to palette for AI commands
+- [x] Implement smooth transition between palette and input modes with backspace
+- [x] Refactor duplicated palette logic into helper methods
 
 ### Phase 3: Basic Predefined Commands
-- [ ] Implement navigation commands (:pods, :deployments, :services, :ns)
-- [ ] Implement resource commands (/yaml, /describe, /delete)
-- [ ] Add LLM simulation with static mock response mapping
-- [ ] Test delete confirmation expansion (3-5 lines)
-- [ ] Test LLM preview expansion (4-6 lines) with action buttons
-- [ ] Test filter mode with negation (!pattern)
+- [x] Implement navigation commands (:pods, :deployments, :services)
+- [x] Add LLM commands to registry with mock translations (internal/commands/llm_mock.go)
+- [x] Wire up `/x` prefix for natural language AI commands
+- [x] Implement LLM preview expansion (4-6 lines) with action buttons
+- [x] Implement namespace filtering command (:ns) - placeholder for now
+- [x] Implement resource commands (/yaml, /describe, /delete, /logs) - return placeholder messages
+- [x] Wire up delete command with confirmation flow (NeedsConfirmation: true)
+- [x] Verify filter mode with negation (!pattern) - already implemented in applyFilter()
+- [x] Add context-aware command filtering (ResourceTypes field on Command struct)
+- [x] Implement /scale command for deployments only
+- [x] Wire up screen context tracking in command bar (SetScreen method)
+- [x] Add CommandContext struct with resource type and selected resource data
+- [x] Update ExecuteFunc signature to accept CommandContext instead of string
+- [x] Implement ScreenWithSelection interface for screens that provide selected resource info
+- [x] Wire up app.go to collect and pass selected resource context to commands
+- [x] Implement GetSelectedResource() on PodsScreen
+- [x] Update all command Execute functions to use CommandContext (shows selected resource in messages)
 
 ### Phase 4: Full-Screen Views
 - [ ] Create `internal/components/fullscreen.go` component
@@ -73,10 +87,10 @@ responses for LLM simulation (no real API calls).
 
 ### Small Fixes (To Handle Later)
 - [ ] When search text is small the list is returning empty and the list on the screen is being cleared
-- [ ] Typing after `:` and `/` does not filter the command/screen list
+- [x] Typing after `:` and `/` does not filter the command/screen list - FIXED with refactoring
 - [ ] Add margins on the table columns (when text is larger than column width, the ... is too close to the text)
 - [ ] Uses themes all over the place (lipgloss styles)
-- [ ] Tables are not occupying full width of the screen/
+- [ ] Tables are not occupying full width of the screen
 
 ## Major Phases
 

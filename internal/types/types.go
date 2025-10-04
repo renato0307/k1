@@ -15,6 +15,12 @@ type Screen interface {
 	Operations() []Operation
 }
 
+// ScreenWithSelection interface for screens that track selected resources
+type ScreenWithSelection interface {
+	Screen
+	GetSelectedResource() map[string]interface{}
+}
+
 // Operation represents an action that can be executed on a screen
 type Operation struct {
 	ID          string

@@ -403,7 +403,8 @@ The project has moved beyond prototyping into a structured application:
 - `q` or `ctrl+c`: Quit
 - **Type any character**: Enter filter mode (fuzzy search with negation support)
 - `:`: Open navigation palette (screens, namespaces)
-- `/`: Open command palette (resource operations)
+- `/`: Open command palette (resource operations, includes `/x` for AI commands)
+- `/x`: Natural language AI commands (type `/x ` followed by prompt)
 - `esc`: Exit filter mode or dismiss palette
 - `↑/↓`: Navigate lists (when filter active) or palette items (when palette active)
 - `enter`: Apply filter or execute selected command
@@ -493,5 +494,11 @@ Store design decisions in `design/` folder:
   - Micro-tasks that restrict adaptation
 - Plans should be reviewable in 2-3 minutes
 - Leave room for discovery and adaptation during implementation
+- **Progress Tracking**:
+  - Update the plan's TODO section after completing significant work (phase completion, major features)
+  - Mark items as complete `[x]` when done
+  - Add new items discovered during implementation
+  - DO NOT use TodoWrite tool - track progress directly in the plan markdown file
+  - Update plan status at top of file to reflect current phase
 - during this prototype phase, please don't run tests, not needed
 - keep claude authoring stuff of of generated code or commit messages

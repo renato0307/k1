@@ -59,6 +59,23 @@ func (s *PodsScreen) ID() string {
 	return "pods"
 }
 
+// GetSelectedResource returns information about the currently selected pod
+func (s *PodsScreen) GetSelectedResource() map[string]interface{} {
+	cursor := s.table.Cursor()
+	if cursor < 0 || cursor >= len(s.filtered) {
+		return map[string]interface{}{}
+	}
+
+	pod := s.filtered[cursor]
+	return map[string]interface{}{
+		"name":      pod.Name,
+		"namespace": pod.Namespace,
+		"status":    pod.Status,
+		"ip":        pod.IP,
+		"node":      pod.Node,
+	}
+}
+
 func (s *PodsScreen) Title() string {
 	return "Pods"
 }
