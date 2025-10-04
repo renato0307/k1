@@ -69,7 +69,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the UI
 func (m model) View() string {
-	s := "Timoneiro - Kubernetes Resource Browser (Prototype)\n\n"
+	s := "K1 - Kubernetes Resource Browser (Prototype)\n\n"
 	s += "Use ↑/↓ or j/k to navigate, space/enter to select, q to quit\n\n"
 
 	for i, item := range m.items {

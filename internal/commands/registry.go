@@ -6,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sahilm/fuzzy"
 
-	"timoneiro/internal/types"
+	"github.com/renato0307/k1/internal/types"
 )
 
 // CommandCategory represents the type of command

@@ -13,7 +13,7 @@
 
 ## Context and Problem Statement
 
-Timoneiro currently uses a `DummyRepository` that returns fake data. We need
+K1 currently uses a `DummyRepository` that returns fake data. We need
 to implement a production-ready Kubernetes repository that provides real-time
 data from a Kubernetes cluster with minimal latency. The POC in
 `cmd/proto-pods-tui/main.go` demonstrated that Kubernetes informers with local
@@ -521,7 +521,7 @@ func (m model) View() string {
             " | Loading: %s", strings.Join(loading, ", "))
     }
 
-    header := fmt.Sprintf("Timoneiro - Pods (%d)%s",
+    header := fmt.Sprintf("K1 - Pods (%d)%s",
         len(m.pods), loadingIndicator)
 
     // ... rest of UI
@@ -530,7 +530,7 @@ func (m model) View() string {
 
 **Example Header Display:**
 ```
-Timoneiro - Pods (147) | Loading: deployments, services, namespaces
+K1 - Pods (147) | Loading: deployments, services, namespaces
 
 ┌──────────────────────────────────────────────────────────┐
 │ Namespace   │ Name                    │ Ready  │ Status  │
@@ -542,7 +542,7 @@ Timoneiro - Pods (147) | Loading: deployments, services, namespaces
 
 After a few seconds, when all resources are loaded:
 ```
-Timoneiro - Pods (147)
+K1 - Pods (147)
 
 ┌──────────────────────────────────────────────────────────┐
 │ Namespace   │ Name                    │ Ready  │ Status  │

@@ -7,9 +7,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"timoneiro/internal/app"
-	"timoneiro/internal/k8s"
-	"timoneiro/internal/ui"
+	"github.com/renato0307/k1/internal/app"
+	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 func main() {

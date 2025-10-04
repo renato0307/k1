@@ -1,4 +1,4 @@
-module timoneiro
+module github.com/renato0307/k1
 
 go 1.24.2
 

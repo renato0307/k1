@@ -9,9 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sahilm/fuzzy"
 
-	"timoneiro/internal/k8s"
-	"timoneiro/internal/types"
-	"timoneiro/internal/ui"
+	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/types"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 type DeploymentsScreen struct {

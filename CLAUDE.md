@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Timoneiro is an ultra-fast TUI client for Kubernetes, built with Go and Bubble Tea. The name means "helmsman" (Kubernetes) in Portuguese.
+k1 💨 - The supersonic Kubernetes TUI. Built with Go and Bubble Tea for blazing-fast cluster management at Mach 1 speed.
 
 ## Development Setup
 
@@ -14,26 +14,26 @@ Go version: 1.24.0+
 
 ```bash
 # Run with live Kubernetes connection (default theme)
-go run cmd/timoneiro/main.go
+go run cmd/k1/main.go
 
 # Run with specific Kubernetes context
-go run cmd/timoneiro/main.go -context my-cluster
+go run cmd/k1/main.go -context my-cluster
 
 # Run with custom kubeconfig path
-go run cmd/timoneiro/main.go -kubeconfig /path/to/kubeconfig
+go run cmd/k1/main.go -kubeconfig /path/to/kubeconfig
 
 # Run with specific theme (8 available: charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
-go run cmd/timoneiro/main.go -theme dracula
-go run cmd/timoneiro/main.go -theme nord
-go run cmd/timoneiro/main.go -theme gruvbox
+go run cmd/k1/main.go -theme dracula
+go run cmd/k1/main.go -theme nord
+go run cmd/k1/main.go -theme gruvbox
 
 # Run with dummy data (no cluster connection)
-go run cmd/timoneiro/main.go -dummy
+go run cmd/k1/main.go -dummy
 
 # Build and test (clean up binary after)
-go build -o timoneiro cmd/timoneiro/main.go
-./timoneiro
-rm timoneiro
+go build -o k1 cmd/k1/main.go
+./k1
+rm k1
 
 # Fix dependencies
 go mod tidy
@@ -116,7 +116,7 @@ go run cmd/proto-pods-tui/main.go [--context CONTEXT]
 
 ```
 cmd/
-  timoneiro/main.go         - Main application entry point
+  k1/main.go                - Main application entry point (binary: k1)
   proto-*/                  - Prototype applications for exploration
 
 internal/
@@ -332,7 +332,7 @@ The project has moved beyond prototyping into a structured application:
 - Command history (Phase 5)
 - Real-time updates (1-second refresh ticker)
 - Live informers for Deployments and Services
-- Persistent configuration (~/.config/timoneiro/)
+- Persistent configuration (~/.config/k1/)
 - Additional screens (Namespaces, ConfigMaps, Secrets, etc.)
 - Detail view for resources
 - Log streaming for pods

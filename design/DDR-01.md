@@ -14,14 +14,14 @@
 
 ## Context and Problem Statement
 
-Timoneiro is an ultra-fast TUI client for Kubernetes built with Go and Bubble Tea. The project requires a clear architectural pattern for building a moderately complex TUI application with multiple screens, modals, live data updates, and external integrations (clipboard, editor). How should we structure the application to maintain separation of concerns, enable testability, and provide a responsive user experience?
+K1 is an ultra-fast TUI client for Kubernetes built with Go and Bubble Tea. The project requires a clear architectural pattern for building a moderately complex TUI application with multiple screens, modals, live data updates, and external integrations (clipboard, editor). How should we structure the application to maintain separation of concerns, enable testability, and provide a responsive user experience?
 
 ## References
 
 Analysis based on:
 - Official Bubble Tea examples (github.com/charmbracelet/bubbletea/tree/master/examples)
 - Real-world applications: Soft Serve (Git server TUI), Lazygit (complex TUI architecture)
-- Existing Timoneiro prototypes (proto-pods-tui, proto-k8s-informers, proto-bubbletea)
+- Existing K1 prototypes (proto-pods-tui, proto-k8s-informers, proto-bubbletea)
 - Bubble Tea ecosystem: Bubbles components, Lipgloss styling
 
 ## Design
@@ -145,8 +145,8 @@ UI never directly accesses Kubernetes API. Repository provides domain models, no
 ### Project Structure
 
 ```
-timoneiro/
-├── cmd/timoneiro/          # Entry point only
+k1/
+├── cmd/k1/                 # Entry point only
 ├── internal/
 │   ├── app/                # Root model, navigation, global state
 │   ├── screens/            # Screen implementations (pods, deployments, etc.)
@@ -171,7 +171,7 @@ timoneiro/
 
 ## Decision
 
-Adopt these Bubble Tea architecture patterns as the foundation for Timoneiro:
+Adopt these Bubble Tea architecture patterns as the foundation for K1:
 
 1. **Single root model** with embedded screen models for routing and shared state
 2. **Three-layer state architecture** (app, screen, transient)

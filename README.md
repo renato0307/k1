@@ -1,6 +1,4 @@
-# Timoneiro
+# k1 💨
 
-An ultra-fast TUI client for Kubernetes, built with Go and Bubble Tea.
-
-"Timoneiro" means helmsman ("Kubernetes") in Portuguese.
-
+The supersonic Kubernetes TUI. Built with Go and Bubble Tea for blazing-fast
+cluster management.

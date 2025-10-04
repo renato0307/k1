@@ -6,9 +6,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"timoneiro/internal/commands"
-	"timoneiro/internal/types"
-	"timoneiro/internal/ui"
+	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/types"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 // CommandBarState represents the current state of the command bar

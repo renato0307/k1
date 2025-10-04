@@ -15,7 +15,7 @@
 
 ## Context and Problem Statement
 
-Timoneiro aims to provide a TUI experience that balances between a full
+K1 aims to provide a TUI experience that balances between a full
 UI like K9s (lists, details, operations) and a command-line interface.
 The current design uses modal-based command palettes, but users need a
 more fluid interaction model that combines:
@@ -181,7 +181,7 @@ User:       Executes or edits before running
 ```
 
 **Cache Strategy**:
-- LLM responses cached in `~/.config/timoneiro/llm_cache.json`
+- LLM responses cached in `~/.config/k1/llm_cache.json`
 - Cache key: normalized prompt (lowercase, trimmed)
 - Cache includes: command, timestamp, usage count
 - Cache expiry: 30 days or manual clear
@@ -214,7 +214,7 @@ All full-screen views:
 ### Command History
 
 - `↑` / `↓` navigate command history
-- Persists in `~/.config/timoneiro/history`
+- Persists in `~/.config/k1/history`
 - Includes both predefined and LLM commands
 - Separate history per command type (optional)
 
@@ -358,7 +358,7 @@ Adopt the **Command-Enhanced List Browser** pattern with:
 - **Preview mandatory**: Always show generated command before execution
 - **Editable**: Users can modify generated command before running
 - **Contextual**: Send resource type, namespace, selection to LLM
-- **Persistent**: Cache in `~/.config/timoneiro/llm_cache.json`
+- **Persistent**: Cache in `~/.config/k1/llm_cache.json`
 
 ## Consequences
 
@@ -506,13 +506,13 @@ All full-screen views implement:
 ### Command History Storage
 
 ```
-~/.config/timoneiro/history (plain text, one command per line)
+~/.config/k1/history (plain text, one command per line)
 ```
 
 ### Configuration
 
 ```yaml
-# ~/.config/timoneiro/config.yaml
+# ~/.config/k1/config.yaml
 commands:
   llm:
     enabled: true

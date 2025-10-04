@@ -26,16 +26,16 @@ test-coverage-html:
 
 # Build the application
 build:
-	@go build -o timoneiro cmd/timoneiro/main.go
+	@go build -o k1 cmd/k1/main.go
 
 # Clean build artifacts
 clean:
-	@rm -f timoneiro coverage.out
+	@rm -f k1 coverage.out
 
 # Run the application with dummy data
 run-dummy:
-	@go run cmd/timoneiro/main.go -dummy
+	@go run cmd/k1/main.go -dummy
 
 # Run the application with live cluster
 run:
-	@go run cmd/timoneiro/main.go
+	@go run cmd/k1/main.go

@@ -39,7 +39,7 @@ status fields needed for display.
 
 ### 2. Application Integration
 Wire up the repository to main application:
-- Add kubeconfig/context flags to `cmd/timoneiro/main.go`
+- Add kubeconfig/context flags to `cmd/k1/main.go`
 - Block on initial pod sync before starting UI
 - Pass live repository to screens instead of dummy data
 - Implement graceful shutdown (close informers on exit)

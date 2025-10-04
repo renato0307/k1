@@ -13,7 +13,7 @@
 
 ## Context and Problem Statement
 
-Timoneiro needs to implement `/describe` and `/yaml` commands to show
+K1 needs to implement `/describe` and `/yaml` commands to show
 detailed resource information. These commands are essential for
 debugging and inspecting Kubernetes resources. The key challenge is
 achieving fast performance (<10ms) while maintaining output parity with

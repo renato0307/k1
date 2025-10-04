@@ -6,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"timoneiro/internal/ui"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 // FullScreenViewType represents the type of full-screen view

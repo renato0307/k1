@@ -588,7 +588,7 @@ func (m model) View() string {
 	var s string
 
 	// Header
-	title := fmt.Sprintf("Timoneiro - Pods (%d)", len(m.pods))
+	title := fmt.Sprintf("K1 - Pods (%d)", len(m.pods))
 	if (m.filterActive || m.filterMode) && m.lastSearchTime > 0 {
 		title += fmt.Sprintf(" | Search: %v", m.lastSearchTime)
 	}

@@ -5,12 +5,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"timoneiro/internal/commands"
-	"timoneiro/internal/components"
-	"timoneiro/internal/k8s"
-	"timoneiro/internal/screens"
-	"timoneiro/internal/types"
-	"timoneiro/internal/ui"
+	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/components"
+	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/screens"
+	"github.com/renato0307/k1/internal/types"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 type Model struct {
@@ -37,7 +37,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")
 
-	header := components.NewHeader("Timoneiro", theme)
+	header := components.NewHeader("k1", theme)
 	header.SetScreenTitle(initialScreen.Title())
 	header.SetWidth(80)
 

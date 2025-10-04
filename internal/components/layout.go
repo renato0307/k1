@@ -2,7 +2,7 @@ package components
 
 import (
 	"github.com/charmbracelet/lipgloss"
-	"timoneiro/internal/ui"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 type Layout struct {
@@ -18,7 +18,7 @@ func NewLayout(width, height int, theme *ui.Theme) *Layout {
 	return &Layout{
 		width:   width,
 		height:  height,
-		appName: "Timoneiro",
+		appName: "k1",
 		version: "", // Will be set in the future
 		context: "", // Will be set in the future
 		theme:   theme,
@@ -69,7 +69,7 @@ func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints s
 		Bold(true)
 
 	// Title line with app name and emoji
-	titleText := l.appName + " 🧭"
+	titleText := l.appName + " 💨"
 	if l.version != "" {
 		titleText += " v" + l.version
 	}

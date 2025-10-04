@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"timoneiro/internal/ui"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 type Header struct {

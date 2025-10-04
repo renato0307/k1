@@ -13,7 +13,7 @@
 
 ## Context and Problem Statement
 
-Timoneiro currently supports 3 resources (Pods, Deployments, Services)
+K1 currently supports 3 resources (Pods, Deployments, Services)
 with 812 lines of screen code and 292 lines of repository code. Each
 new resource requires ~270 lines of screen code and ~80 lines of
 repository code, leading to massive duplication.
@@ -1334,7 +1334,7 @@ func makeScreenConfigFromCRD(crd ResourceConfig) ScreenConfig {
 Save user customizations (column widths, sort order):
 
 ```go
-// ~/.config/timoneiro/screens.yaml
+// ~/.config/k1/screens.yaml
 screens:
   pods:
     columns:

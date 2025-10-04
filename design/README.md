@@ -1,6 +1,6 @@
-# Design Documents for Timoneiro
+# Design Documents for k1
 
-DDR stands for Design Decision Record. This is a collection of design documents for Timoneiro.
+DDR stands for Design Decision Record. This is a collection of design documents for k1.
 
 | Index | Tags | Description |
 |-------|------|-------------|

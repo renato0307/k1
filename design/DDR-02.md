@@ -14,7 +14,7 @@
 
 ## Context and Problem Statement
 
-Timoneiro needs a flexible theming system that allows users to customize the appearance of the TUI. The system should support multiple color schemes (Charm, Dracula, Catppuccin), adapt to light/dark terminal backgrounds, and enable runtime theme switching. How should we structure themes to be both maintainable and extensible?
+K1 needs a flexible theming system that allows users to customize the appearance of the TUI. The system should support multiple color schemes (Charm, Dracula, Catppuccin), adapt to light/dark terminal backgrounds, and enable runtime theme switching. How should we structure themes to be both maintainable and extensible?
 
 ## References
 
@@ -225,7 +225,7 @@ case "t":
 Store theme preference in config file:
 
 ```yaml
-# ~/.config/timoneiro/config.yaml
+# ~/.config/k1/config.yaml
 theme: "charm"
 ```
 
@@ -280,7 +280,7 @@ Factory methods on Theme (like `ToTableStyles()`) convert theme colors to compon
 
 ### 🚧 To Do
 - Runtime theme switching (keybinding + command palette integration)
-- Configuration file support (~/.config/timoneiro/config.yaml)
+- Configuration file support (~/.config/k1/config.yaml)
 - Additional themes (Base16, Gruvbox, Nord)
 - Light mode variants for existing themes
 - Theme preview command
