@@ -22,9 +22,10 @@ go run cmd/timoneiro/main.go -context my-cluster
 # Run with custom kubeconfig path
 go run cmd/timoneiro/main.go -kubeconfig /path/to/kubeconfig
 
-# Run with specific theme
+# Run with specific theme (8 available: charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
 go run cmd/timoneiro/main.go -theme dracula
-go run cmd/timoneiro/main.go -theme catppuccin
+go run cmd/timoneiro/main.go -theme nord
+go run cmd/timoneiro/main.go -theme gruvbox
 
 # Run with dummy data (no cluster connection)
 go run cmd/timoneiro/main.go -dummy
@@ -154,7 +155,7 @@ internal/
 4. **Theme System**: `internal/ui/theme.go` defines themes:
    - Themes are structs with color definitions and lipgloss styles
    - Applied to components via factory functions (`ToTableStyles()`)
-   - Supports multiple themes: charm (default), dracula, catppuccin
+   - Supports 8 themes: charm (default), dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai
    - Passed to screens at initialization
 
 5. **Command Bar**: `internal/components/commandbar.go` provides expandable bottom UI:
@@ -313,7 +314,7 @@ The project has moved beyond prototyping into a structured application:
 - **Command bar component** with expandable states (Phase 1 complete)
 - Filter mode: real-time fuzzy search with negation support
 - Suggestion palette: `:` for navigation, `/` for commands
-- Theming system with multiple themes (charm, dracula, catppuccin)
+- Theming system with 8 themes (charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
 - Global keybindings: quit (q/ctrl+c)
 - Header component with refresh time display
 - Layout component with dynamic body height calculation
