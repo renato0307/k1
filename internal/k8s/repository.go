@@ -9,6 +9,7 @@ type Repository interface {
 	GetPods() ([]Pod, error)
 	GetDeployments() ([]Deployment, error)
 	GetServices() ([]Service, error)
+	Close()
 }
 
 // Pod represents a Kubernetes pod
@@ -155,4 +156,8 @@ func (r *DummyRepository) GetServices() ([]Service, error) {
 			Age:        48 * time.Hour,
 		},
 	}, nil
+}
+
+func (r *DummyRepository) Close() {
+	// No-op for dummy repository
 }

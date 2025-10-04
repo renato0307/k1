@@ -13,12 +13,21 @@ Go version: 1.24.0+
 ### Running the Application
 
 ```bash
-# Run main application with default theme
+# Run with live Kubernetes connection (default theme)
 go run cmd/timoneiro/main.go
+
+# Run with specific Kubernetes context
+go run cmd/timoneiro/main.go -context my-cluster
+
+# Run with custom kubeconfig path
+go run cmd/timoneiro/main.go -kubeconfig /path/to/kubeconfig
 
 # Run with specific theme
 go run cmd/timoneiro/main.go -theme dracula
 go run cmd/timoneiro/main.go -theme catppuccin
+
+# Run with dummy data (no cluster connection)
+go run cmd/timoneiro/main.go -dummy
 
 # Build and test (clean up binary after)
 go build -o timoneiro cmd/timoneiro/main.go
@@ -28,6 +37,36 @@ rm timoneiro
 # Fix dependencies
 go mod tidy
 ```
+
+### Running Tests
+
+```bash
+# One-time setup: Install envtest binaries
+make setup-envtest
+
+# Run all tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+
+# View coverage in browser
+make test-coverage-html
+
+# Alternatively, run tests manually
+export KUBEBUILDER_ASSETS=$(setup-envtest use -p path)
+go test -v ./... -timeout 60s
+```
+
+**Testing Strategy:**
+- Tests use [envtest](https://book.kubebuilder.io/reference/envtest.html) which runs a real Kubernetes API server locally
+- **Shared TestMain pattern**: envtest starts once per test suite (~5s), not per test
+- **Namespace isolation**: Each test creates a unique `test-*` namespace to prevent conflicts
+- **Table-driven tests** with `testify/assert` for cleaner assertions
+- First run downloads Kubernetes binaries (~50MB, then cached)
+- Test suite runs in ~5-10 seconds total
+
+See `design/DDR-04.md` for detailed testing architecture.
 
 ### Running Prototypes
 
@@ -252,16 +291,21 @@ The project has moved beyond prototyping into a structured application:
 ### ✅ Implemented
 - Core Bubble Tea application structure with screen routing
 - Screen registry system for managing multiple views
-- Three screens: Pods, Deployments, Services (using dummy data)
+- Three screens: Pods, Deployments, Services
 - Modal system: Screen Picker (ctrl+s), Command Palette (ctrl+p)
 - Theming system with multiple themes (charm, dracula, catppuccin)
 - Global keybindings: filter mode (/), quit (q/ctrl+c)
 - Header component with refresh time display
 - Layout component for consistent screen structure
-- Repository pattern for data access (currently dummy data)
+- Repository pattern with both dummy and live Kubernetes data sources
+- Live Kubernetes integration via informers (Pods only, with protobuf)
+- Command-line flags: -kubeconfig, -context, -theme, -dummy
+- **Comprehensive test suite** with envtest (shared TestMain, namespace isolation)
+- **Makefile** with test/build/run targets
 
 ### 🚧 In Progress / To Do
-- Live Kubernetes integration (replace DummyRepository)
+- Real-time updates (1-second refresh ticker)
+- Live informers for Deployments and Services
 - Implement screen operations (logs, describe, delete, etc.)
 - Fuzzy search filtering (infrastructure exists, needs integration)
 - Persistent configuration (~/.config/timoneiro/)
@@ -272,6 +316,8 @@ The project has moved beyond prototyping into a structured application:
 ### 📚 Reference Documentation
 - **design/DDR-01.md**: Bubble Tea architecture patterns and best practices
 - **design/DDR-02.md**: Theming system implementation and styling guidelines
+- **design/DDR-03.md**: Kubernetes informer-based repository design
+- **design/DDR-04.md**: Testing strategy with envtest (shared TestMain pattern)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
@@ -284,6 +330,7 @@ The project has moved beyond prototyping into a structured application:
 6. **Components**: Reusable UI elements go in `internal/components/`
 7. **Themes**: Add theme styles to `internal/ui/theme.go`
 8. **Messages**: Custom messages go in `internal/types/types.go`
+9. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
 
 ## Quick Reference
 
