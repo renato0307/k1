@@ -46,11 +46,11 @@ responses for LLM simulation (no real API calls).
 - [x] Prevent arrow keys from affecting table when palette is active
 
 ### Phase 2: Inline Suggestion Palette
-- [ ] Create `internal/commands/registry.go` for command registry
-- [ ] Implement palette rendering with fuzzy search integration
-- [ ] Add keyboard navigation and context-aware filtering
-- [ ] Wire up `:` for navigation (screens) and `/` for resource commands
-- [ ] Test palette + command bar unified bottom component
+- [x] Create `internal/commands/registry.go` for command registry
+- [x] Implement palette rendering with fuzzy search integration
+- [x] Add keyboard navigation and context-aware filtering
+- [x] Wire up `:` for navigation (screens) and `/` for resource commands
+- [x] Test palette + command bar unified bottom component
 
 ### Phase 3: Basic Predefined Commands
 - [ ] Implement navigation commands (:pods, :deployments, :services, :ns)
@@ -76,6 +76,7 @@ responses for LLM simulation (no real API calls).
 - [ ] Typing after `:` and `/` does not filter the command/screen list
 - [ ] Add margins on the table columns (when text is larger than column width, the ... is too close to the text)
 - [ ] Uses themes all over the place (lipgloss styles)
+- [ ] Tables are not occupying full width of the screen/
 
 ## Major Phases
 

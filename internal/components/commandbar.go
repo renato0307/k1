@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"timoneiro/internal/commands"
 	"timoneiro/internal/types"
 	"timoneiro/internal/ui"
 )
@@ -43,30 +44,34 @@ type CommandBar struct {
 	theme      *ui.Theme
 	cursorPos  int
 
+	// Command registry
+	registry *commands.Registry
+
 	// History
 	history    []string
 	historyIdx int
 
 	// Suggestion palette state
 	paletteVisible bool
-	paletteItems   []string // For now, just strings. Will be replaced with Command type later
+	paletteItems   []commands.Command // Palette command items
 	paletteIdx     int
 }
 
 // NewCommandBar creates a new command bar component
 func NewCommandBar(theme *ui.Theme) *CommandBar {
 	return &CommandBar{
-		state:      StateHidden,
-		input:      "",
-		inputType:  CommandTypeFilter,
-		width:      80,
-		height:     1, // Start with 1 line
-		theme:      theme,
-		cursorPos:  0,
-		history:    []string{},
-		historyIdx: -1,
+		state:          StateHidden,
+		input:          "",
+		inputType:      CommandTypeFilter,
+		width:          80,
+		height:         1, // Start with 1 line
+		theme:          theme,
+		cursorPos:      0,
+		registry:       commands.NewRegistry(),
+		history:        []string{},
+		historyIdx:     -1,
 		paletteVisible: false,
-		paletteItems:   []string{},
+		paletteItems:   []commands.Command{},
 		paletteIdx:     0,
 	}
 }
@@ -154,8 +159,8 @@ func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 		cb.inputType = CommandTypeNavigation
 		cb.cursorPos = 1
 		cb.paletteVisible = true
-		// TODO: Load navigation items
-		cb.paletteItems = []string{"pods", "deployments", "services", "namespaces"}
+		// Load navigation items from registry
+		cb.paletteItems = cb.registry.GetByCategory(commands.CategoryNavigation)
 		cb.paletteIdx = 0
 		// Calculate height: 1 (input line) + number of items (max 8)
 		itemCount := len(cb.paletteItems)
@@ -172,8 +177,8 @@ func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 		cb.inputType = CommandTypeResource
 		cb.cursorPos = 1
 		cb.paletteVisible = true
-		// TODO: Load resource commands (context-aware)
-		cb.paletteItems = []string{"yaml", "describe", "delete", "logs"}
+		// Load resource commands from registry
+		cb.paletteItems = cb.registry.GetByCategory(commands.CategoryResource)
 		cb.paletteIdx = 0
 		// Calculate height: 1 (input line) + number of items (max 8)
 		itemCount := len(cb.paletteItems)
@@ -268,7 +273,7 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		cb.cursorPos = 0
 		cb.height = 1
 		cb.paletteVisible = false
-		cb.paletteItems = []string{}
+		cb.paletteItems = []commands.Command{}
 		cb.paletteIdx = 0
 		return cb, nil
 
@@ -283,7 +288,7 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 			cb.cursorPos = 0
 			cb.height = 1
 			cb.paletteVisible = false
-			cb.paletteItems = []string{}
+			cb.paletteItems = []commands.Command{}
 			cb.paletteIdx = 0
 			_ = selected // Will use this to execute command
 		}
@@ -308,8 +313,13 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		if len(cb.input) > 1 { // Keep prefix (: or /)
 			cb.input = cb.input[:len(cb.input)-1]
 			cb.cursorPos--
-			// TODO: Re-filter palette items
-			// For now, recalculate height based on current items
+			// Re-filter palette items based on new query
+			query := cb.input[1:] // Remove prefix
+			category := cb.getCommandCategory()
+			cb.paletteItems = cb.registry.Filter(query, category)
+			// Reset selection to top
+			cb.paletteIdx = 0
+			// Recalculate height based on filtered items
 			itemCount := len(cb.paletteItems)
 			if itemCount > 8 {
 				itemCount = 8
@@ -322,7 +332,7 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 			cb.cursorPos = 0
 			cb.height = 1
 			cb.paletteVisible = false
-			cb.paletteItems = []string{}
+			cb.paletteItems = []commands.Command{}
 			cb.paletteIdx = 0
 		}
 		return cb, nil
@@ -332,8 +342,13 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		if len(msg.String()) == 1 {
 			cb.input += msg.String()
 			cb.cursorPos++
-			// TODO: Re-filter palette items based on new input
-			// For now, recalculate height based on current items
+			// Re-filter palette items based on new query
+			query := cb.input[1:] // Remove prefix
+			category := cb.getCommandCategory()
+			cb.paletteItems = cb.registry.Filter(query, category)
+			// Reset selection to top
+			cb.paletteIdx = 0
+			// Recalculate height based on filtered items
 			itemCount := len(cb.paletteItems)
 			if itemCount > 8 {
 				itemCount = 8
@@ -387,7 +402,7 @@ func (cb *CommandBar) View() string {
 	var content string
 	switch cb.state {
 	case StateHidden:
-		content = "" // No content when hidden
+		return "" // Don't render anything when hidden (hints will show below)
 	case StateFilter:
 		content = cb.viewFilter()
 	case StateSuggestionPalette:
@@ -404,10 +419,6 @@ func (cb *CommandBar) View() string {
 		return ""
 	}
 
-	if content == "" {
-		return separator
-	}
-
 	return lipgloss.JoinVertical(lipgloss.Left, separator, content, separator)
 }
 
@@ -418,18 +429,19 @@ func (cb *CommandBar) ViewHints() string {
 		Width(cb.width).
 		Padding(0, 1)
 
+	separatorStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Width(cb.width)
+	separator := separatorStyle.Render(strings.Repeat("─", cb.width))
+
 	// Show hints only when command bar is hidden or in filter mode
 	// (When palette is active, options are already visible in the palette)
 	if cb.state == StateHidden || cb.state == StateFilter {
-		return hintStyle.Render("[: screens  / commands]")
+		hints := hintStyle.Render("[: screens  / commands]")
+		return lipgloss.JoinVertical(lipgloss.Left, separator, hints, separator)
 	}
 
 	// Empty for other states (palette, confirmation, etc.)
-	return hintStyle.Render("")
-}
-
-// viewHidden renders the hidden state (no content, just separators and hints)
-func (cb *CommandBar) viewHidden() string {
 	return ""
 }
 
@@ -482,8 +494,10 @@ func (cb *CommandBar) ViewPaletteItems() string {
 	}
 
 	for i := 0; i < maxItems; i++ {
+		cmd := cb.paletteItems[i]
 		prefix := cb.input[:1] // Get the : or / prefix
-		itemText := prefix + cb.paletteItems[i]
+		// Format: "  :pods - Switch to Pods screen"
+		itemText := prefix + cmd.Name + " - " + cmd.Description
 
 		if i == cb.paletteIdx {
 			sections = append(sections, selectedStyle.Render("> "+itemText))
@@ -525,16 +539,16 @@ func (cb *CommandBar) viewResult() string {
 	return resultStyle.Render("✓ " + cb.input)
 }
 
-// Helper function to detect command type from input
-func detectCommandType(input string) CommandType {
-	if strings.HasPrefix(input, "/x ") {
-		return CommandTypeLLM
+// getCommandCategory returns the command category based on input type
+func (cb *CommandBar) getCommandCategory() commands.CommandCategory {
+	switch cb.inputType {
+	case CommandTypeNavigation:
+		return commands.CategoryNavigation
+	case CommandTypeResource:
+		return commands.CategoryResource
+	case CommandTypeLLM:
+		return commands.CategoryLLM
+	default:
+		return commands.CategoryNavigation // Default to navigation
 	}
-	if strings.HasPrefix(input, "/") {
-		return CommandTypeResource
-	}
-	if strings.HasPrefix(input, ":") {
-		return CommandTypeNavigation
-	}
-	return CommandTypeFilter
 }
