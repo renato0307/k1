@@ -9,3 +9,4 @@ DDR stands for Design Decision Record. This is a collection of design documents 
 | [DDR-03](DDR-03.md) | kubernetes, informers, repository, caching | Kubernetes informer-based repository: real-time data caching, query performance, lifecycle management, Bubble Tea integration |
 | [DDR-04](DDR-04.md) | testing, kubernetes, informers, envtest, integration-tests | Testing strategy for Kubernetes informer-based repository: envtest with shared TestMain pattern, real API server integration tests, CI/CD setup |
 | [DDR-05](DDR-05.md) | ui, ux, commands, llm | Command-enhanced list browser: expandable command bar, predefined and LLM commands, inline confirmations, full-screen views, command history and caching |
+| [DDR-06](DDR-06.md) | commands, describe, yaml, kubectl, informer | Resource detail commands: fast describe and YAML generation using informer cache and kubectl/pkg/describe library |
