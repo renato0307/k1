@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sahilm/fuzzy"
 
 	"timoneiro/internal/k8s"
 	"timoneiro/internal/types"
@@ -34,8 +35,8 @@ func NewPodsScreen(repo k8s.Repository, theme *ui.Theme) *PodsScreen {
 		{Title: "Status", Width: 15},
 		{Title: "Restarts", Width: 10},
 		{Title: "Age", Width: 10},
-		{Title: "Node", Width: 20},
-		{Title: "IP", Width: 15},
+		{Title: "Node", Width: 30},
+		{Title: "IP", Width: 16},
 	}
 
 	t := table.New(
@@ -56,6 +57,23 @@ func NewPodsScreen(repo k8s.Repository, theme *ui.Theme) *PodsScreen {
 
 func (s *PodsScreen) ID() string {
 	return "pods"
+}
+
+// GetSelectedResource returns information about the currently selected pod
+func (s *PodsScreen) GetSelectedResource() map[string]interface{} {
+	cursor := s.table.Cursor()
+	if cursor < 0 || cursor >= len(s.filtered) {
+		return map[string]interface{}{}
+	}
+
+	pod := s.filtered[cursor]
+	return map[string]interface{}{
+		"name":      pod.Name,
+		"namespace": pod.Namespace,
+		"status":    pod.Status,
+		"ip":        pod.IP,
+		"node":      pod.Node,
+	}
 }
 
 func (s *PodsScreen) Title() string {
@@ -117,6 +135,16 @@ func (s *PodsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Error already handled in app.go, continue ticking
 		return s, nil
 
+	case types.FilterUpdateMsg:
+		// Update filter and reapply
+		s.SetFilter(msg.Filter)
+		return s, nil
+
+	case types.ClearFilterMsg:
+		// Clear filter
+		s.SetFilter("")
+		return s, nil
+
 	case tea.KeyMsg:
 		// Track cursor position on navigation
 		var cmd tea.Cmd
@@ -136,7 +164,42 @@ func (s *PodsScreen) View() string {
 
 func (s *PodsScreen) SetSize(width, height int) {
 	s.table.SetHeight(height)
-	// TODO: Adjust column widths based on width
+
+	// Calculate dynamic column widths
+	// Note: bubble tea table handles column spacing automatically via cell padding
+
+	// Fixed width columns
+	namespaceWidth := 20
+	readyWidth := 8
+	statusWidth := 15
+	restartsWidth := 10
+	ageWidth := 10
+	nodeWidth := 30
+	ipWidth := 16
+
+	fixedTotal := namespaceWidth + readyWidth + statusWidth + restartsWidth + ageWidth + nodeWidth + ipWidth
+
+	// Name column gets remaining space (with minimum width)
+	// Account for cell padding: each column has PaddingLeft(1) + PaddingRight(1) = 2 extra chars
+	// Total padding: 8 columns * 2 = 16 chars
+	nameWidth := width - fixedTotal - 16
+	if nameWidth < 30 {
+		nameWidth = 30
+	}
+
+	columns := []table.Column{
+		{Title: "Namespace", Width: namespaceWidth},
+		{Title: "Name", Width: nameWidth},
+		{Title: "Ready", Width: readyWidth},
+		{Title: "Status", Width: statusWidth},
+		{Title: "Restarts", Width: restartsWidth},
+		{Title: "Age", Width: ageWidth},
+		{Title: "Node", Width: nodeWidth},
+		{Title: "IP", Width: ipWidth},
+	}
+
+	s.table.SetColumns(columns)
+	s.table.SetWidth(width)
 }
 
 func (s *PodsScreen) SetFilter(filter string) {
@@ -203,13 +266,48 @@ func (s *PodsScreen) applyFilter() {
 	if s.filter == "" {
 		s.filtered = s.pods
 	} else {
-		s.filtered = make([]k8s.Pod, 0)
-		lowerFilter := strings.ToLower(s.filter)
-		for _, pod := range s.pods {
-			searchText := strings.ToLower(fmt.Sprintf("%s %s %s %s %s",
-				pod.Namespace, pod.Name, pod.Status, pod.Node, pod.IP))
-			if strings.Contains(searchText, lowerFilter) {
-				s.filtered = append(s.filtered, pod)
+		// Check for negation filter
+		if strings.HasPrefix(s.filter, "!") {
+			// Negation: exclude matches
+			negatePattern := strings.TrimPrefix(s.filter, "!")
+			s.filtered = make([]k8s.Pod, 0)
+
+			// Build search strings
+			searchStrings := make([]string, len(s.pods))
+			for i, pod := range s.pods {
+				searchStrings[i] = fmt.Sprintf("%s %s %s %s %s",
+					pod.Namespace, pod.Name, pod.Status, pod.Node, pod.IP)
+			}
+
+			// Find matches to exclude
+			matches := fuzzy.Find(negatePattern, searchStrings)
+			matchSet := make(map[int]bool)
+			for _, m := range matches {
+				matchSet[m.Index] = true
+			}
+
+			// Include only non-matches
+			for i, pod := range s.pods {
+				if !matchSet[i] {
+					s.filtered = append(s.filtered, pod)
+				}
+			}
+		} else {
+			// Normal fuzzy search
+			// Build search strings
+			searchStrings := make([]string, len(s.pods))
+			for i, pod := range s.pods {
+				searchStrings[i] = fmt.Sprintf("%s %s %s %s %s",
+					pod.Namespace, pod.Name, pod.Status, pod.Node, pod.IP)
+			}
+
+			// Perform fuzzy search
+			matches := fuzzy.Find(s.filter, searchStrings)
+
+			// Build filtered list from matches (already sorted by score)
+			s.filtered = make([]k8s.Pod, len(matches))
+			for i, m := range matches {
+				s.filtered[i] = s.pods[m.Index]
 			}
 		}
 	}

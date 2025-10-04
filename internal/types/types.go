@@ -15,6 +15,12 @@ type Screen interface {
 	Operations() []Operation
 }
 
+// ScreenWithSelection interface for screens that track selected resources
+type ScreenWithSelection interface {
+	Screen
+	GetSelectedResource() map[string]interface{}
+}
+
 // Operation represents an action that can be executed on a screen
 type Operation struct {
 	ID          string
@@ -66,10 +72,6 @@ type AppState struct {
 	Width          int
 	Height         int
 	ErrorMessage   string
-	FilterMode     bool
-	FilterText     string
-	ShowScreenPicker bool
-	ShowCommandPalette bool
 }
 
 // Messages
@@ -87,6 +89,18 @@ type ErrorMsg struct {
 
 type ClearErrorMsg struct{}
 
-type ToggleScreenPickerMsg struct{}
+type FilterUpdateMsg struct {
+	Filter string
+}
 
-type ToggleCommandPaletteMsg struct{}
+type ClearFilterMsg struct{}
+
+// ShowFullScreenMsg triggers display of full-screen content
+type ShowFullScreenMsg struct {
+	ViewType     int    // 0=YAML, 1=Describe, 2=Logs
+	ResourceName string
+	Content      string
+}
+
+// ExitFullScreenMsg returns from full-screen view to list
+type ExitFullScreenMsg struct{}

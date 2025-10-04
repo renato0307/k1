@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sahilm/fuzzy"
 
 	"timoneiro/internal/k8s"
 	"timoneiro/internal/types"
@@ -91,12 +92,18 @@ func (s *ServicesScreen) Init() tea.Cmd {
 }
 
 func (s *ServicesScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case types.RefreshCompleteMsg:
 		// Already handled in app.go
 		return s, nil
 	case types.ErrorMsg:
 		// Already handled in app.go
+		return s, nil
+	case types.FilterUpdateMsg:
+		s.SetFilter(msg.Filter)
+		return s, nil
+	case types.ClearFilterMsg:
+		s.SetFilter("")
 		return s, nil
 	}
 
@@ -111,7 +118,38 @@ func (s *ServicesScreen) View() string {
 
 func (s *ServicesScreen) SetSize(width, height int) {
 	s.table.SetHeight(height)
-	// TODO: Adjust column widths based on width
+
+	// Calculate dynamic column widths
+	// Note: bubble tea table handles column spacing automatically via cell padding
+
+	namespaceWidth := 20
+	typeWidth := 15
+	clusterIPWidth := 15
+	externalIPWidth := 15
+	portsWidth := 20
+	ageWidth := 10
+
+	fixedTotal := namespaceWidth + typeWidth + clusterIPWidth + externalIPWidth + portsWidth + ageWidth
+
+	// Name column gets remaining space
+	// Account for cell padding: 7 columns * 2 = 14 chars
+	nameWidth := width - fixedTotal - 14
+	if nameWidth < 25 {
+		nameWidth = 25
+	}
+
+	columns := []table.Column{
+		{Title: "Namespace", Width: namespaceWidth},
+		{Title: "Name", Width: nameWidth},
+		{Title: "Type", Width: typeWidth},
+		{Title: "Cluster-IP", Width: clusterIPWidth},
+		{Title: "External-IP", Width: externalIPWidth},
+		{Title: "Ports", Width: portsWidth},
+		{Title: "Age", Width: ageWidth},
+	}
+
+	s.table.SetColumns(columns)
+	s.table.SetWidth(width)
 }
 
 func (s *ServicesScreen) SetFilter(filter string) {
@@ -138,13 +176,38 @@ func (s *ServicesScreen) applyFilter() {
 	if s.filter == "" {
 		s.filtered = s.services
 	} else {
-		s.filtered = make([]k8s.Service, 0)
-		lowerFilter := strings.ToLower(s.filter)
-		for _, svc := range s.services {
-			searchText := strings.ToLower(fmt.Sprintf("%s %s %s %s",
-				svc.Namespace, svc.Name, svc.Type, svc.ClusterIP))
-			if strings.Contains(searchText, lowerFilter) {
-				s.filtered = append(s.filtered, svc)
+		if strings.HasPrefix(s.filter, "!") {
+			// Negation: exclude matches
+			negatePattern := strings.TrimPrefix(s.filter, "!")
+			s.filtered = make([]k8s.Service, 0)
+
+			searchStrings := make([]string, len(s.services))
+			for i, svc := range s.services {
+				searchStrings[i] = fmt.Sprintf("%s %s %s %s", svc.Namespace, svc.Name, svc.Type, svc.ClusterIP)
+			}
+
+			matches := fuzzy.Find(negatePattern, searchStrings)
+			matchSet := make(map[int]bool)
+			for _, m := range matches {
+				matchSet[m.Index] = true
+			}
+
+			for i, svc := range s.services {
+				if !matchSet[i] {
+					s.filtered = append(s.filtered, svc)
+				}
+			}
+		} else {
+			// Normal fuzzy search
+			searchStrings := make([]string, len(s.services))
+			for i, svc := range s.services {
+				searchStrings[i] = fmt.Sprintf("%s %s %s %s", svc.Namespace, svc.Name, svc.Type, svc.ClusterIP)
+			}
+
+			matches := fuzzy.Find(s.filter, searchStrings)
+			s.filtered = make([]k8s.Service, len(matches))
+			for i, m := range matches {
+				s.filtered[i] = s.services[m.Index]
 			}
 		}
 	}

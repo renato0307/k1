@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -10,11 +11,13 @@ import (
 )
 
 type Header struct {
-	appName     string
-	screenTitle string
-	refreshTime time.Duration
-	width       int
-	theme       *ui.Theme
+	appName      string
+	screenTitle  string
+	namespace    string
+	itemCount    int
+	lastRefresh  time.Time
+	width        int
+	theme        *ui.Theme
 }
 
 func NewHeader(appName string, theme *ui.Theme) *Header {
@@ -28,8 +31,16 @@ func (h *Header) SetScreenTitle(title string) {
 	h.screenTitle = title
 }
 
-func (h *Header) SetRefreshTime(d time.Duration) {
-	h.refreshTime = d
+func (h *Header) SetNamespace(namespace string) {
+	h.namespace = namespace
+}
+
+func (h *Header) SetItemCount(count int) {
+	h.itemCount = count
+}
+
+func (h *Header) SetLastRefresh(t time.Time) {
+	h.lastRefresh = t
 }
 
 func (h *Header) SetWidth(width int) {
@@ -46,15 +57,39 @@ func (h *Header) View() string {
 		Foreground(h.theme.Muted).
 		Padding(0, 1)
 
-	title := h.appName
+	// Build left side: "Pods • namespace: default • 47 items"
+	leftParts := []string{}
 	if h.screenTitle != "" {
-		title = fmt.Sprintf("%s > %s", h.appName, h.screenTitle)
+		leftParts = append(leftParts, h.screenTitle)
 	}
-	left := headerStyle.Render(title)
 
+	if h.namespace != "" {
+		leftParts = append(leftParts, fmt.Sprintf("namespace: %s", h.namespace))
+	}
+
+	if h.itemCount > 0 {
+		leftParts = append(leftParts, fmt.Sprintf("%d items", h.itemCount))
+	}
+
+	leftText := strings.Join(leftParts, " • ")
+	if leftText == "" {
+		leftText = h.appName
+	}
+	left := headerStyle.Render(leftText)
+
+	// Build right side: "Last refresh: 2s ago"
 	var right string
-	if h.refreshTime > 0 {
-		right = timingStyle.Render(fmt.Sprintf("Refreshed in %v", h.refreshTime))
+	if !h.lastRefresh.IsZero() {
+		elapsed := time.Since(h.lastRefresh)
+		var timeStr string
+		if elapsed < time.Minute {
+			timeStr = fmt.Sprintf("%ds ago", int(elapsed.Seconds()))
+		} else if elapsed < time.Hour {
+			timeStr = fmt.Sprintf("%dm ago", int(elapsed.Minutes()))
+		} else {
+			timeStr = fmt.Sprintf("%dh ago", int(elapsed.Hours()))
+		}
+		right = timingStyle.Render(fmt.Sprintf("Last refresh: %s", timeStr))
 	}
 
 	// Calculate spacing to push timing to the right

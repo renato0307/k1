@@ -14,7 +14,7 @@ import (
 
 func main() {
 	// Parse flags
-	themeFlag := flag.String("theme", "charm", "Theme to use (charm, dracula, catppuccin)")
+	themeFlag := flag.String("theme", "charm", "Theme to use (charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)")
 	kubeconfigFlag := flag.String("kubeconfig", "", "Path to kubeconfig file (default: $HOME/.kube/config)")
 	contextFlag := flag.String("context", "", "Kubernetes context to use")
 	dummyFlag := flag.Bool("dummy", false, "Use dummy data instead of connecting to cluster")

@@ -2,39 +2,26 @@ package components
 
 import (
 	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("170")).
-			Padding(0, 1)
-
-	filterStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("229")).
-			Background(lipgloss.Color("237")).
-			Padding(0, 1)
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Padding(0, 1)
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Background(lipgloss.Color("52")).
-			Padding(0, 1).
-			Bold(true)
+	"timoneiro/internal/ui"
 )
 
 type Layout struct {
-	width  int
-	height int
+	width   int
+	height  int
+	appName string
+	version string
+	context string
+	theme   *ui.Theme
 }
 
-func NewLayout(width, height int) *Layout {
+func NewLayout(width, height int, theme *ui.Theme) *Layout {
 	return &Layout{
-		width:  width,
-		height: height,
+		width:   width,
+		height:  height,
+		appName: "Timoneiro",
+		version: "", // Will be set in the future
+		context: "", // Will be set in the future
+		theme:   theme,
 	}
 }
 
@@ -45,8 +32,19 @@ func (l *Layout) SetSize(width, height int) {
 
 // CalculateBodyHeight returns the available height for the body content
 func (l *Layout) CalculateBodyHeight() int {
-	// Reserve space for: header (1) + empty line (1) + help (1) + message (1) + padding
-	reserved := 5
+	// Reserve space for: title (1) + header (1) + empty line (1) + message (1) + command bar (1) + padding
+	reserved := 6
+	bodyHeight := l.height - reserved
+	if bodyHeight < 3 {
+		bodyHeight = 3
+	}
+	return bodyHeight
+}
+
+// CalculateBodyHeightWithCommandBar returns the available height accounting for dynamic command bar
+func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
+	// Reserve space for: title (1) + header (1) + empty line (1) + command bar (dynamic)
+	reserved := 3 + commandBarHeight
 	bodyHeight := l.height - reserved
 	if bodyHeight < 3 {
 		bodyHeight = 3
@@ -55,27 +53,61 @@ func (l *Layout) CalculateBodyHeight() int {
 }
 
 // Render builds the full layout
-func (l *Layout) Render(header, title, body, help, message, filter string) string {
+func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints string) string {
 	sections := []string{}
 
+	// Title style using theme
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(l.theme.Primary)
+
+	// Error style using theme
+	errorStyle := lipgloss.NewStyle().
+		Foreground(l.theme.Error).
+		Background(l.theme.Background).
+		Padding(0, 1).
+		Bold(true)
+
+	// Title line with app name and emoji
+	titleText := l.appName + " 🧭"
+	if l.version != "" {
+		titleText += " v" + l.version
+	}
+	if l.context != "" {
+		titleText += " • " + l.context
+	}
+	sections = append(sections, titleStyle.Render(titleText))
+
+	// Header (screen info)
 	if header != "" {
 		sections = append(sections, header)
 		// Add empty line after header
 		sections = append(sections, "")
 	}
 
-	// Skip title row - screen name is now in header
-
+	// Body (list)
 	if body != "" {
 		sections = append(sections, body)
 	}
 
-	if help != "" {
-		sections = append(sections, helpStyle.Render(help))
-	}
-
+	// Error message (if present)
 	if message != "" {
 		sections = append(sections, errorStyle.Render(message))
+	}
+
+	// Command bar at the bottom (always rendered)
+	if commandBar != "" {
+		sections = append(sections, commandBar)
+	}
+
+	// Palette items (shown between command bar and hints when active)
+	if paletteItems != "" {
+		sections = append(sections, paletteItems)
+	}
+
+	// Hints (always rendered below everything)
+	if hints != "" {
+		sections = append(sections, hints)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
