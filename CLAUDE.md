@@ -484,3 +484,4 @@ Store design decisions in `design/` folder:
   - Micro-tasks that restrict adaptation
 - Plans should be reviewable in 2-3 minutes
 - Leave room for discovery and adaptation during implementation
+- during this prototype phase, please don't run tests, not needed

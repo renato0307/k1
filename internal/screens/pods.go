@@ -136,7 +136,43 @@ func (s *PodsScreen) View() string {
 
 func (s *PodsScreen) SetSize(width, height int) {
 	s.table.SetHeight(height)
-	// TODO: Adjust column widths based on width
+
+	// Calculate dynamic column widths with spacing
+	// Column spacing: 2 spaces between each column
+	columnSpacing := 2
+	numColumns := 8
+	totalSpacing := columnSpacing * (numColumns - 1)
+
+	// Fixed width columns
+	namespaceWidth := 20
+	readyWidth := 8
+	statusWidth := 15
+	restartsWidth := 10
+	ageWidth := 10
+	nodeWidth := 20
+	ipWidth := 15
+
+	fixedTotal := namespaceWidth + readyWidth + statusWidth + restartsWidth + ageWidth + nodeWidth + ipWidth
+
+	// Name column gets remaining space (with minimum width)
+	nameWidth := width - fixedTotal - totalSpacing
+	if nameWidth < 30 {
+		nameWidth = 30
+	}
+
+	columns := []table.Column{
+		{Title: "Namespace", Width: namespaceWidth},
+		{Title: "Name", Width: nameWidth},
+		{Title: "Ready", Width: readyWidth},
+		{Title: "Status", Width: statusWidth},
+		{Title: "Restarts", Width: restartsWidth},
+		{Title: "Age", Width: ageWidth},
+		{Title: "Node", Width: nodeWidth},
+		{Title: "IP", Width: ipWidth},
+	}
+
+	s.table.SetColumns(columns)
+	s.table.SetWidth(width)
 }
 
 func (s *PodsScreen) SetFilter(filter string) {

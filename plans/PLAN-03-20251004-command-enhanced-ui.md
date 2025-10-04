@@ -24,12 +24,12 @@ responses for LLM simulation (no real API calls).
 ## TODO
 
 ### Phase 0: Cleanup and Layout Preparation
-- [ ] Remove existing modal system (ScreenPickerModal, CommandPaletteModal)
-- [ ] Remove current `/` filter mode from app state and global keybindings
-- [ ] Update Layout component to reserve space for command bar at bottom
-- [ ] Remove ctrl+s and ctrl+p keybindings from app.go
-- [ ] Simplify app.go Update() to remove modal routing logic
-- [ ] Test that app still runs with simplified layout
+- [x] Remove existing modal system (ScreenPickerModal, CommandPaletteModal)
+- [x] Remove current `/` filter mode from app state and global keybindings
+- [x] Update Layout component to reserve space for command bar at bottom
+- [x] Remove ctrl+s and ctrl+p keybindings from app.go
+- [x] Simplify app.go Update() to remove modal routing logic
+- [x] Test that app still runs with simplified layout
 
 ### Phase 1: Command Bar Component
 - [ ] Create `internal/components/commandbar.go` with component structure

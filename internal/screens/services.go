@@ -111,7 +111,39 @@ func (s *ServicesScreen) View() string {
 
 func (s *ServicesScreen) SetSize(width, height int) {
 	s.table.SetHeight(height)
-	// TODO: Adjust column widths based on width
+
+	// Calculate dynamic column widths with spacing
+	columnSpacing := 2
+	numColumns := 7
+	totalSpacing := columnSpacing * (numColumns - 1)
+
+	namespaceWidth := 20
+	typeWidth := 15
+	clusterIPWidth := 15
+	externalIPWidth := 15
+	portsWidth := 20
+	ageWidth := 10
+
+	fixedTotal := namespaceWidth + typeWidth + clusterIPWidth + externalIPWidth + portsWidth + ageWidth
+
+	// Name column gets remaining space
+	nameWidth := width - fixedTotal - totalSpacing
+	if nameWidth < 25 {
+		nameWidth = 25
+	}
+
+	columns := []table.Column{
+		{Title: "Namespace", Width: namespaceWidth},
+		{Title: "Name", Width: nameWidth},
+		{Title: "Type", Width: typeWidth},
+		{Title: "Cluster-IP", Width: clusterIPWidth},
+		{Title: "External-IP", Width: externalIPWidth},
+		{Title: "Ports", Width: portsWidth},
+		{Title: "Age", Width: ageWidth},
+	}
+
+	s.table.SetColumns(columns)
+	s.table.SetWidth(width)
 }
 
 func (s *ServicesScreen) SetFilter(filter string) {

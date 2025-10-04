@@ -66,10 +66,6 @@ type AppState struct {
 	Width          int
 	Height         int
 	ErrorMessage   string
-	FilterMode     bool
-	FilterText     string
-	ShowScreenPicker bool
-	ShowCommandPalette bool
 }
 
 // Messages
@@ -86,7 +82,3 @@ type ErrorMsg struct {
 }
 
 type ClearErrorMsg struct{}
-
-type ToggleScreenPickerMsg struct{}
-
-type ToggleCommandPaletteMsg struct{}

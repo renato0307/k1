@@ -110,7 +110,37 @@ func (s *DeploymentsScreen) View() string {
 
 func (s *DeploymentsScreen) SetSize(width, height int) {
 	s.table.SetHeight(height)
-	// TODO: Adjust column widths based on width
+
+	// Calculate dynamic column widths with spacing
+	columnSpacing := 2
+	numColumns := 6
+	totalSpacing := columnSpacing * (numColumns - 1)
+
+	namespaceWidth := 20
+	readyWidth := 10
+	upToDateWidth := 12
+	availableWidth := 12
+	ageWidth := 10
+
+	fixedTotal := namespaceWidth + readyWidth + upToDateWidth + availableWidth + ageWidth
+
+	// Name column gets remaining space
+	nameWidth := width - fixedTotal - totalSpacing
+	if nameWidth < 30 {
+		nameWidth = 30
+	}
+
+	columns := []table.Column{
+		{Title: "Namespace", Width: namespaceWidth},
+		{Title: "Name", Width: nameWidth},
+		{Title: "Ready", Width: readyWidth},
+		{Title: "Up-to-date", Width: upToDateWidth},
+		{Title: "Available", Width: availableWidth},
+		{Title: "Age", Width: ageWidth},
+	}
+
+	s.table.SetColumns(columns)
+	s.table.SetWidth(width)
 }
 
 func (s *DeploymentsScreen) SetFilter(filter string) {
