@@ -270,8 +270,8 @@ The project has moved beyond prototyping into a structured application:
 - Log streaming for pods
 
 ### 📚 Reference Documentation
-- **DESIGN.md**: Comprehensive Bubble Tea architecture patterns and best practices
-- **THEMES.md**: Theming implementation guide and color scheme research
+- **design/DDR-01.md**: Bubble Tea architecture patterns and best practices
+- **design/DDR-02.md**: Theming system implementation and styling guidelines
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
@@ -345,3 +345,13 @@ theme.Error         // Red for error states
       refactor: (refactoring production code, eg. renaming a variable)
       test: (adding missing tests, refactoring tests; no production code change)
       chore: (updating grunt tasks etc; no production code change)
+
+## Design documents
+
+- Store them in `design/` folder
+- Follow the TEMPLATE.md structure
+- Create a file incrementally named DDR-XX.md
+- Update the README.md in the design folder to reference the new document
+   |Index|Tags|Description|
+   |-----|----|-----------|
+   |[DDR-01](design/DDR-01.md)|???|???|
