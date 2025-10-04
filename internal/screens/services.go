@@ -119,10 +119,8 @@ func (s *ServicesScreen) View() string {
 func (s *ServicesScreen) SetSize(width, height int) {
 	s.table.SetHeight(height)
 
-	// Calculate dynamic column widths with spacing
-	columnSpacing := 2
-	numColumns := 7
-	totalSpacing := columnSpacing * (numColumns - 1)
+	// Calculate dynamic column widths
+	// Note: bubble tea table handles column spacing automatically via cell padding
 
 	namespaceWidth := 20
 	typeWidth := 15
@@ -134,7 +132,8 @@ func (s *ServicesScreen) SetSize(width, height int) {
 	fixedTotal := namespaceWidth + typeWidth + clusterIPWidth + externalIPWidth + portsWidth + ageWidth
 
 	// Name column gets remaining space
-	nameWidth := width - fixedTotal - totalSpacing
+	// Account for cell padding: 7 columns * 2 = 14 chars
+	nameWidth := width - fixedTotal - 14
 	if nameWidth < 25 {
 		nameWidth = 25
 	}

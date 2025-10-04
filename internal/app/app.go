@@ -45,7 +45,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	commandBar.SetWidth(80)
 	commandBar.SetScreen("pods") // Set initial screen context
 
-	layout := components.NewLayout(80, 24)
+	layout := components.NewLayout(80, 24, theme)
 
 	// Set initial size for the screen
 	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(commandBar.GetTotalHeight())

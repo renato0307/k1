@@ -2,18 +2,7 @@ package components
 
 import (
 	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("147")) // Purple/lavender color
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Background(lipgloss.Color("52")).
-			Padding(0, 1).
-			Bold(true)
+	"timoneiro/internal/ui"
 )
 
 type Layout struct {
@@ -22,15 +11,17 @@ type Layout struct {
 	appName string
 	version string
 	context string
+	theme   *ui.Theme
 }
 
-func NewLayout(width, height int) *Layout {
+func NewLayout(width, height int, theme *ui.Theme) *Layout {
 	return &Layout{
 		width:   width,
 		height:  height,
 		appName: "Timoneiro",
 		version: "", // Will be set in the future
 		context: "", // Will be set in the future
+		theme:   theme,
 	}
 }
 
@@ -64,6 +55,18 @@ func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
 // Render builds the full layout
 func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints string) string {
 	sections := []string{}
+
+	// Title style using theme
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(l.theme.Primary)
+
+	// Error style using theme
+	errorStyle := lipgloss.NewStyle().
+		Foreground(l.theme.Error).
+		Background(l.theme.Background).
+		Padding(0, 1).
+		Bold(true)
 
 	// Title line with app name and emoji
 	titleText := l.appName + " 🧭"

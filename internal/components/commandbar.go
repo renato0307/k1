@@ -541,9 +541,10 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 			cmdName := cb.input[1:]
 
 			var category commands.CommandCategory
-			if prefix == ":" {
+			switch prefix {
+			case ":":
 				category = commands.CategoryResource
-			} else if prefix == "/" {
+			case "/":
 				category = commands.CategoryAction
 			}
 
@@ -705,7 +706,7 @@ func (cb *CommandBar) handleResultState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 func (cb *CommandBar) View() string {
 	// Add horizontal separator lines
 	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(cb.theme.Border).
 		Width(cb.width)
 	separator := separatorStyle.Render(strings.Repeat("─", cb.width))
 
@@ -735,12 +736,12 @@ func (cb *CommandBar) View() string {
 // ViewHints renders the hints line (shown below command bar)
 func (cb *CommandBar) ViewHints() string {
 	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(cb.theme.Subtle).
 		Width(cb.width).
 		Padding(0, 1)
 
 	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(cb.theme.Border).
 		Width(cb.width)
 	separator := separatorStyle.Render(strings.Repeat("─", cb.width))
 
@@ -824,7 +825,7 @@ func (cb *CommandBar) ViewPaletteItems() string {
 
 			// Style shortcut with dimmed color
 			shortcutStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("243"))
+				Foreground(cb.theme.Dimmed)
 			styledShortcut := shortcutStyle.Render(cmd.Shortcut)
 
 			itemContent := mainText + spacer + styledShortcut
@@ -890,7 +891,7 @@ func (cb *CommandBar) viewConfirmation() string {
 		Padding(0, 1)
 
 	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(cb.theme.Subtle).
 		Width(cb.width).
 		Padding(0, 1)
 
@@ -919,7 +920,7 @@ func (cb *CommandBar) viewLLMPreview() string {
 		Padding(0, 1)
 
 	promptStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243")).
+		Foreground(cb.theme.Dimmed).
 		Italic(true).
 		Width(cb.width).
 		Padding(0, 1)
@@ -935,7 +936,7 @@ func (cb *CommandBar) viewLLMPreview() string {
 		Padding(0, 1)
 
 	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(cb.theme.Subtle).
 		Width(cb.width).
 		Padding(0, 1)
 
@@ -954,7 +955,7 @@ func (cb *CommandBar) viewLLMPreview() string {
 func (cb *CommandBar) viewResult() string {
 	resultStyle := lipgloss.NewStyle().
 		Foreground(cb.theme.Success).
-		Background(lipgloss.Color("235")).
+		Background(cb.theme.Background).
 		Width(cb.width).
 		Padding(0, 1).
 		Bold(true)

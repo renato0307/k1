@@ -35,8 +35,8 @@ func NewPodsScreen(repo k8s.Repository, theme *ui.Theme) *PodsScreen {
 		{Title: "Status", Width: 15},
 		{Title: "Restarts", Width: 10},
 		{Title: "Age", Width: 10},
-		{Title: "Node", Width: 20},
-		{Title: "IP", Width: 15},
+		{Title: "Node", Width: 30},
+		{Title: "IP", Width: 16},
 	}
 
 	t := table.New(
@@ -165,11 +165,8 @@ func (s *PodsScreen) View() string {
 func (s *PodsScreen) SetSize(width, height int) {
 	s.table.SetHeight(height)
 
-	// Calculate dynamic column widths with spacing
-	// Column spacing: 2 spaces between each column
-	columnSpacing := 2
-	numColumns := 8
-	totalSpacing := columnSpacing * (numColumns - 1)
+	// Calculate dynamic column widths
+	// Note: bubble tea table handles column spacing automatically via cell padding
 
 	// Fixed width columns
 	namespaceWidth := 20
@@ -177,13 +174,15 @@ func (s *PodsScreen) SetSize(width, height int) {
 	statusWidth := 15
 	restartsWidth := 10
 	ageWidth := 10
-	nodeWidth := 20
-	ipWidth := 15
+	nodeWidth := 30
+	ipWidth := 16
 
 	fixedTotal := namespaceWidth + readyWidth + statusWidth + restartsWidth + ageWidth + nodeWidth + ipWidth
 
 	// Name column gets remaining space (with minimum width)
-	nameWidth := width - fixedTotal - totalSpacing
+	// Account for cell padding: each column has PaddingLeft(1) + PaddingRight(1) = 2 extra chars
+	// Total padding: 8 columns * 2 = 16 chars
+	nameWidth := width - fixedTotal - 16
 	if nameWidth < 30 {
 		nameWidth = 30
 	}
