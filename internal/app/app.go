@@ -4,7 +4,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"timoneiro/internal/components"
 	"timoneiro/internal/k8s"
@@ -19,6 +18,7 @@ type Model struct {
 	currentScreen      types.Screen
 	header             *components.Header
 	layout             *components.Layout
+	commandBar         *components.CommandBar
 	repo               k8s.Repository
 	theme              *ui.Theme
 }
@@ -36,6 +36,18 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 
 	header := components.NewHeader("Timoneiro", theme)
 	header.SetScreenTitle(initialScreen.Title())
+	header.SetWidth(80)
+
+	commandBar := components.NewCommandBar(theme)
+	commandBar.SetWidth(80)
+
+	layout := components.NewLayout(80, 24)
+
+	// Set initial size for the screen
+	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(commandBar.GetTotalHeight())
+	if screenWithSize, ok := initialScreen.(interface{ SetSize(int, int) }); ok {
+		screenWithSize.SetSize(80, initialBodyHeight)
+	}
 
 	return Model{
 		state: types.AppState{
@@ -46,7 +58,8 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 		registry:       registry,
 		currentScreen:  initialScreen,
 		header:         header,
-		layout:         components.NewLayout(80, 24),
+		layout:         layout,
+		commandBar:     commandBar,
 		repo:           repo,
 		theme:          theme,
 	}
@@ -63,8 +76,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.Height = msg.Height
 		m.layout.SetSize(msg.Width, msg.Height)
 		m.header.SetWidth(msg.Width)
+		m.commandBar.SetWidth(msg.Width)
 
-		bodyHeight := m.layout.CalculateBodyHeight()
+		bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
 		if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
 			screenWithSize.SetSize(msg.Width, bodyHeight)
 		}
@@ -78,6 +92,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		// Update command bar
+		oldState := m.commandBar.GetState()
+		updatedBar, barCmd := m.commandBar.Update(msg)
+		m.commandBar = updatedBar
+
+		// Recalculate body height if command bar height changed
+		bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
+		if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
+			screenWithSize.SetSize(m.state.Width, bodyHeight)
+		}
+
+		// Forward to screen only if command bar is hidden or in filter mode
+		// (In palette mode, arrows navigate palette not list)
+		if oldState == 0 || oldState == 1 { // StateHidden or StateFilter
+			model, screenCmd := m.currentScreen.Update(msg)
+			m.currentScreen = model.(types.Screen)
+			return m, tea.Batch(barCmd, screenCmd)
+		}
+
+		return m, barCmd
+
 	case types.ScreenSwitchMsg:
 		if screen, ok := m.registry.Get(msg.ScreenID); ok {
 			m.currentScreen = screen
@@ -86,7 +121,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Update header with screen title
 			m.header.SetScreenTitle(screen.Title())
 
-			bodyHeight := m.layout.CalculateBodyHeight()
+			bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
 			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
 				screenWithSize.SetSize(m.state.Width, bodyHeight)
 			}
@@ -123,13 +158,12 @@ func (m Model) View() string {
 	header := m.header.View()
 	body := m.currentScreen.View()
 	message := m.state.ErrorMessage
-	commandBar := "" // Empty for now, will be populated in Phase 1
+	commandBar := m.commandBar.View()
+	paletteItems := m.commandBar.ViewPaletteItems()
+	hints := m.commandBar.ViewHints()
 
-	baseView := m.layout.Render(header, body, message, commandBar)
+	baseView := m.layout.Render(header, body, message, commandBar, paletteItems, hints)
 
-	// Render base view as full screen
-	return lipgloss.NewStyle().
-		Width(m.state.Width).
-		Height(m.state.Height).
-		Render(baseView)
+	// Return layout directly - it's already sized correctly via body height calculations
+	return baseView
 }

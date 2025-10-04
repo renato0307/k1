@@ -50,8 +50,19 @@ func (l *Layout) CalculateBodyHeight() int {
 	return bodyHeight
 }
 
+// CalculateBodyHeightWithCommandBar returns the available height accounting for dynamic command bar
+func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
+	// Reserve space for: title (1) + header (1) + empty line (1) + command bar (dynamic)
+	reserved := 3 + commandBarHeight
+	bodyHeight := l.height - reserved
+	if bodyHeight < 3 {
+		bodyHeight = 3
+	}
+	return bodyHeight
+}
+
 // Render builds the full layout
-func (l *Layout) Render(header, body, message, commandBar string) string {
+func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints string) string {
 	sections := []string{}
 
 	// Title line with app name and emoji
@@ -81,17 +92,19 @@ func (l *Layout) Render(header, body, message, commandBar string) string {
 		sections = append(sections, errorStyle.Render(message))
 	}
 
-	// Command bar at the bottom (always rendered to maintain consistent layout)
+	// Command bar at the bottom (always rendered)
 	if commandBar != "" {
 		sections = append(sections, commandBar)
-	} else {
-		// Empty command bar with just hints
-		hintStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Background(lipgloss.Color("235")).
-			Width(l.width).
-			Padding(0, 1)
-		sections = append(sections, hintStyle.Render("[: screens  / commands]"))
+	}
+
+	// Palette items (shown between command bar and hints when active)
+	if paletteItems != "" {
+		sections = append(sections, paletteItems)
+	}
+
+	// Hints (always rendered below everything)
+	if hints != "" {
+		sections = append(sections, hints)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)

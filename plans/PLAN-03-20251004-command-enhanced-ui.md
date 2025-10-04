@@ -32,14 +32,18 @@ responses for LLM simulation (no real API calls).
 - [x] Test that app still runs with simplified layout
 
 ### Phase 1: Command Bar Component
-- [ ] Create `internal/components/commandbar.go` with component structure
-- [ ] Implement state machine (Hidden/Filter/SuggestionPalette/Input/Confirmation/LLMPreview/Result)
-- [ ] Add basic filter mode (no prefix, filters list in real-time)
-- [ ] Add expansion/contraction behavior with list area coordination
-- [ ] Integrate command bar into app.go layout rendering
-- [ ] Add basic `:` and `/` keystroke detection to trigger suggestion palette
-- [ ] Test smooth transitions between states and heights
-- [ ] Test filter mode with fuzzy matching on list items
+- [x] Create `internal/components/commandbar.go` with component structure
+- [x] Implement state machine (Hidden/Filter/SuggestionPalette/Input/Confirmation/LLMPreview/Result)
+- [x] Add basic filter mode (no prefix, filters list in real-time)
+- [x] Add expansion/contraction behavior with list area coordination
+- [x] Integrate command bar into app.go layout rendering
+- [x] Add basic `:` and `/` keystroke detection to trigger suggestion palette
+- [x] Test smooth transitions between states and heights
+- [x] Test filter mode with fuzzy matching on list items
+- [x] Fix title/header visibility when palette expands
+- [x] Add horizontal separator line above command bar
+- [x] Implement fuzzy search with negation support (!pattern)
+- [x] Prevent arrow keys from affecting table when palette is active
 
 ### Phase 2: Inline Suggestion Palette
 - [ ] Create `internal/commands/registry.go` for command registry
@@ -66,6 +70,12 @@ responses for LLM simulation (no real API calls).
 - [ ] Add in-memory history storage
 - [ ] Implement arrow key navigation (↑/↓)
 - [ ] Test history across different command types
+
+### Small Fixes (To Handle Later)
+- [ ] When search text is small the list is returning empty and the list on the screen is being cleared
+- [ ] Typing after `:` and `/` does not filter the command/screen list
+- [ ] Add margins on the table columns (when text is larger than column width, the ... is too close to the text)
+- [ ] Uses themes all over the place (lipgloss styles)
 
 ## Major Phases
 

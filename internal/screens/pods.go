@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sahilm/fuzzy"
 
 	"timoneiro/internal/k8s"
 	"timoneiro/internal/types"
@@ -115,6 +116,16 @@ func (s *PodsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.ErrorMsg:
 		// Error already handled in app.go, continue ticking
+		return s, nil
+
+	case types.FilterUpdateMsg:
+		// Update filter and reapply
+		s.SetFilter(msg.Filter)
+		return s, nil
+
+	case types.ClearFilterMsg:
+		// Clear filter
+		s.SetFilter("")
 		return s, nil
 
 	case tea.KeyMsg:
@@ -239,13 +250,48 @@ func (s *PodsScreen) applyFilter() {
 	if s.filter == "" {
 		s.filtered = s.pods
 	} else {
-		s.filtered = make([]k8s.Pod, 0)
-		lowerFilter := strings.ToLower(s.filter)
-		for _, pod := range s.pods {
-			searchText := strings.ToLower(fmt.Sprintf("%s %s %s %s %s",
-				pod.Namespace, pod.Name, pod.Status, pod.Node, pod.IP))
-			if strings.Contains(searchText, lowerFilter) {
-				s.filtered = append(s.filtered, pod)
+		// Check for negation filter
+		if strings.HasPrefix(s.filter, "!") {
+			// Negation: exclude matches
+			negatePattern := strings.TrimPrefix(s.filter, "!")
+			s.filtered = make([]k8s.Pod, 0)
+
+			// Build search strings
+			searchStrings := make([]string, len(s.pods))
+			for i, pod := range s.pods {
+				searchStrings[i] = fmt.Sprintf("%s %s %s %s %s",
+					pod.Namespace, pod.Name, pod.Status, pod.Node, pod.IP)
+			}
+
+			// Find matches to exclude
+			matches := fuzzy.Find(negatePattern, searchStrings)
+			matchSet := make(map[int]bool)
+			for _, m := range matches {
+				matchSet[m.Index] = true
+			}
+
+			// Include only non-matches
+			for i, pod := range s.pods {
+				if !matchSet[i] {
+					s.filtered = append(s.filtered, pod)
+				}
+			}
+		} else {
+			// Normal fuzzy search
+			// Build search strings
+			searchStrings := make([]string, len(s.pods))
+			for i, pod := range s.pods {
+				searchStrings[i] = fmt.Sprintf("%s %s %s %s %s",
+					pod.Namespace, pod.Name, pod.Status, pod.Node, pod.IP)
+			}
+
+			// Perform fuzzy search
+			matches := fuzzy.Find(s.filter, searchStrings)
+
+			// Build filtered list from matches (already sorted by score)
+			s.filtered = make([]k8s.Pod, len(matches))
+			for i, m := range matches {
+				s.filtered[i] = s.pods[m.Index]
 			}
 		}
 	}

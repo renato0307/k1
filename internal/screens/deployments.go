@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sahilm/fuzzy"
 
 	"timoneiro/internal/k8s"
 	"timoneiro/internal/types"
@@ -90,12 +91,18 @@ func (s *DeploymentsScreen) Init() tea.Cmd {
 }
 
 func (s *DeploymentsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case types.RefreshCompleteMsg:
 		// Already handled in app.go
 		return s, nil
 	case types.ErrorMsg:
 		// Already handled in app.go
+		return s, nil
+	case types.FilterUpdateMsg:
+		s.SetFilter(msg.Filter)
+		return s, nil
+	case types.ClearFilterMsg:
+		s.SetFilter("")
 		return s, nil
 	}
 
@@ -167,13 +174,38 @@ func (s *DeploymentsScreen) applyFilter() {
 	if s.filter == "" {
 		s.filtered = s.deployments
 	} else {
-		s.filtered = make([]k8s.Deployment, 0)
-		lowerFilter := strings.ToLower(s.filter)
-		for _, dep := range s.deployments {
-			searchText := strings.ToLower(fmt.Sprintf("%s %s",
-				dep.Namespace, dep.Name))
-			if strings.Contains(searchText, lowerFilter) {
-				s.filtered = append(s.filtered, dep)
+		if strings.HasPrefix(s.filter, "!") {
+			// Negation: exclude matches
+			negatePattern := strings.TrimPrefix(s.filter, "!")
+			s.filtered = make([]k8s.Deployment, 0)
+
+			searchStrings := make([]string, len(s.deployments))
+			for i, dep := range s.deployments {
+				searchStrings[i] = fmt.Sprintf("%s %s", dep.Namespace, dep.Name)
+			}
+
+			matches := fuzzy.Find(negatePattern, searchStrings)
+			matchSet := make(map[int]bool)
+			for _, m := range matches {
+				matchSet[m.Index] = true
+			}
+
+			for i, dep := range s.deployments {
+				if !matchSet[i] {
+					s.filtered = append(s.filtered, dep)
+				}
+			}
+		} else {
+			// Normal fuzzy search
+			searchStrings := make([]string, len(s.deployments))
+			for i, dep := range s.deployments {
+				searchStrings[i] = fmt.Sprintf("%s %s", dep.Namespace, dep.Name)
+			}
+
+			matches := fuzzy.Find(s.filter, searchStrings)
+			s.filtered = make([]k8s.Deployment, len(matches))
+			for i, m := range matches {
+				s.filtered[i] = s.deployments[m.Index]
 			}
 		}
 	}

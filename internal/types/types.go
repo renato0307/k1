@@ -82,3 +82,9 @@ type ErrorMsg struct {
 }
 
 type ClearErrorMsg struct{}
+
+type FilterUpdateMsg struct {
+	Filter string
+}
+
+type ClearFilterMsg struct{}
