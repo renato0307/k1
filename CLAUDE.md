@@ -476,7 +476,7 @@ Store design decisions in `design/` folder:
   - Critical architectural/design decisions
   - Key risks or considerations
   - Success criteria
-  - TODO list with phase-level checkboxes for progress tracking
+  - TODO list with phase-level checkboxes for progress tracking (ALWAYS INCLUDE A TODO LIST)
 - Avoid:
   - Line-by-line code changes
   - Exhaustive file-by-file checklists
