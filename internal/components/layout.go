@@ -43,7 +43,7 @@ func (l *Layout) CalculateBodyHeight() int {
 
 // CalculateBodyHeightWithCommandBar returns the available height accounting for dynamic command bar
 func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
-	// Reserve space for: title (1) + header (1) + empty line (1) + command bar (dynamic)
+	// Reserve space for: title (1) + header (1) + empty line after header (1) + command bar (dynamic)
 	reserved := 3 + commandBarHeight
 	bodyHeight := l.height - reserved
 	if bodyHeight < 3 {
@@ -56,11 +56,6 @@ func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
 func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints string) string {
 	sections := []string{}
 
-	// Title style using theme
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(l.theme.Primary)
-
 	// Error style using theme
 	errorStyle := lipgloss.NewStyle().
 		Foreground(l.theme.Error).
@@ -68,7 +63,7 @@ func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints s
 		Padding(0, 1).
 		Bold(true)
 
-	// Title line with app name and emoji
+	// Title line with app name and emoji using theme's AppTitle style
 	titleText := l.appName + " 💨"
 	if l.version != "" {
 		titleText += " v" + l.version
@@ -76,6 +71,8 @@ func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints s
 	if l.context != "" {
 		titleText += " • " + l.context
 	}
+	// Make title span full width
+	titleStyle := l.theme.AppTitle.Width(l.width)
 	sections = append(sections, titleStyle.Render(titleText))
 
 	// Header (screen info)

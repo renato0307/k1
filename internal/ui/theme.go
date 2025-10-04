@@ -27,6 +27,7 @@ type Theme struct {
 
 	// Component styles
 	Table     TableStyles
+	AppTitle  lipgloss.Style // App title with background
 	Header    lipgloss.Style
 	StatusBar lipgloss.Style
 }
@@ -92,6 +93,12 @@ func ThemeCharm() *Theme {
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
 
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("237")).
+		Bold(true)
+
 	// Header style
 	t.Header = lipgloss.NewStyle().
 		Foreground(t.Primary).
@@ -146,6 +153,12 @@ func ThemeDracula() *Theme {
 	t.Table.StatusRunning = lipgloss.NewStyle().Foreground(t.Success)
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
+
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("#44475a")).
+		Bold(true)
 
 	// Header style
 	t.Header = lipgloss.NewStyle().
@@ -203,6 +216,12 @@ func ThemeCatppuccin() *Theme {
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
 
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("#313244")).
+		Bold(true)
+
 	// Header style
 	t.Header = lipgloss.NewStyle().
 		Foreground(t.Primary).
@@ -258,6 +277,12 @@ func ThemeNord() *Theme {
 	t.Table.StatusRunning = lipgloss.NewStyle().Foreground(t.Success)
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
+
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("#3b4252")).
+		Bold(true)
 
 	// Header style
 	t.Header = lipgloss.NewStyle().
@@ -315,6 +340,12 @@ func ThemeGruvbox() *Theme {
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
 
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("#3c3836")).
+		Bold(true)
+
 	// Header style
 	t.Header = lipgloss.NewStyle().
 		Foreground(t.Primary).
@@ -370,6 +401,12 @@ func ThemeTokyoNight() *Theme {
 	t.Table.StatusRunning = lipgloss.NewStyle().Foreground(t.Success)
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
+
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("#24283b")).
+		Bold(true)
 
 	// Header style
 	t.Header = lipgloss.NewStyle().
@@ -427,6 +464,12 @@ func ThemeSolarized() *Theme {
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
 
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("#073642")).
+		Bold(true)
+
 	// Header style
 	t.Header = lipgloss.NewStyle().
 		Foreground(t.Primary).
@@ -482,6 +525,12 @@ func ThemeMonokai() *Theme {
 	t.Table.StatusRunning = lipgloss.NewStyle().Foreground(t.Success)
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
+
+	// AppTitle style with background (using subtle dark color)
+	t.AppTitle = lipgloss.NewStyle().
+		Foreground(t.Primary).
+		Background(lipgloss.Color("#3e3d32")).
+		Bold(true)
 
 	// Header style
 	t.Header = lipgloss.NewStyle().
