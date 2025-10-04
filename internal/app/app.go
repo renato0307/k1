@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"timoneiro/internal/commands"
 	"timoneiro/internal/components"
 	"timoneiro/internal/k8s"
 	"timoneiro/internal/screens"
@@ -13,16 +14,16 @@ import (
 )
 
 type Model struct {
-	state              types.AppState
-	registry           *types.ScreenRegistry
-	currentScreen      types.Screen
-	header             *components.Header
-	layout             *components.Layout
-	commandBar         *components.CommandBar
-	fullScreen         *components.FullScreen
-	fullScreenMode     bool
-	repo               k8s.Repository
-	theme              *ui.Theme
+	state          types.AppState
+	registry       *types.ScreenRegistry
+	currentScreen  types.Screen
+	header         *components.Header
+	layout         *components.Layout
+	commandBar     *components.CommandBar
+	fullScreen     *components.FullScreen
+	fullScreenMode bool
+	repo           k8s.Repository
+	theme          *ui.Theme
 }
 
 func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
@@ -58,13 +59,13 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 			Width:         80,
 			Height:        24,
 		},
-		registry:       registry,
-		currentScreen:  initialScreen,
-		header:         header,
-		layout:         layout,
-		commandBar:     commandBar,
-		repo:           repo,
-		theme:          theme,
+		registry:      registry,
+		currentScreen: initialScreen,
+		header:        header,
+		layout:        layout,
+		commandBar:    commandBar,
+		repo:          repo,
+		theme:         theme,
 	}
 }
 
@@ -93,6 +94,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "ctrl+y":
+			// Execute /yaml command
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("yaml", commands.CategoryAction)
+			m.commandBar = updatedBar
+			return m, barCmd
+		case "ctrl+d":
+			// Execute /describe command
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("describe", commands.CategoryAction)
+			m.commandBar = updatedBar
+			return m, barCmd
+		case "ctrl+l":
+			// Execute /logs command
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("logs", commands.CategoryAction)
+			m.commandBar = updatedBar
+			return m, barCmd
+		case "ctrl+x":
+			// Execute /delete command (will show confirmation)
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("delete", commands.CategoryAction)
+			m.commandBar = updatedBar
+			// Recalculate body height if command bar expanded for confirmation
+			bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
+			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
+				screenWithSize.SetSize(m.state.Width, bodyHeight)
+			}
+			return m, barCmd
 		}
 
 		// If in full-screen mode, handle ESC to return to list

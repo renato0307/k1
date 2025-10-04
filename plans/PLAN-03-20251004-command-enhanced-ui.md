@@ -3,7 +3,7 @@
 **Plan ID:** PLAN-03
 **Date:** 2025-10-04
 **Related Design:** DDR-05
-**Status:** In Progress (Phase 4 complete - ready for Phase 5)
+**Status:** In Progress (Phase 5 complete - ready for Phase 6)
 
 ## Overview
 
@@ -84,13 +84,12 @@ responses for LLM simulation (no real API calls).
 - [x] Add scrolling support (↑↓/jk, PgUp/PgDn, g/G)
 
 ### Phase 5: Add shortcuts for commands
-- [ ] Implement global keybindings in app.go
-- [ ] Keybindings must show in the command palette
-- [ ] Add `ctrl+y` shortcut for `/yaml` command
-- [ ] Add `ctrl+d` shortcut for `/describe` command
-- [ ] Add `ctrl+l` shortcut for `/logs` command
-- [ ] Add `ctrl+x` shortcut for `/delete` command
-
+- [x] Implement global keybindings in app.go
+- [x] Keybindings must show in the command palette
+- [x] Add `ctrl+y` shortcut for `/yaml` command
+- [x] Add `ctrl+d` shortcut for `/describe` command
+- [x] Add `ctrl+l` shortcut for `/logs` command
+- [x] Add `ctrl+x` shortcut for `/delete` command
 
 ### Phase 6: Command History
 - [ ] Add in-memory history storage

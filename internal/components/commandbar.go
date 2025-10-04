@@ -15,34 +15,34 @@ import (
 type CommandBarState int
 
 const (
-	StateHidden CommandBarState = iota
-	StateFilter              // No prefix, filtering list
-	StateSuggestionPalette   // : or / pressed, showing suggestions
-	StateInput               // Direct command input
-	StateConfirmation        // Destructive operation confirmation
-	StateLLMPreview          // /ai command preview
-	StateResult              // Success/error message
+	StateHidden            CommandBarState = iota
+	StateFilter                            // No prefix, filtering list
+	StateSuggestionPalette                 // : or / pressed, showing suggestions
+	StateInput                             // Direct command input
+	StateConfirmation                      // Destructive operation confirmation
+	StateLLMPreview                        // /ai command preview
+	StateResult                            // Success/error message
 )
 
 // CommandType represents the type of command being entered
 type CommandType int
 
 const (
-	CommandTypeFilter CommandType = iota // no prefix
-	CommandTypeNavigation                 // : prefix
-	CommandTypeResource                   // / prefix
-	CommandTypeLLM                        // /ai prefix
+	CommandTypeFilter    CommandType = iota // no prefix
+	CommandTypeResource                     // : prefix
+	CommandTypeAction                       // / prefix
+	CommandTypeLLMAction                    // /ai prefix
 )
 
 // CommandBar represents the expandable command bar at the bottom of the screen
 type CommandBar struct {
-	state      CommandBarState
-	input      string
-	inputType  CommandType
-	width      int
-	height     int // Dynamic, 1-10 lines
-	theme      *ui.Theme
-	cursorPos  int
+	state     CommandBarState
+	input     string
+	inputType CommandType
+	width     int
+	height    int // Dynamic, 1-10 lines
+	theme     *ui.Theme
+	cursorPos int
 
 	// Command registry
 	registry *commands.Registry
@@ -110,6 +110,32 @@ func (cb *CommandBar) buildCommandContext(args string) commands.CommandContext {
 		Selected:     cb.selectedResource,
 		Args:         args,
 	}
+}
+
+// ExecuteCommand executes a command by name and category
+// Returns the updated CommandBar and a tea.Cmd
+func (cb *CommandBar) ExecuteCommand(name string, category commands.CommandCategory) (*CommandBar, tea.Cmd) {
+	cmd := cb.registry.Get(name, category)
+	if cmd == nil {
+		return cb, nil
+	}
+
+	// Check if command needs confirmation
+	if cmd.NeedsConfirmation {
+		cb.pendingCommand = cmd
+		cb.state = StateConfirmation
+		cb.height = 5
+		return cb, nil
+	}
+
+	// Execute command
+	var execCmd tea.Cmd
+	if cmd.Execute != nil {
+		ctx := cb.buildCommandContext("")
+		execCmd = cmd.Execute(ctx)
+	}
+
+	return cb, execCmd
 }
 
 // GetHeight returns the current height of the command bar (including separators, not hints)
@@ -184,11 +210,11 @@ func (cb *CommandBar) handleKeyMsg(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 	switch msg.String() {
 	case ":":
-		cb.transitionToPalette(":", CommandTypeNavigation)
+		cb.transitionToPalette(":", CommandTypeResource)
 		return cb, nil
 
 	case "/":
-		cb.transitionToPalette("/", CommandTypeResource)
+		cb.transitionToPalette("/", CommandTypeAction)
 		return cb, nil
 
 	default:
@@ -286,11 +312,11 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 			selected := cb.paletteItems[cb.paletteIdx]
 
 			// Special handling for /ai (LLM commands)
-			if selected.Category == commands.CategoryLLM && selected.Name == "ai" {
+			if selected.Category == commands.CategoryLLMAction && selected.Name == "ai" {
 				// Transition to input mode for LLM
 				cb.state = StateInput
 				cb.input = "/ai "
-				cb.inputType = CommandTypeLLM
+				cb.inputType = CommandTypeLLMAction
 				cb.cursorPos = 4
 				cb.height = 1
 				cb.paletteVisible = false
@@ -380,7 +406,7 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 			// Check if user typed space after /ai - transition to LLM input mode
 			if cb.input == "/ai " {
 				cb.state = StateInput
-				cb.inputType = CommandTypeLLM
+				cb.inputType = CommandTypeLLMAction
 				cb.height = 1
 				cb.paletteVisible = false
 				cb.paletteItems = []commands.Command{}
@@ -449,9 +475,9 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 
 			var category commands.CommandCategory
 			if prefix == ":" {
-				category = commands.CategoryNavigation
-			} else if prefix == "/" {
 				category = commands.CategoryResource
+			} else if prefix == "/" {
+				category = commands.CategoryAction
 			}
 
 			cmd := cb.registry.Get(cmdName, category)
@@ -499,15 +525,15 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 		}
 		// If we backspaced to a prefix (: or / or /ai), show palette
 		if cb.input == ":" {
-			cb.transitionToPalette(":", CommandTypeNavigation)
+			cb.transitionToPalette(":", CommandTypeResource)
 			return cb, nil
 		}
 		if cb.input == "/" {
-			cb.transitionToPalette("/", CommandTypeResource)
+			cb.transitionToPalette("/", CommandTypeAction)
 			return cb, nil
 		}
 		if cb.input == "/ai" {
-			cb.transitionToPalette("/ai", CommandTypeResource)
+			cb.transitionToPalette("/ai", CommandTypeAction)
 			return cb, nil
 		}
 		return cb, nil
@@ -644,7 +670,7 @@ func (cb *CommandBar) ViewHints() string {
 	// Show hints only when command bar is hidden or in filter mode
 	// (When palette is active, options are already visible in the palette)
 	if cb.state == StateHidden || cb.state == StateFilter {
-		hints := hintStyle.Render("[: screens  / commands  /ai natural language]")
+		hints := hintStyle.Render("[: resources  / commands]")
 		return lipgloss.JoinVertical(lipgloss.Left, separator, hints, separator)
 	}
 
@@ -684,33 +710,79 @@ func (cb *CommandBar) ViewPaletteItems() string {
 
 	sections := []string{}
 
-	paletteStyle := lipgloss.NewStyle().
-		Width(cb.width).
-		Padding(0, 1)
-
-	selectedStyle := lipgloss.NewStyle().
-		Foreground(cb.theme.Primary).
-		Width(cb.width).
-		Padding(0, 1).
-		Bold(true)
-
 	// Show up to 8 items
 	maxItems := 8
 	if len(cb.paletteItems) < maxItems {
 		maxItems = len(cb.paletteItems)
 	}
 
+	// First pass: find longest description to align shortcuts
+	longestMainText := 0
+	for i := 0; i < maxItems; i++ {
+		cmd := cb.paletteItems[i]
+		prefix := cb.input[:1]
+		mainText := prefix + cmd.Name + " - " + cmd.Description
+		if len(mainText) > longestMainText {
+			longestMainText = len(mainText)
+		}
+	}
+
+	// Add 10 spaces for separation
+	shortcutColumn := longestMainText + 10
+
+	// Second pass: render items with aligned shortcuts
 	for i := 0; i < maxItems; i++ {
 		cmd := cb.paletteItems[i]
 		prefix := cb.input[:1] // Get the : or / prefix
-		// Format: "  :pods - Switch to Pods screen"
-		itemText := prefix + cmd.Name + " - " + cmd.Description
+		mainText := prefix + cmd.Name + " - " + cmd.Description
 
-		if i == cb.paletteIdx {
-			sections = append(sections, selectedStyle.Render("> "+itemText))
+		var line string
+		if cmd.Shortcut != "" {
+			// Pad to shortcut column position
+			padding := shortcutColumn - len(mainText)
+			if padding < 2 {
+				padding = 2 // Minimum 2 spaces
+			}
+			spacer := strings.Repeat(" ", padding)
+
+			// Style shortcut with dimmed color
+			shortcutStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("243"))
+			styledShortcut := shortcutStyle.Render(cmd.Shortcut)
+
+			itemContent := mainText + spacer + styledShortcut
+
+			if i == cb.paletteIdx {
+				selectedStyle := lipgloss.NewStyle().
+					Foreground(cb.theme.Primary).
+					Width(cb.width).
+					Padding(0, 1).
+					Bold(true)
+				line = selectedStyle.Render("> " + itemContent)
+			} else {
+				paletteStyle := lipgloss.NewStyle().
+					Width(cb.width).
+					Padding(0, 1)
+				line = paletteStyle.Render("  " + itemContent)
+			}
 		} else {
-			sections = append(sections, paletteStyle.Render("  "+itemText))
+			// No shortcut, simple rendering
+			if i == cb.paletteIdx {
+				selectedStyle := lipgloss.NewStyle().
+					Foreground(cb.theme.Primary).
+					Width(cb.width).
+					Padding(0, 1).
+					Bold(true)
+				line = selectedStyle.Render("> " + mainText)
+			} else {
+				paletteStyle := lipgloss.NewStyle().
+					Width(cb.width).
+					Padding(0, 1)
+				line = paletteStyle.Render("  " + mainText)
+			}
 		}
+
+		sections = append(sections, line)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -813,20 +885,6 @@ func (cb *CommandBar) viewResult() string {
 	return resultStyle.Render("✓ " + cb.input)
 }
 
-// getCommandCategory returns the command category based on input type
-func (cb *CommandBar) getCommandCategory() commands.CommandCategory {
-	switch cb.inputType {
-	case CommandTypeNavigation:
-		return commands.CategoryNavigation
-	case CommandTypeResource:
-		return commands.CategoryResource
-	case CommandTypeLLM:
-		return commands.CategoryLLM
-	default:
-		return commands.CategoryNavigation // Default to navigation
-	}
-}
-
 // getPaletteItems returns palette items for the given command type and query
 // Handles special case of /ai for LLM commands
 // Filters resource commands by current screen (resource type)
@@ -834,16 +892,16 @@ func (cb *CommandBar) getPaletteItems(cmdType CommandType, query string) []comma
 	var items []commands.Command
 
 	switch cmdType {
-	case CommandTypeNavigation:
-		category := commands.CategoryNavigation
+	case CommandTypeResource:
+		category := commands.CategoryResource
 		if query == "" {
 			items = cb.registry.GetByCategory(category)
 		} else {
 			items = cb.registry.Filter(query, category)
 		}
 
-	case CommandTypeResource:
-		category := commands.CategoryResource
+	case CommandTypeAction:
+		category := commands.CategoryAction
 		if query == "" {
 			items = cb.registry.GetByCategory(category)
 		} else {
@@ -858,7 +916,7 @@ func (cb *CommandBar) getPaletteItems(cmdType CommandType, query string) []comma
 			items = append(items, commands.Command{
 				Name:        "ai",
 				Description: "Natural language AI commands",
-				Category:    commands.CategoryLLM,
+				Category:    commands.CategoryLLMAction,
 				Execute:     nil,
 			})
 		}

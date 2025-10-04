@@ -13,9 +13,9 @@ import (
 type CommandCategory int
 
 const (
-	CategoryNavigation CommandCategory = iota // : prefix (screens, namespaces)
-	CategoryResource                          // / prefix (yaml, describe, delete, logs)
-	CategoryLLM                               // /ai prefix (natural language commands)
+	CategoryResource  CommandCategory = iota // : prefix (screens, namespaces)
+	CategoryAction                           // / prefix (yaml, describe, delete, logs)
+	CategoryLLMAction                        // /ai prefix (natural language commands)
 )
 
 // CommandContext provides context for command execution
@@ -36,6 +36,7 @@ type Command struct {
 	NeedsConfirmation bool            // Whether the command requires confirmation
 	Execute           ExecuteFunc     // Execution function
 	ResourceTypes     []string        // Resource types this command applies to (empty = all)
+	Shortcut          string          // Keyboard shortcut (e.g., "ctrl+y")
 }
 
 // Registry holds all available commands and provides filtering
@@ -51,7 +52,7 @@ func NewRegistry() *Registry {
 			{
 				Name:        "pods",
 				Description: "Switch to Pods screen",
-				Category:    CategoryNavigation,
+				Category:    CategoryResource,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					return func() tea.Msg {
 						return types.ScreenSwitchMsg{ScreenID: "pods"}
@@ -61,7 +62,7 @@ func NewRegistry() *Registry {
 			{
 				Name:        "deployments",
 				Description: "Switch to Deployments screen",
-				Category:    CategoryNavigation,
+				Category:    CategoryResource,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					return func() tea.Msg {
 						return types.ScreenSwitchMsg{ScreenID: "deployments"}
@@ -71,7 +72,7 @@ func NewRegistry() *Registry {
 			{
 				Name:        "services",
 				Description: "Switch to Services screen",
-				Category:    CategoryNavigation,
+				Category:    CategoryResource,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					return func() tea.Msg {
 						return types.ScreenSwitchMsg{ScreenID: "services"}
@@ -81,7 +82,7 @@ func NewRegistry() *Registry {
 			{
 				Name:        "ns",
 				Description: "Filter by namespace",
-				Category:    CategoryNavigation,
+				Category:    CategoryResource,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// Phase 3: Return placeholder message (namespace filtering needs state management)
 					return func() tea.Msg {
@@ -94,8 +95,9 @@ func NewRegistry() *Registry {
 			{
 				Name:          "yaml",
 				Description:   "View resource YAML",
-				Category:      CategoryResource,
+				Category:      CategoryAction,
 				ResourceTypes: []string{}, // Applies to all resource types
+				Shortcut:      "ctrl+y",
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// Phase 4: Show full-screen YAML view with dummy data
 					resourceName := "unknown"
@@ -160,8 +162,9 @@ status:
 			{
 				Name:          "describe",
 				Description:   "View kubectl describe output",
-				Category:      CategoryResource,
+				Category:      CategoryAction,
 				ResourceTypes: []string{}, // Applies to all resource types
+				Shortcut:      "ctrl+d",
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// Phase 4: Show full-screen describe view with dummy data
 					resourceName := "unknown"
@@ -233,8 +236,9 @@ Events:
 			{
 				Name:              "delete",
 				Description:       "Delete selected resource",
-				Category:          CategoryResource,
+				Category:          CategoryAction,
 				ResourceTypes:     []string{}, // Applies to all resource types
+				Shortcut:          "ctrl+x",
 				NeedsConfirmation: true,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// Phase 3: Show what would be deleted
@@ -250,8 +254,9 @@ Events:
 			{
 				Name:          "logs",
 				Description:   "View pod logs",
-				Category:      CategoryResource,
+				Category:      CategoryAction,
 				ResourceTypes: []string{"pods"}, // Only for pods
+				Shortcut:      "ctrl+l",
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// Phase 3: Show which pod's logs
 					resourceName := "unknown"
@@ -264,9 +269,88 @@ Events:
 				},
 			},
 			{
+				Name:          "logs-previous",
+				Description:   "View previous pod logs",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"pods"}, // Only for pods
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Previous logs for pod/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "port-forward",
+				Description:   "Port forward to pod",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"pods"}, // Only for pods
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Port forward to pod/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "shell",
+				Description:   "Open shell in pod",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"pods"}, // Only for pods
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Shell for pod/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "jump-owner",
+				Description:   "Jump to owner resource",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"pods"}, // Only for pods
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Jump to owner of pod/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "show-node",
+				Description:   "Show node details",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"pods"}, // Only for pods
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					nodeName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					if node, ok := ctx.Selected["node"].(string); ok {
+						nodeName = node
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Show node " + nodeName + " for pod/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
 				Name:          "scale",
 				Description:   "Scale replicas",
-				Category:      CategoryResource,
+				Category:      CategoryAction,
 				ResourceTypes: []string{"deployments"}, // Only for deployments
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// Phase 3: Show which deployment to scale
@@ -284,7 +368,7 @@ Events:
 			{
 				Name:              "delete failing pods",
 				Description:       "Delete all pods in Failed status",
-				Category:          CategoryLLM,
+				Category:          CategoryLLMAction,
 				NeedsConfirmation: true,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// TODO: Phase 3 - LLM translation and execution
@@ -294,7 +378,7 @@ Events:
 			{
 				Name:              "scale nginx to 3",
 				Description:       "Scale nginx deployment to 3 replicas",
-				Category:          CategoryLLM,
+				Category:          CategoryLLMAction,
 				NeedsConfirmation: true,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// TODO: Phase 3 - LLM translation and execution
@@ -304,7 +388,7 @@ Events:
 			{
 				Name:        "get pod logs",
 				Description: "Show logs for the selected pod",
-				Category:    CategoryLLM,
+				Category:    CategoryLLMAction,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// TODO: Phase 3 - LLM translation and execution
 					return nil
@@ -313,7 +397,7 @@ Events:
 			{
 				Name:              "restart deployment",
 				Description:       "Restart the selected deployment",
-				Category:          CategoryLLM,
+				Category:          CategoryLLMAction,
 				NeedsConfirmation: true,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// TODO: Phase 3 - LLM translation and execution
@@ -323,7 +407,7 @@ Events:
 			{
 				Name:        "show pod events",
 				Description: "Show events for the selected pod",
-				Category:    CategoryLLM,
+				Category:    CategoryLLMAction,
 				Execute: func(ctx CommandContext) tea.Cmd {
 					// TODO: Phase 3 - LLM translation and execution
 					return nil
