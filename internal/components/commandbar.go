@@ -165,9 +165,9 @@ func (cb *CommandBar) ExecuteCommand(name string, category commands.CommandCateg
 
 // GetHeight returns the current height of the command bar (including separators, not hints)
 func (cb *CommandBar) GetHeight() int {
-	if cb.height == 0 {
-		// Hidden state: just top separator
-		return 1
+	if cb.state == StateHidden {
+		// Hidden state: View() returns "" (0 lines)
+		return 0
 	}
 	// Add 2 for: top separator (1) + bottom separator (1)
 	return cb.height + 2
@@ -175,8 +175,15 @@ func (cb *CommandBar) GetHeight() int {
 
 // GetTotalHeight returns the height including hints line (for layout calculations)
 func (cb *CommandBar) GetTotalHeight() int {
-	// Command bar + hints line (1)
-	return cb.GetHeight() + 1
+	baseHeight := cb.GetHeight()
+
+	// Hints are only shown in StateHidden (3 lines: separator + text + separator)
+	// In other states, no hints are shown (0 lines)
+	if cb.state == StateHidden {
+		return baseHeight + 3
+	}
+
+	return baseHeight
 }
 
 // GetState returns the current state
@@ -745,14 +752,14 @@ func (cb *CommandBar) ViewHints() string {
 		Width(cb.width)
 	separator := separatorStyle.Render(strings.Repeat("─", cb.width))
 
-	// Show hints only when command bar is hidden or in filter mode
-	// (When palette is active, options are already visible in the palette)
-	if cb.state == StateHidden || cb.state == StateFilter {
-		hints := hintStyle.Render("[: resources  / commands]")
+	// Show hints only when command bar is hidden
+	// (When palette/filter is active, the UI already shows what's happening)
+	if cb.state == StateHidden {
+		hints := hintStyle.Render("[type to filter  : resources  / commands]")
 		return lipgloss.JoinVertical(lipgloss.Left, separator, hints, separator)
 	}
 
-	// Empty for other states (palette, confirmation, etc.)
+	// Empty for other states (filter, palette, confirmation, etc.)
 	return ""
 }
 
