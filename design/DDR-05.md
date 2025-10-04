@@ -1,3 +1,4 @@
+
 # Command-Enhanced List Browser UI/UX
 
 | Metadata | Value                       |
@@ -54,27 +55,45 @@ The command bar has six distinct states:
 
 #### State 1: Hidden (Default)
 
-Empty bar with only hints visible on the right `[? /]`.
+Empty bar with only hints visible on the right `[: screens  / commands]`.
 
-#### State 2: Inline Command Palette
+#### State 2: Filter Mode
 
-When user presses `/`, an inline command palette expands downward from
-the command bar, showing all available commands with descriptions in a
-clean two-column layout. As the user continues typing, the list
-filters in real-time using fuzzy matching.
+When user starts typing (without `:` or `/` prefix), the command bar
+enters filter mode and filters the current list in real-time using
+fuzzy matching. No palette appears - filtering happens inline.
+
+**Features**:
+- Just start typing to filter current list
+- Real-time fuzzy matching on list items
+- Shows filter text in command bar: `nginx-` (with cursor)
+- No palette expansion - list filters in place
+- **Arrow keys navigate the filtered list** (list remains interactive)
+- Backspace edits filter text in command bar
+- ESC clears filter and returns to hidden state
+- Enter applies filter and exits filter mode (filter remains active)
+
+#### State 3: Inline Suggestion Palette
+
+When user presses `:` or `/`, an inline suggestion palette expands
+downward from the command bar, showing all available options with
+descriptions in a clean two-column layout. As the user continues
+typing, the list filters in real-time using fuzzy matching.
 
 ![Command Palette on Slash](images/07-command-palette-slash.svg)
 
 **Features**:
-- Lists all available commands with descriptions
-- Clean two-column layout: command | description
+- `:` shows screen/navigation options (pods, deployments, services,
+  namespaces)
+- `/` shows commands applicable to selected resource type (yaml, logs,
+  delete, etc.)
+- Clean two-column layout: option | description
 - Expands downward from command bar
-- Arrow keys (↑/↓) to navigate
-- Context-aware: only shows commands applicable to selected resource
-  type
+- **Arrow keys (↑/↓) navigate palette items** (list becomes non-interactive)
+- Context-aware: `/` only shows commands for current resource type
 - Fuzzy filtering as user types more characters
-- Enter executes selected command
-- ESC dismisses palette
+- Enter executes selected option
+- ESC dismisses palette and returns to hidden state
 
 ![Filtered Command Palette](images/08-command-palette-filtered.svg)
 
@@ -85,14 +104,14 @@ filters in real-time using fuzzy matching.
 - Palette shrinks to show only matching items
 - When fully matched, pressing Enter executes the command
 
-#### State 3: Direct Input Active
+#### State 4: Direct Input Active
 
-User types a complete command directly (`:filter`, `:ns`, etc.) or
+User types a complete command directly (`:pods`, `:ns prod`, etc.) or
 continues past command selection. Single-line input with cursor.
 
 ![Command Input Active](images/02-command-input-active.svg)
 
-#### State 4: Confirmation
+#### State 5: Confirmation
 
 For destructive operations (delete, scale), the bar expands to show
 confirmation prompts. No modals or popups - everything inline in the
@@ -117,7 +136,28 @@ on ESC. Example: "✓ Scaled deployment nginx to 3 replicas"
 
 ### Command Types
 
-#### Predefined Commands (`:` or `/` prefix)
+#### Filter Mode (no prefix)
+
+Default behavior - just start typing:
+
+- `nginx` - Filters current list to items matching "nginx"
+- `!running` - Excludes items matching "running" (negation)
+- ESC clears filter
+- Enter applies filter and exits filter mode
+
+#### Navigation Commands (`:` prefix)
+
+Switch between screens and views:
+
+- `:pods` - Switch to Pods screen
+- `:deployments` - Switch to Deployments screen
+- `:services` - Switch to Services screen
+- `:namespaces` - Switch to Namespaces screen
+- `:configmaps` - Switch to ConfigMaps screen
+- `:secrets` - Switch to Secrets screen
+- `:ns <namespace>` - Switch namespace filter
+
+#### Resource Commands (`/` prefix)
 
 Standard operations on selected resource:
 
@@ -128,8 +168,6 @@ Standard operations on selected resource:
 - `/scale` - Scale deployment/statefulset (input prompt)
 - `/exec` - Exec into pod (full-screen)
 - `/edit` - Edit resource (full-screen YAML editor)
-- `:filter <pattern>` - Fuzzy filter current list
-- `:ns <namespace>` - Switch namespace
 
 #### LLM Commands (`/x` prefix)
 
@@ -182,7 +220,27 @@ All full-screen views:
 
 ### Interaction Flow Examples
 
-**Example 1: Command Discovery with Inline Palette**
+**Example 1: Quick Filter (Default)**
+```
+1. User is viewing Pods screen with 100 pods
+2. Starts typing "nginx" (no prefix)
+3. List filters in real-time to show only pods matching "nginx"
+4. User navigates filtered list with arrow keys (list stays interactive)
+5. Backspace to edit filter if needed
+6. ESC clears filter and shows all pods again
+```
+
+**Example 2: Screen Switching with Suggestions**
+```
+1. User is viewing Pods screen
+2. Presses ":" - inline suggestion palette appears showing all screens
+3. Arrow keys navigate palette (list becomes non-interactive)
+4. Types "dep" - palette filters to show ":deployments"
+5. Presses Enter to select
+6. Deployments screen loads
+```
+
+**Example 3: Command Discovery with Inline Palette**
 ```
 1. User navigates list with arrow keys
 2. Selects pod "nginx-abc123"
@@ -194,7 +252,7 @@ All full-screen views:
 8. User confirms deletion
 ```
 
-**Example 2: Quick Command (Direct Input)**
+**Example 4: Quick Command (Direct Input)**
 ```
 1. User navigates list with arrow keys
 2. Selects pod "nginx-abc123"
@@ -203,7 +261,7 @@ All full-screen views:
 5. ESC returns to list (same selection)
 ```
 
-**Example 3: LLM Command (Cached)**
+**Example 5: LLM Command (Cached)**
 ```
 1. User types "/x delete all failing pods"
 2. Command bar expands
@@ -214,7 +272,7 @@ All full-screen views:
 7. List refreshes automatically
 ```
 
-**Example 4: Confirmation Flow**
+**Example 6: Confirmation Flow**
 ```
 1. User selects deployment "api-server"
 2. Types "/delete"
@@ -228,22 +286,35 @@ All full-screen views:
 7. List updated
 ```
 
+**Example 7: Filter with Negation**
+```
+1. User viewing pods in "Running" and "Failed" states
+2. Types "!running" (no prefix)
+3. List filters to exclude pods matching "running"
+4. Only "Failed" pods shown
+5. ESC clears filter
+```
+
 ### Visual Design Principles
 
 1. **No Modals or Popups**: All interactions in command bar or
    full-screen views
-2. **Bottom Command Bar**: Fixed position, always accessible with `/`
-   or `:`
-3. **Downward Expansion**: Command palette and expanded states grow
+2. **Bottom Command Bar**: Fixed position, always accessible by typing
+3. **Filter-First Design**: Default behavior is filtering (no prefix
+   needed), list stays interactive
+4. **Explicit Commands**: `:` for navigation, `/` for operations
+5. **Shared Focus**: Filter mode keeps list interactive (arrows navigate
+   list), palette mode captures focus (arrows navigate palette)
+6. **Downward Expansion**: Suggestion palette and expanded states grow
    downward from command bar, list shrinks proportionally
-4. **Clean Layout**: Two-column format for palette (command |
+7. **Clean Layout**: Two-column format for palette (option |
    description)
-5. **Context Preservation**: List state (selection, filter, scroll)
+8. **Context Preservation**: List state (selection, filter, scroll)
    maintained across command executions
-6. **Progressive Disclosure**: Empty by default, expands only when
+9. **Progressive Disclosure**: Empty by default, expands only when
    needed
-7. **Clear Action Hints**: Always show available actions in command bar
-   `[Enter] Confirm  [ESC] Cancel`
+10. **Clear Action Hints**: Always show available actions in command bar
+    `[Enter] Confirm  [ESC] Cancel`
 
 ## Decision
 
@@ -251,22 +322,27 @@ Adopt the **Command-Enhanced List Browser** pattern with:
 
 1. **Primary list view** for resource browsing (similar to K9s)
 2. **Expandable command bar** at bottom (inspired by Claude Code)
-3. **Inline command palette** for command discovery (on `/` press)
-4. **Three command modes**:
-   - Predefined commands (`:` or `/`)
-   - LLM commands (`/x`)
-   - Filter commands (`:filter`)
-5. **No modals or popups** - all interactions inline or full-screen
-6. **Command history** with `↑`/`↓` navigation
-7. **LLM cache** for instant previews and reduced API calls
-8. **Context-aware** commands using current selection and resource type
+3. **Filter-first design**: Just start typing to filter (no prefix),
+   list stays interactive
+4. **Inline suggestion palette** for discovery (on `:` or `/` press)
+5. **Four command modes**:
+   - Filter mode (no prefix) - fuzzy filter current list
+   - Navigation commands (`:` prefix) - screen switching, namespace
+   - Resource commands (`/` prefix) - operations on selected resource
+   - LLM commands (`/x` prefix) - natural language to kubectl
+6. **No modals or popups** - all interactions inline or full-screen
+7. **Command history** with `↑`/`↓` navigation
+8. **LLM cache** for instant previews and reduced API calls
+9. **Context-aware** commands using current selection and resource type
 
 ### Command Bar Behavior
 
 - **Fixed position**: Command bar always visible
-- **Always accessible**: Single keystroke to activate (`:` or `/`)
-- **Inline command palette**: Pressing `/` shows searchable command list
-  expanding downward from command bar with clean two-column layout
+- **Always accessible**: Just start typing
+- **Filter-first**: No prefix = filter current list in real-time
+- **Inline suggestion palette**: Pressing `:` shows screens/navigation,
+  `/` shows resource commands, expanding downward with clean two-column
+  layout
 - **Downward expansion**: All expanded states (palette, confirmation,
   LLM preview) grow downward from command bar
 - **Dynamic sizing**: Palette shows 1-8 items based on matches, other
@@ -291,17 +367,23 @@ Adopt the **Command-Enhanced List Browser** pattern with:
 1. **Familiar UX**: Combines best of K9s (lists) and vim (commands)
 2. **No Context Switching**: Everything accessible without leaving main
    view
-3. **Command Discovery**: Inline palette shows all available commands
-   with descriptions on `/` press
-4. **Smart Caching**: LLM cache reduces API calls and improves speed
-5. **Fluid Interaction**: No modal dialogs interrupting workflow
-6. **Progressive Complexity**: Simple for basic use, powerful for
+3. **Filter-First Design**: Most common action (filtering) requires no
+   prefix - just start typing, list stays interactive
+4. **Lightweight Filtering**: Arrow keys navigate list during filter
+   (shared focus model)
+5. **Unified Discovery**: Inline palette shows screens (`:`) and
+   commands (`/`) with descriptions
+6. **Clear Separation**: no prefix for filter, `:` for navigation, `/`
+   for operations
+7. **Smart Caching**: LLM cache reduces API calls and improves speed
+8. **Fluid Interaction**: No modal dialogs interrupting workflow
+9. **Progressive Complexity**: Simple for basic use, powerful for
    advanced users
-7. **Natural Language**: LLM commands lower barrier for complex kubectl
-   operations
-8. **Context Preservation**: List state maintained across all commands
-9. **Keyboard-First**: Entire interface navigable without mouse
-10. **Fuzzy Search**: Real-time filtering helps find commands quickly
+10. **Natural Language**: LLM commands lower barrier for complex kubectl
+    operations
+11. **Context Preservation**: List state maintained across all commands
+12. **Keyboard-First**: Entire interface navigable without mouse
+13. **Fuzzy Search**: Real-time filtering helps find options quickly
 
 ### Negative
 
@@ -312,8 +394,10 @@ Adopt the **Command-Enhanced List Browser** pattern with:
 3. **Cache Management**: Need clear way to view/clear LLM cache
 4. **History Complexity**: Managing history across command types may be
    confusing
-5. **Learning Curve**: Users need to learn `/` for palette vs `:` for
-   direct commands
+5. **Learning Curve**: Users need to learn no prefix (filter), `:` for
+   navigation, `/` for operations
+6. **Ambiguity**: Typing might trigger unwanted filter when user
+   intended to navigate list
 
 ### Mitigations
 
@@ -323,19 +407,31 @@ Adopt the **Command-Enhanced List Browser** pattern with:
 3. **Cache UI**: Add `/cache` command to view and manage cached entries
 4. **Unified History**: Single history with type indicators
 5. **Inline Help**: Palette always shows hints at bottom for navigation
+6. **Clear Visual Feedback**: Command bar shows current mode and filter
+   text clearly; easy to ESC out of filter mode
 
 ## Implementation Notes
 
 ### Command Registry
 
 ```go
+type CommandType int
+
+const (
+    CommandTypeFilter     CommandType = iota  // no prefix
+    CommandTypeNavigation                     // : prefix
+    CommandTypeResource                       // / prefix
+    CommandTypeLLM                            // /x prefix
+)
+
 type Command struct {
+    Type             CommandType
     Name             string
     Aliases          []string
     Description      string   // Shown in inline palette
     RequiresConfirm  bool
     RequiresInput    bool
-    AppliesTo        []string  // ["pods", "deployments"]
+    AppliesTo        []string  // ["pods", "deployments"], empty=all
     FullScreen       bool
     Handler          CommandHandler
 }
@@ -348,36 +444,41 @@ type CommandBarState int
 
 const (
     StateHidden CommandBarState = iota
-    StateCommandPalette
-    StateInput
-    StateConfirmation
-    StateLLMPreview
-    StateResult
+    StateFilter              // No prefix, filtering list
+    StateSuggestionPalette   // : or / pressed, showing suggestions
+    StateInput               // Direct command input
+    StateConfirmation        // Destructive operation confirmation
+    StateLLMPreview          // /x command preview
+    StateResult              // Success/error message
 )
 
 type CommandBar struct {
     state          CommandBarState
     input          string
+    inputType      CommandType   // Filter, Navigation, Resource, or LLM
     height         int           // Dynamic, max 10 lines
     history        []string
     historyIdx     int
     cache          *LLMCache
 
-    // Inline palette state
+    // Suggestion palette state (for : and / modes)
     paletteVisible bool
-    paletteItems   []Command     // Filtered commands
+    paletteItems   []Command     // Filtered commands/screens
     paletteIdx     int           // Selected index
 }
 ```
 
-### Inline Command Palette
+### Inline Suggestion Palette
 
 The palette component expands downward from the command bar:
-- Clean two-column layout: command name | description
-- Filters commands using fuzzy matching (github.com/sahilm/fuzzy)
-- Context-aware: filters by current resource type (AppliesTo field)
+- Triggered by `:` (navigation) or `/` (resource commands)
+- Clean two-column layout: option name | description
+- Filters using fuzzy matching (github.com/sahilm/fuzzy)
+- Context-aware:
+  - `:` shows all screens/navigation options
+  - `/` filters by current resource type (AppliesTo field)
 - Dynamically sizes based on number of matches (shows 1-8 items)
-- Highlights matched characters in command names
+- Highlights matched characters in option names
 - Arrow keys navigate, Enter selects, ESC dismisses
 - Palette shrinks as filtering narrows matches
 - List area above shrinks proportionally to accommodate palette
