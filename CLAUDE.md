@@ -327,31 +327,42 @@ theme.Success       // Green for success states
 theme.Error         // Red for error states
 ```
 
-### Miscellaneous
+### Commit Message Format
 
-- When commiting: 
-   - Skip stuff like🤖 Generated with [Claude Code](https://claude.com/claude-code) or Co-Authored-By: Claude <noreply@anthropic.com>"
-   - Use semanctic commit messages:
-      feat: add hat wobble
-      ^--^  ^------------^
-      |     |
-      |     +-> Summary in present tense.
-      |
-      +-------> Type: chore, docs, feat, fix, refactor, style, or test.
-      feat: (new feature for the user, not a new feature for build script)
-      fix: (bug fix for the user, not a fix to a build script)
-      docs: (changes to the documentation)
-      style: (formatting, missing semi colons, etc; no production code change)
-      refactor: (refactoring production code, eg. renaming a variable)
-      test: (adding missing tests, refactoring tests; no production code change)
-      chore: (updating grunt tasks etc; no production code change)
+Use semantic commit messages:
+```
+feat: add hat wobble
+^--^  ^------------^
+|     |
+|     +-> Summary in present tense.
+|
++-------> Type: chore, docs, feat, fix, refactor, style, or test.
+```
 
-## Design documents
+**Types:**
+- `feat`: New feature for the user
+- `fix`: Bug fix for the user
+- `docs`: Documentation changes
+- `style`: Formatting, missing semi colons (no production code change)
+- `refactor`: Refactoring production code (e.g., renaming a variable)
+- `test`: Adding missing tests, refactoring tests (no production code change)
+- `chore`: Updating build tasks, etc. (no production code change)
 
-- Store them in `design/` folder
-- Follow the TEMPLATE.md structure
-- Create a file incrementally named DDR-XX.md
-- Update the README.md in the design folder to reference the new document
-   |Index|Tags|Description|
-   |-----|----|-----------|
-   |[DDR-01](design/DDR-01.md)|???|???|
+**Note:** Skip generated signatures like "🤖 Generated with Claude Code" or "Co-Authored-By: Claude"
+
+## Design Documents
+
+Store design decisions in `design/` folder:
+- Follow the `design/TEMPLATE.md` structure
+- Create files incrementally named `DDR-XX.md` (Design Decision Record)
+- Update `design/README.md` index table with new entries
+- See existing examples: DDR-01 (Architecture), DDR-02 (Theming)
+- The author should not be @claude and by default should be @renato0307
+- Designs should be formated to less than 80 characters per line
+- Designs should not include implementations plans
+
+## Implementation plan documents
+
+- Store implementation plans in `plans/` folder
+- Implementation plans should be named `PLAN-XX-YYYYMMDD-<short-description>.md`
+- The implementation plan should have a TODO list of steps to be done
