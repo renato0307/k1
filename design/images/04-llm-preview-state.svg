@@ -84,7 +84,7 @@
 
   <!-- Command input line -->
   <text class="text command-text" x="24" y="405">
-    /x delete all pods not running
+    /ai delete all pods not running
   </text>
 
   <!-- Dotted separator -->

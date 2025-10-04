@@ -121,7 +121,7 @@ command bar.
 
 #### State 5: LLM Preview
 
-When using `/x` commands, the bar expands to show:
+When using `/ai` commands, the bar expands to show:
 - Original natural language input
 - Generated kubectl command (with syntax highlighting)
 - Cache indicator if command was previously generated
@@ -169,12 +169,12 @@ Standard operations on selected resource:
 - `/exec` - Exec into pod (full-screen)
 - `/edit` - Edit resource (full-screen YAML editor)
 
-#### LLM Commands (`/x` prefix)
+#### LLM Commands (`/ai` prefix)
 
 Natural language to kubectl translation:
 
 ```
-User types: /x delete all pods not running
+User types: /ai delete all pods not running
 System:     Generates kubectl command
 System:     Shows preview with confirmation
 User:       Executes or edits before running
@@ -263,7 +263,7 @@ All full-screen views:
 
 **Example 5: LLM Command (Cached)**
 ```
-1. User types "/x delete all failing pods"
+1. User types "/ai delete all failing pods"
 2. Command bar expands
 3. Shows: "⚡ Will execute (cached): kubectl delete pods..."
 4. User presses Enter to confirm
@@ -329,7 +329,7 @@ Adopt the **Command-Enhanced List Browser** pattern with:
    - Filter mode (no prefix) - fuzzy filter current list
    - Navigation commands (`:` prefix) - screen switching, namespace
    - Resource commands (`/` prefix) - operations on selected resource
-   - LLM commands (`/x` prefix) - natural language to kubectl
+   - LLM commands (`/ai` prefix) - natural language to kubectl
 6. **No modals or popups** - all interactions inline or full-screen
 7. **Command history** with `↑`/`↓` navigation
 8. **LLM cache** for instant previews and reduced API calls
@@ -389,7 +389,7 @@ Adopt the **Command-Enhanced List Browser** pattern with:
 
 1. **Command Bar/Palette Size**: Large expansions may push list content
    off screen
-2. **LLM Dependency**: `/x` commands require external API (cost,
+2. **LLM Dependency**: `/ai` commands require external API (cost,
    latency, availability)
 3. **Cache Management**: Need clear way to view/clear LLM cache
 4. **History Complexity**: Managing history across command types may be
@@ -421,7 +421,7 @@ const (
     CommandTypeFilter     CommandType = iota  // no prefix
     CommandTypeNavigation                     // : prefix
     CommandTypeResource                       // / prefix
-    CommandTypeLLM                            // /x prefix
+    CommandTypeLLM                            // /ai prefix
 )
 
 type Command struct {
@@ -448,7 +448,7 @@ const (
     StateSuggestionPalette   // : or / pressed, showing suggestions
     StateInput               // Direct command input
     StateConfirmation        // Destructive operation confirmation
-    StateLLMPreview          // /x command preview
+    StateLLMPreview          // /ai command preview
     StateResult              // Success/error message
 )
 

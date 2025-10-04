@@ -15,7 +15,7 @@ type CommandCategory int
 const (
 	CategoryNavigation CommandCategory = iota // : prefix (screens, namespaces)
 	CategoryResource                          // / prefix (yaml, describe, delete, logs)
-	CategoryLLM                               // /x prefix (natural language commands)
+	CategoryLLM                               // /ai prefix (natural language commands)
 )
 
 // CommandContext provides context for command execution
@@ -173,7 +173,7 @@ func NewRegistry() *Registry {
 				},
 			},
 
-			// LLM commands (/x prefix) - examples for natural language input
+			// LLM commands (/ai prefix) - examples for natural language input
 			{
 				Name:              "delete failing pods",
 				Description:       "Delete all pods in Failed status",

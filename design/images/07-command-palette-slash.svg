@@ -125,7 +125,7 @@
     Edit resource YAML
   </text>
 
-  <text class="text palette-command" x="28" y="520">/x</text>
+  <text class="text palette-command" x="28" y="520">/ai</text>
   <text class="text palette-desc" x="200" y="520">
     Execute natural language command with LLM
   </text>

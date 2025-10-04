@@ -403,8 +403,8 @@ The project has moved beyond prototyping into a structured application:
 - `q` or `ctrl+c`: Quit
 - **Type any character**: Enter filter mode (fuzzy search with negation support)
 - `:`: Open navigation palette (screens, namespaces)
-- `/`: Open command palette (resource operations, includes `/x` for AI commands)
-- `/x`: Natural language AI commands (type `/x ` followed by prompt)
+- `/`: Open command palette (resource operations, includes `/ai` for AI commands)
+- `/ai`: Natural language AI commands (type `/ai ` followed by prompt)
 - `esc`: Exit filter mode or dismiss palette
 - `↑/↓`: Navigate lists (when filter active) or palette items (when palette active)
 - `enter`: Apply filter or execute selected command

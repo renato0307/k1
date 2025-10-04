@@ -51,14 +51,14 @@ responses for LLM simulation (no real API calls).
 - [x] Add keyboard navigation and context-aware filtering
 - [x] Wire up `:` for navigation (screens) and `/` for resource commands
 - [x] Test palette + command bar unified bottom component
-- [x] Add `/x` option to palette for AI commands
+- [x] Add `/ai` option to palette for AI commands
 - [x] Implement smooth transition between palette and input modes with backspace
 - [x] Refactor duplicated palette logic into helper methods
 
 ### Phase 3: Basic Predefined Commands
 - [x] Implement navigation commands (:pods, :deployments, :services)
 - [x] Add LLM commands to registry with mock translations (internal/commands/llm_mock.go)
-- [x] Wire up `/x` prefix for natural language AI commands
+- [x] Wire up `/ai` prefix for natural language AI commands
 - [x] Implement LLM preview expansion (4-6 lines) with action buttons
 - [x] Implement namespace filtering command (:ns) - placeholder for now
 - [x] Implement resource commands (/yaml, /describe, /delete, /logs) - return placeholder messages
@@ -184,8 +184,8 @@ Implement commands to test different flows:
   - Display: resource details, warning message, action buttons
   - Tests upward expansion and list area adjustment
 
-**Simulated LLM commands** (`/x` prefix):
-- `/x <natural language>` - Simulate LLM translation to kubectl
+**Simulated LLM commands** (`/ai` prefix):
+- `/ai <natural language>` - Simulate LLM translation to kubectl
 - Static mock responses (map common phrases to kubectl commands):
   - "delete failing pods" → `kubectl delete pods --field-selector status.phase=Failed`
   - "scale nginx to 3" → `kubectl scale deployment nginx --replicas=3`
@@ -196,7 +196,7 @@ Implement commands to test different flows:
 
 **Key Decision**: Start with filter mode (most common action). Use
 static command mapping for LLM simulation (no actual API calls). Focus
-on UX flow, not real translation. `/delete` and `/x` are critical for
+on UX flow, not real translation. `/delete` and `/ai` are critical for
 testing different expansion behaviors.
 
 ### 4. Full-Screen Views
@@ -256,7 +256,7 @@ in prototype. Focus on UX, not real operations.
 - Full-screen views display and ESC returns to list correctly
 - `/delete` command expands command bar to 3-5 lines showing multi-line confirmation
 - Confirmation can be executed or cancelled, command bar contracts afterward
-- `/x` commands show LLM preview state (4-6 lines) with prompt + generated command
+- `/ai` commands show LLM preview state (4-6 lines) with prompt + generated command
 - LLM preview can be executed, edited, or cancelled
 - Command history recalls previous inputs with `↑`/`↓`
 - No janky rendering (smooth transitions between states and heights)

@@ -20,7 +20,7 @@ const (
 	StateSuggestionPalette   // : or / pressed, showing suggestions
 	StateInput               // Direct command input
 	StateConfirmation        // Destructive operation confirmation
-	StateLLMPreview          // /x command preview
+	StateLLMPreview          // /ai command preview
 	StateResult              // Success/error message
 )
 
@@ -31,7 +31,7 @@ const (
 	CommandTypeFilter CommandType = iota // no prefix
 	CommandTypeNavigation                 // : prefix
 	CommandTypeResource                   // / prefix
-	CommandTypeLLM                        // /x prefix
+	CommandTypeLLM                        // /ai prefix
 )
 
 // CommandBar represents the expandable command bar at the bottom of the screen
@@ -285,13 +285,13 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		if cb.paletteIdx >= 0 && cb.paletteIdx < len(cb.paletteItems) {
 			selected := cb.paletteItems[cb.paletteIdx]
 
-			// Special handling for /x (LLM commands)
-			if selected.Category == commands.CategoryLLM && selected.Name == "x" {
+			// Special handling for /ai (LLM commands)
+			if selected.Category == commands.CategoryLLM && selected.Name == "ai" {
 				// Transition to input mode for LLM
 				cb.state = StateInput
-				cb.input = "/x "
+				cb.input = "/ai "
 				cb.inputType = CommandTypeLLM
-				cb.cursorPos = 3
+				cb.cursorPos = 4
 				cb.height = 1
 				cb.paletteVisible = false
 				cb.paletteItems = []commands.Command{}
@@ -377,8 +377,8 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 			cb.input += msg.String()
 			cb.cursorPos++
 
-			// Check if user typed space after /x - transition to LLM input mode
-			if cb.input == "/x " {
+			// Check if user typed space after /ai - transition to LLM input mode
+			if cb.input == "/ai " {
 				cb.state = StateInput
 				cb.inputType = CommandTypeLLM
 				cb.height = 1
@@ -417,10 +417,10 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 
 	case "enter":
 		// Execute the command
-		// Check if it's an LLM command (/x prefix)
-		if strings.HasPrefix(cb.input, "/x ") {
-			// Extract prompt (remove "/x " prefix)
-			prompt := strings.TrimPrefix(cb.input, "/x ")
+		// Check if it's an LLM command (/ai prefix)
+		if strings.HasPrefix(cb.input, "/ai ") {
+			// Extract prompt (remove "/ai " prefix)
+			prompt := strings.TrimPrefix(cb.input, "/ai ")
 			prompt = strings.TrimSpace(prompt)
 
 			if prompt == "" {
@@ -497,7 +497,7 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 			cb.height = 1
 			return cb, nil
 		}
-		// If we backspaced to a prefix (: or / or /x), show palette
+		// If we backspaced to a prefix (: or / or /ai), show palette
 		if cb.input == ":" {
 			cb.transitionToPalette(":", CommandTypeNavigation)
 			return cb, nil
@@ -506,8 +506,8 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 			cb.transitionToPalette("/", CommandTypeResource)
 			return cb, nil
 		}
-		if cb.input == "/x" {
-			cb.transitionToPalette("/x", CommandTypeResource)
+		if cb.input == "/ai" {
+			cb.transitionToPalette("/ai", CommandTypeResource)
 			return cb, nil
 		}
 		return cb, nil
@@ -644,7 +644,7 @@ func (cb *CommandBar) ViewHints() string {
 	// Show hints only when command bar is hidden or in filter mode
 	// (When palette is active, options are already visible in the palette)
 	if cb.state == StateHidden || cb.state == StateFilter {
-		hints := hintStyle.Render("[: screens  / commands  /x ai]")
+		hints := hintStyle.Render("[: screens  / commands  /ai natural language]")
 		return lipgloss.JoinVertical(lipgloss.Left, separator, hints, separator)
 	}
 
@@ -828,7 +828,7 @@ func (cb *CommandBar) getCommandCategory() commands.CommandCategory {
 }
 
 // getPaletteItems returns palette items for the given command type and query
-// Handles special case of /x for LLM commands
+// Handles special case of /ai for LLM commands
 // Filters resource commands by current screen (resource type)
 func (cb *CommandBar) getPaletteItems(cmdType CommandType, query string) []commands.Command {
 	var items []commands.Command
@@ -853,10 +853,10 @@ func (cb *CommandBar) getPaletteItems(cmdType CommandType, query string) []comma
 		// Filter by current screen (resource type)
 		items = cb.registry.FilterByResourceType(items, cb.screenID)
 
-		// Add /x option if it matches the query
-		if strings.HasPrefix("x", strings.ToLower(query)) || query == "" {
+		// Add /ai option if it matches the query
+		if strings.HasPrefix("ai", strings.ToLower(query)) || query == "" {
 			items = append(items, commands.Command{
-				Name:        "x",
+				Name:        "ai",
 				Description: "Natural language AI commands",
 				Category:    commands.CategoryLLM,
 				Execute:     nil,
