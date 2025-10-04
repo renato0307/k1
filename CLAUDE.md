@@ -365,4 +365,18 @@ Store design decisions in `design/` folder:
 
 - Store implementation plans in `plans/` folder
 - Implementation plans should be named `PLAN-XX-YYYYMMDD-<short-description>.md`
-- The implementation plan should have a TODO list of steps to be done
+- Plans should be **high-level and strategic**, not detailed step-by-step instructions
+- Focus on:
+  - Overall goals and outcomes
+  - Major phases or milestones (3-7 key steps maximum)
+  - Critical architectural/design decisions
+  - Key risks or considerations
+  - Success criteria
+  - TODO list with phase-level checkboxes for progress tracking
+- Avoid:
+  - Line-by-line code changes
+  - Exhaustive file-by-file checklists
+  - Over-specifying implementation details
+  - Micro-tasks that restrict adaptation
+- Plans should be reviewable in 2-3 minutes
+- Leave room for discovery and adaptation during implementation
