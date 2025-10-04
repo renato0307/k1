@@ -112,6 +112,31 @@ func (cb *CommandBar) buildCommandContext(args string) commands.CommandContext {
 	}
 }
 
+// addToHistory adds a command to history (avoids duplicates of most recent)
+func (cb *CommandBar) addToHistory(cmd string) {
+	// Don't add empty commands
+	if strings.TrimSpace(cmd) == "" {
+		return
+	}
+
+	// Don't add if it's the same as the most recent command
+	if len(cb.history) > 0 && cb.history[len(cb.history)-1] == cmd {
+		return
+	}
+
+	// Add to history
+	cb.history = append(cb.history, cmd)
+
+	// Keep max 100 entries (configurable in future)
+	maxHistory := 100
+	if len(cb.history) > maxHistory {
+		cb.history = cb.history[len(cb.history)-maxHistory:]
+	}
+
+	// Reset history index
+	cb.historyIdx = -1
+}
+
 // ExecuteCommand executes a command by name and category
 // Returns the updated CommandBar and a tea.Cmd
 func (cb *CommandBar) ExecuteCommand(name string, category commands.CommandCategory) (*CommandBar, tea.Cmd) {
@@ -325,16 +350,24 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 				return cb, nil
 			}
 
+			// Build command string for history
+			prefix := cb.input[:1] // : or /
+			commandStr := prefix + selected.Name
+
 			// Check if command needs confirmation
 			if selected.NeedsConfirmation {
 				// Store command and transition to confirmation state
 				cb.pendingCommand = &selected
+				cb.input = commandStr // Store for history after confirmation
 				cb.state = StateConfirmation
 				cb.height = 5 // Expand to show confirmation (3-5 lines)
 				cb.paletteVisible = false
 				cb.paletteItems = []commands.Command{}
 				return cb, nil
 			}
+
+			// Add to history
+			cb.addToHistory(commandStr)
 
 			// Execute command
 			var cmd tea.Cmd
@@ -439,6 +472,39 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 		cb.input = ""
 		cb.cursorPos = 0
 		cb.height = 1
+		cb.historyIdx = -1 // Reset history index
+		return cb, nil
+
+	case "up":
+		// Navigate history backwards (older commands)
+		if len(cb.history) > 0 {
+			if cb.historyIdx == -1 {
+				// Start from most recent
+				cb.historyIdx = len(cb.history) - 1
+			} else if cb.historyIdx > 0 {
+				cb.historyIdx--
+			}
+			// Load command from history
+			cb.input = cb.history[cb.historyIdx]
+			cb.cursorPos = len(cb.input)
+		}
+		return cb, nil
+
+	case "down":
+		// Navigate history forwards (newer commands)
+		if len(cb.history) > 0 && cb.historyIdx != -1 {
+			if cb.historyIdx < len(cb.history)-1 {
+				cb.historyIdx++
+				// Load command from history
+				cb.input = cb.history[cb.historyIdx]
+				cb.cursorPos = len(cb.input)
+			} else {
+				// At most recent, clear input
+				cb.historyIdx = -1
+				cb.input = ""
+				cb.cursorPos = 0
+			}
+		}
 		return cb, nil
 
 	case "enter":
@@ -454,6 +520,7 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 				cb.state = StateHidden
 				cb.input = ""
 				cb.height = 1
+				cb.historyIdx = -1
 				return cb, nil
 			}
 
@@ -461,7 +528,7 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 			translation := commands.TranslateWithMockLLM(prompt)
 			cb.llmTranslation = &translation
 
-			// Transition to LLM preview state
+			// Transition to LLM preview state (will save to history when executed)
 			cb.state = StateLLMPreview
 			cb.height = 6 // 4-6 lines for preview
 			return cb, nil
@@ -490,6 +557,9 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 					return cb, nil
 				}
 
+				// Add to history
+				cb.addToHistory(cb.input)
+
 				// Execute command
 				var execCmd tea.Cmd
 				if cmd.Execute != nil {
@@ -509,6 +579,7 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 		cb.state = StateHidden
 		cb.input = ""
 		cb.height = 1
+		cb.historyIdx = -1
 		return cb, nil
 
 	case "backspace":
@@ -560,6 +631,9 @@ func (cb *CommandBar) handleConfirmationState(msg tea.KeyMsg) (*CommandBar, tea.
 		return cb, nil
 
 	case "enter":
+		// Add to history (cb.input contains the command string)
+		cb.addToHistory(cb.input)
+
 		// Execute pending command
 		var cmd tea.Cmd
 		if cb.pendingCommand != nil && cb.pendingCommand.Execute != nil {
@@ -589,6 +663,9 @@ func (cb *CommandBar) handleLLMPreviewState(msg tea.KeyMsg) (*CommandBar, tea.Cm
 		return cb, nil
 
 	case "enter":
+		// Add to history (cb.input contains "/ai <prompt>")
+		cb.addToHistory(cb.input)
+
 		// Execute the generated command
 		// For now, just show a success message
 		// In Phase 4+, this would actually execute the kubectl command
