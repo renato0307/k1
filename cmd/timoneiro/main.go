@@ -15,13 +15,37 @@ import (
 func main() {
 	// Parse flags
 	themeFlag := flag.String("theme", "charm", "Theme to use (charm, dracula, catppuccin)")
+	kubeconfigFlag := flag.String("kubeconfig", "", "Path to kubeconfig file (default: $HOME/.kube/config)")
+	contextFlag := flag.String("context", "", "Kubernetes context to use")
+	dummyFlag := flag.Bool("dummy", false, "Use dummy data instead of connecting to cluster")
 	flag.Parse()
 
 	// Load theme
 	theme := ui.GetTheme(*themeFlag)
 
-	// Use dummy repository for now
-	repo := k8s.NewDummyRepository()
+	// Initialize repository
+	var repo k8s.Repository
+
+	if *dummyFlag {
+		// Use dummy repository for development
+		repo = k8s.NewDummyRepository()
+	} else {
+		// Connect to Kubernetes cluster
+		fmt.Println("Connecting to Kubernetes cluster...")
+		fmt.Println("Syncing cache...")
+
+		var err error
+		repo, err = k8s.NewInformerRepository(*kubeconfigFlag, *contextFlag)
+		if err != nil {
+			fmt.Printf("Error initializing Kubernetes connection: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Cache synced! Starting UI...")
+	}
+
+	// Ensure cleanup on exit
+	defer repo.Close()
 
 	// Create the app model with theme
 	model := app.NewModel(repo, theme)
