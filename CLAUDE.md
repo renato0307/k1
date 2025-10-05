@@ -317,6 +317,9 @@ The project has moved beyond prototyping into a structured application:
 - Filter mode: real-time fuzzy search with negation support
 - Suggestion palette: `:` for navigation, `/` for commands
 - **Resource-specific commands**: cordon/drain (nodes), endpoints (services), restart (deployments), scale (deployments/statefulsets)
+- **Resource detail commands**: /yaml (kubectl YAMLPrinter), /describe (simplified format with on-demand events)
+- Shortcuts: ctrl+y (yaml), ctrl+d (describe)
+- On-demand event fetching for describe (zero memory overhead, 50-100ms latency)
 - Theming system with 8 themes (charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
 - Global keybindings: quit (q/ctrl+c)
 - Header component with refresh time display
@@ -332,8 +335,7 @@ The project has moved beyond prototyping into a structured application:
 ### 🚧 In Progress / To Do
 - Command registry and palette filtering (Phase 2)
 - Navigation commands (:pods, :deployments, :services) (Phase 3)
-- Resource commands (/yaml, /describe, /delete) (Phase 3)
-- Full-screen views for YAML/logs (Phase 4)
+- Resource commands (/delete)
 - Command history (Phase 5)
 - Real-time updates (1-second refresh ticker)
 - Live informers for Deployments and Services
@@ -348,10 +350,12 @@ The project has moved beyond prototyping into a structured application:
 - **design/DDR-03.md**: Kubernetes informer-based repository design
 - **design/DDR-04.md**: Testing strategy with envtest (shared TestMain pattern)
 - **design/DDR-05.md**: Command-enhanced list browser UI/UX design
-- **design/DDR-06.md**: Describe and YAML commands implementation
+- **design/DDR-06.md**: Describe and YAML commands implementation (on-demand events)
 - **design/DDR-07.md**: Scalable multi-resource architecture with config-driven design
+- **design/DDR-08.md**: Pragmatic command implementation strategy (kubectl subprocess vs pure Go)
 - **plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
 - **plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
+- **plans/PLAN-05.md**: YAML and Describe commands implementation (Complete)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines

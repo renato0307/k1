@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
@@ -68,7 +69,7 @@ type CommandBar struct {
 }
 
 // NewCommandBar creates a new command bar component
-func NewCommandBar(theme *ui.Theme) *CommandBar {
+func NewCommandBar(repo k8s.Repository, theme *ui.Theme) *CommandBar {
 	return &CommandBar{
 		state:          StateHidden,
 		input:          "",
@@ -77,7 +78,7 @@ func NewCommandBar(theme *ui.Theme) *CommandBar {
 		height:         1, // Start with 1 line
 		theme:          theme,
 		cursorPos:      0,
-		registry:       commands.NewRegistry(),
+		registry:       commands.NewRegistry(repo),
 		history:        []string{},
 		historyIdx:     -1,
 		paletteVisible: false,
