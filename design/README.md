@@ -13,3 +13,4 @@ DDR stands for Design Decision Record. This is a collection of design documents 
 | [DDR-07](DDR-07.md) | architecture, repository, screens, DRY, generics | Scalable multi-resource architecture: config-driven screens and dynamic informers to support 17+ resources with 67% less code |
 | [DDR-08](DDR-08.md) | commands, kubectl, performance, pragmatism, strategy | Pragmatic command implementation: kubectl subprocess first for quick delivery, migrate to pure Go client-go for performance over time |
 | [DDR-09](DDR-09.md) | logging, troubleshooting, diagnostics, slog | File-based structured logging system using slog: rotation, configurable verbosity, performance metrics, non-intrusive to TUI |
+| [DDR-10](DDR-10.md) | cli, flags, configuration | Flag parsing simplicity-first approach: pflag as drop-in stdlib replacement with better UX, Kubernetes ecosystem alignment, minimal migration |
