@@ -9,7 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	appsv1listers "k8s.io/client-go/listers/apps/v1"
@@ -20,13 +24,21 @@ import (
 
 // InformerRepository implements Repository using Kubernetes informers
 type InformerRepository struct {
+	// Typed client and informers (legacy, preserved for compatibility)
 	clientset        *kubernetes.Clientset
 	factory          informers.SharedInformerFactory
 	podLister        v1listers.PodLister
 	deploymentLister appsv1listers.DeploymentLister
 	serviceLister    v1listers.ServiceLister
-	ctx              context.Context
-	cancel           context.CancelFunc
+
+	// Dynamic client and informers (config-driven approach)
+	dynamicClient  dynamic.Interface
+	dynamicFactory dynamicinformer.DynamicSharedInformerFactory
+	resources      map[ResourceType]ResourceConfig
+	dynamicListers map[schema.GroupVersionResource]cache.GenericLister
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewInformerRepository creates a new informer-based repository
@@ -64,8 +76,15 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		return nil, fmt.Errorf("error creating clientset: %w", err)
 	}
 
-	// Create shared informer factory with 30 second resync period
+	// Create dynamic client
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("error creating dynamic client: %w", err)
+	}
+
+	// Create shared informer factories with 30 second resync period
 	factory := informers.NewSharedInformerFactory(clientset, 30*time.Second)
+	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 30*time.Second)
 
 	// Create pod informer and lister
 	podInformer := factory.Core().V1().Pods().Informer()
@@ -79,17 +98,37 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	serviceInformer := factory.Core().V1().Services().Informer()
 	serviceLister := factory.Core().V1().Services().Lister()
 
+	// Initialize resource registry
+	resourceRegistry := getResourceRegistry()
+
+	// Create dynamic informers for all registered resources
+	dynamicListers := make(map[schema.GroupVersionResource]cache.GenericLister)
+	dynamicInformers := []cache.SharedIndexInformer{}
+
+	for _, resCfg := range resourceRegistry {
+		informer := dynamicFactory.ForResource(resCfg.GVR).Informer()
+		dynamicListers[resCfg.GVR] = dynamicFactory.ForResource(resCfg.GVR).Lister()
+		dynamicInformers = append(dynamicInformers, informer)
+	}
+
 	// Create context for lifecycle management
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start informers in background
 	factory.Start(ctx.Done())
+	dynamicFactory.Start(ctx.Done())
 
-	// Wait for all caches to sync
-	if !cache.WaitForCacheSync(ctx.Done(),
+	// Wait for all caches to sync (both typed and dynamic)
+	allInformers := []cache.InformerSynced{
 		podInformer.HasSynced,
 		deploymentInformer.HasSynced,
-		serviceInformer.HasSynced) {
+		serviceInformer.HasSynced,
+	}
+	for _, inf := range dynamicInformers {
+		allInformers = append(allInformers, inf.HasSynced)
+	}
+
+	if !cache.WaitForCacheSync(ctx.Done(), allInformers...) {
 		cancel()
 		return nil, fmt.Errorf("failed to sync caches")
 	}
@@ -100,6 +139,10 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		podLister:        podLister,
 		deploymentLister: deploymentLister,
 		serviceLister:    serviceLister,
+		dynamicClient:    dynamicClient,
+		dynamicFactory:   dynamicFactory,
+		resources:        resourceRegistry,
+		dynamicListers:   dynamicListers,
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -288,5 +331,125 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 func (r *InformerRepository) Close() {
 	if r.cancel != nil {
 		r.cancel()
+	}
+}
+
+// GetResources returns all resources of the specified type using dynamic informers
+func (r *InformerRepository) GetResources(resourceType ResourceType) ([]interface{}, error) {
+	// Get resource config
+	config, ok := r.resources[resourceType]
+	if !ok {
+		return nil, fmt.Errorf("unknown resource type: %s", resourceType)
+	}
+
+	// Get dynamic lister for this resource
+	lister, ok := r.dynamicListers[config.GVR]
+	if !ok {
+		return nil, fmt.Errorf("informer not initialized for resource type: %s", resourceType)
+	}
+
+	// List resources from cache
+	objList, err := lister.List(labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list %s: %w", resourceType, err)
+	}
+
+	// Transform unstructured objects to typed structs
+	results := make([]interface{}, 0, len(objList))
+	for _, obj := range objList {
+		unstr, ok := obj.(*unstructured.Unstructured)
+		if !ok {
+			continue
+		}
+
+		transformed, err := config.Transform(unstr)
+		if err != nil {
+			// Log error but continue (partial results better than nothing)
+			continue
+		}
+		results = append(results, transformed)
+	}
+
+	// Sort results by age (newest first) if they have Age field
+	sortByAge(results)
+
+	return results, nil
+}
+
+// sortByAge sorts resources by Age field if present
+func sortByAge(items []interface{}) {
+	sort.Slice(items, func(i, j int) bool {
+		// Try to extract Age from both items
+		ageI := extractAge(items[i])
+		ageJ := extractAge(items[j])
+
+		if ageI != ageJ {
+			return ageI < ageJ
+		}
+
+		// Fall back to name comparison
+		nameI := extractName(items[i])
+		nameJ := extractName(items[j])
+		return nameI < nameJ
+	})
+}
+
+// extractAge tries to extract Age field from an interface{}
+func extractAge(item interface{}) time.Duration {
+	switch v := item.(type) {
+	case Pod:
+		return v.Age
+	case Deployment:
+		return v.Age
+	case Service:
+		return v.Age
+	case ConfigMap:
+		return v.Age
+	case Secret:
+		return v.Age
+	case Namespace:
+		return v.Age
+	case StatefulSet:
+		return v.Age
+	case DaemonSet:
+		return v.Age
+	case Job:
+		return v.Age
+	case CronJob:
+		return v.Age
+	case Node:
+		return v.Age
+	default:
+		return 0
+	}
+}
+
+// extractName tries to extract Name field from an interface{}
+func extractName(item interface{}) string {
+	switch v := item.(type) {
+	case Pod:
+		return v.Name
+	case Deployment:
+		return v.Name
+	case Service:
+		return v.Name
+	case ConfigMap:
+		return v.Name
+	case Secret:
+		return v.Name
+	case Namespace:
+		return v.Name
+	case StatefulSet:
+		return v.Name
+	case DaemonSet:
+		return v.Name
+	case Job:
+		return v.Name
+	case CronJob:
+		return v.Name
+	case Node:
+		return v.Name
+	default:
+		return ""
 	}
 }

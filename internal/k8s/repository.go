@@ -2,13 +2,50 @@ package k8s
 
 import (
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+// ResourceType identifies a Kubernetes resource type
+type ResourceType string
+
+const (
+	ResourceTypePod         ResourceType = "pods"
+	ResourceTypeDeployment  ResourceType = "deployments"
+	ResourceTypeService     ResourceType = "services"
+	ResourceTypeConfigMap   ResourceType = "configmaps"
+	ResourceTypeSecret      ResourceType = "secrets"
+	ResourceTypeNamespace   ResourceType = "namespaces"
+	ResourceTypeStatefulSet ResourceType = "statefulsets"
+	ResourceTypeDaemonSet   ResourceType = "daemonsets"
+	ResourceTypeJob         ResourceType = "jobs"
+	ResourceTypeCronJob     ResourceType = "cronjobs"
+	ResourceTypeNode        ResourceType = "nodes"
+)
+
+// ResourceConfig defines configuration for a resource type
+type ResourceConfig struct {
+	GVR        schema.GroupVersionResource
+	Name       string
+	Namespaced bool
+	Tier       int // 1=critical (block UI), 2=background, 3=deferred
+	Transform  TransformFunc
+}
+
+// TransformFunc converts an unstructured resource to a typed struct
+type TransformFunc func(*unstructured.Unstructured) (interface{}, error)
 
 // Repository provides access to Kubernetes resources
 type Repository interface {
+	// Generic resource access (config-driven)
+	GetResources(resourceType ResourceType) ([]interface{}, error)
+
+	// Typed convenience methods (preserved for compatibility)
 	GetPods() ([]Pod, error)
 	GetDeployments() ([]Deployment, error)
 	GetServices() ([]Service, error)
+
 	Close()
 }
 
@@ -36,13 +73,91 @@ type Deployment struct {
 
 // Service represents a Kubernetes service
 type Service struct {
+	Namespace  string
+	Name       string
+	Type       string
+	ClusterIP  string
+	ExternalIP string
+	Ports      string
+	Age        time.Duration
+}
+
+// ConfigMap represents a Kubernetes configmap
+type ConfigMap struct {
+	Namespace string
+	Name      string
+	Data      int // Number of data items
+	Age       time.Duration
+}
+
+// Secret represents a Kubernetes secret
+type Secret struct {
+	Namespace string
+	Name      string
+	Type      string
+	Data      int // Number of data items
+	Age       time.Duration
+}
+
+// Namespace represents a Kubernetes namespace
+type Namespace struct {
+	Name   string
+	Status string
+	Age    time.Duration
+}
+
+// StatefulSet represents a Kubernetes statefulset
+type StatefulSet struct {
+	Namespace string
+	Name      string
+	Ready     string
+	Age       time.Duration
+}
+
+// DaemonSet represents a Kubernetes daemonset
+type DaemonSet struct {
+	Namespace string
+	Name      string
+	Desired   int32
+	Current   int32
+	Ready     int32
+	UpToDate  int32
+	Available int32
+	Age       time.Duration
+}
+
+// Job represents a Kubernetes job
+type Job struct {
 	Namespace   string
 	Name        string
-	Type        string
-	ClusterIP   string
-	ExternalIP  string
-	Ports       string
+	Completions string
+	Duration    time.Duration
 	Age         time.Duration
+}
+
+// CronJob represents a Kubernetes cronjob
+type CronJob struct {
+	Namespace      string
+	Name           string
+	Schedule       string
+	Suspend        bool
+	Active         int32
+	LastSchedule   time.Duration
+	Age            time.Duration
+}
+
+// Node represents a Kubernetes node
+type Node struct {
+	Name         string
+	Status       string
+	Roles        string
+	Age          time.Duration
+	Version      string
+	Hostname     string
+	InstanceType string
+	Zone         string
+	NodePool     string
+	OSImage      string
 }
 
 // DummyRepository provides fake data for prototyping
@@ -160,4 +275,41 @@ func (r *DummyRepository) GetServices() ([]Service, error) {
 
 func (r *DummyRepository) Close() {
 	// No-op for dummy repository
+}
+
+func (r *DummyRepository) GetResources(resourceType ResourceType) ([]interface{}, error) {
+	switch resourceType {
+	case ResourceTypePod:
+		pods, err := r.GetPods()
+		if err != nil {
+			return nil, err
+		}
+		result := make([]interface{}, len(pods))
+		for i, p := range pods {
+			result[i] = p
+		}
+		return result, nil
+	case ResourceTypeDeployment:
+		deployments, err := r.GetDeployments()
+		if err != nil {
+			return nil, err
+		}
+		result := make([]interface{}, len(deployments))
+		for i, d := range deployments {
+			result[i] = d
+		}
+		return result, nil
+	case ResourceTypeService:
+		services, err := r.GetServices()
+		if err != nil {
+			return nil, err
+		}
+		result := make([]interface{}, len(services))
+		for i, s := range services {
+			result[i] = s
+		}
+		return result, nil
+	default:
+		return []interface{}{}, nil
+	}
 }
