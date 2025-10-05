@@ -10,6 +10,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -497,16 +500,171 @@ func TestInformerRepository_Close(t *testing.T) {
 	}, "Second Close should not panic")
 }
 
+func TestInformerRepository_GetResources_Pods(t *testing.T) {
+	ns := createTestNamespace(t)
+
+	// Create a test pod
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: ns,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+			NodeName:   "test-node",
+		},
+	}
+
+	createdPod, err := testClient.CoreV1().Pods(ns).Create(context.Background(), pod, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	createdPod.Status = corev1.PodStatus{
+		Phase: corev1.PodRunning,
+		PodIP: "10.0.0.1",
+		ContainerStatuses: []corev1.ContainerStatus{
+			{Name: "nginx", Ready: true, RestartCount: 0},
+		},
+	}
+	_, err = testClient.CoreV1().Pods(ns).UpdateStatus(context.Background(), createdPod, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	// Call GetResources with ResourceTypePod
+	resources, err := repo.GetResources(ResourceTypePod)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+
+	// Type assert to Pod
+	pod1, ok := resources[0].(Pod)
+	require.True(t, ok, "Resource should be of type Pod")
+
+	assert.Equal(t, "test-pod", pod1.Name)
+	assert.Equal(t, ns, pod1.Namespace)
+	assert.Equal(t, "Running", pod1.Status)
+	assert.Equal(t, "1/1", pod1.Ready)
+	assert.Equal(t, int32(0), pod1.Restarts)
+}
+
+func TestInformerRepository_GetResources_Deployments(t *testing.T) {
+	ns := createTestNamespace(t)
+	replicas := int32(2)
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deploy",
+			Namespace: ns,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "img"}}},
+			},
+		},
+	}
+
+	created, err := testClient.AppsV1().Deployments(ns).Create(context.Background(), deployment, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	created.Status = appsv1.DeploymentStatus{
+		Replicas:          2,
+		ReadyReplicas:     1,
+		UpdatedReplicas:   2,
+		AvailableReplicas: 1,
+	}
+	_, err = testClient.AppsV1().Deployments(ns).UpdateStatus(context.Background(), created, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	resources, err := repo.GetResources(ResourceTypeDeployment)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+
+	deploy, ok := resources[0].(Deployment)
+	require.True(t, ok, "Resource should be of type Deployment")
+
+	assert.Equal(t, "test-deploy", deploy.Name)
+	assert.Equal(t, "1/2", deploy.Ready)
+	assert.Equal(t, int32(2), deploy.UpToDate)
+	assert.Equal(t, int32(1), deploy.Available)
+}
+
+func TestInformerRepository_GetResources_Services(t *testing.T) {
+	ns := createTestNamespace(t)
+
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-svc",
+			Namespace: ns,
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeClusterIP,
+			Ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+			},
+			Selector: map[string]string{"app": "test"},
+		},
+	}
+
+	_, err := testClient.CoreV1().Services(ns).Create(context.Background(), service, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	resources, err := repo.GetResources(ResourceTypeService)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+
+	svc, ok := resources[0].(Service)
+	require.True(t, ok, "Resource should be of type Service")
+
+	assert.Equal(t, "test-svc", svc.Name)
+	assert.Equal(t, "ClusterIP", svc.Type)
+	assert.NotEmpty(t, svc.ClusterIP)
+	assert.Contains(t, svc.Ports, "80/TCP")
+}
+
+func TestInformerRepository_GetResources_UnknownType(t *testing.T) {
+	ns := createTestNamespace(t)
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+
+	_, err := repo.GetResources("unknown-type")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown resource type")
+}
+
 // createTestRepository creates an InformerRepository using the shared test config
 // and scoped to a specific namespace for test isolation
 func createTestRepository(t *testing.T, namespace string) *InformerRepository {
 	t.Helper()
+
+	// Create dynamic client
+	dynamicClient, err := dynamic.NewForConfig(testCfg)
+	require.NoError(t, err, "Failed to create dynamic client")
 
 	// Create namespace-scoped informer factory for test isolation
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		testClient,
 		30*time.Second,
 		informers.WithNamespace(namespace), // Scope to test namespace
+	)
+
+	// Create namespace-scoped dynamic informer factory
+	dynamicFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
+		dynamicClient,
+		30*time.Second,
+		namespace,
+		nil,
 	)
 
 	// Create pod informer
@@ -521,17 +679,37 @@ func createTestRepository(t *testing.T, namespace string) *InformerRepository {
 	serviceInformer := factory.Core().V1().Services().Informer()
 	serviceLister := factory.Core().V1().Services().Lister()
 
+	// Initialize resource registry
+	resourceRegistry := getResourceRegistry()
+
+	// Create dynamic informers for all registered resources
+	dynamicListers := make(map[schema.GroupVersionResource]cache.GenericLister)
+	dynamicInformers := []cache.SharedIndexInformer{}
+
+	for _, resCfg := range resourceRegistry {
+		informer := dynamicFactory.ForResource(resCfg.GVR).Informer()
+		dynamicListers[resCfg.GVR] = dynamicFactory.ForResource(resCfg.GVR).Lister()
+		dynamicInformers = append(dynamicInformers, informer)
+	}
+
 	// Create context for lifecycle management
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start informers in background
 	factory.Start(ctx.Done())
+	dynamicFactory.Start(ctx.Done())
 
-	// Wait for all caches to sync
-	synced := cache.WaitForCacheSync(ctx.Done(),
+	// Wait for all caches to sync (both typed and dynamic)
+	allInformers := []cache.InformerSynced{
 		podInformer.HasSynced,
 		deploymentInformer.HasSynced,
-		serviceInformer.HasSynced)
+		serviceInformer.HasSynced,
+	}
+	for _, inf := range dynamicInformers {
+		allInformers = append(allInformers, inf.HasSynced)
+	}
+
+	synced := cache.WaitForCacheSync(ctx.Done(), allInformers...)
 	if !synced {
 		cancel()
 	}
@@ -543,6 +721,10 @@ func createTestRepository(t *testing.T, namespace string) *InformerRepository {
 		podLister:        podLister,
 		deploymentLister: deploymentLister,
 		serviceLister:    serviceLister,
+		dynamicClient:    dynamicClient,
+		dynamicFactory:   dynamicFactory,
+		resources:        resourceRegistry,
+		dynamicListers:   dynamicListers,
 		ctx:              ctx,
 		cancel:           cancel,
 	}

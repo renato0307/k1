@@ -2,13 +2,45 @@ package k8s
 
 import (
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+// ResourceType identifies a Kubernetes resource type
+type ResourceType string
+
+const (
+	ResourceTypePod        ResourceType = "pods"
+	ResourceTypeDeployment ResourceType = "deployments"
+	ResourceTypeService    ResourceType = "services"
+	ResourceTypeConfigMap  ResourceType = "configmaps"
+	ResourceTypeSecret     ResourceType = "secrets"
+	ResourceTypeNamespace  ResourceType = "namespaces"
+)
+
+// ResourceConfig defines configuration for a resource type
+type ResourceConfig struct {
+	GVR        schema.GroupVersionResource
+	Name       string
+	Namespaced bool
+	Tier       int // 1=critical (block UI), 2=background, 3=deferred
+	Transform  TransformFunc
+}
+
+// TransformFunc converts an unstructured resource to a typed struct
+type TransformFunc func(*unstructured.Unstructured) (interface{}, error)
 
 // Repository provides access to Kubernetes resources
 type Repository interface {
+	// Generic resource access (config-driven)
+	GetResources(resourceType ResourceType) ([]interface{}, error)
+
+	// Typed convenience methods (preserved for compatibility)
 	GetPods() ([]Pod, error)
 	GetDeployments() ([]Deployment, error)
 	GetServices() ([]Service, error)
+
 	Close()
 }
 
@@ -160,4 +192,41 @@ func (r *DummyRepository) GetServices() ([]Service, error) {
 
 func (r *DummyRepository) Close() {
 	// No-op for dummy repository
+}
+
+func (r *DummyRepository) GetResources(resourceType ResourceType) ([]interface{}, error) {
+	switch resourceType {
+	case ResourceTypePod:
+		pods, err := r.GetPods()
+		if err != nil {
+			return nil, err
+		}
+		result := make([]interface{}, len(pods))
+		for i, p := range pods {
+			result[i] = p
+		}
+		return result, nil
+	case ResourceTypeDeployment:
+		deployments, err := r.GetDeployments()
+		if err != nil {
+			return nil, err
+		}
+		result := make([]interface{}, len(deployments))
+		for i, d := range deployments {
+			result[i] = d
+		}
+		return result, nil
+	case ResourceTypeService:
+		services, err := r.GetServices()
+		if err != nil {
+			return nil, err
+		}
+		result := make([]interface{}, len(services))
+		for i, s := range services {
+			result[i] = s
+		}
+		return result, nil
+	default:
+		return []interface{}{}, nil
+	}
 }
