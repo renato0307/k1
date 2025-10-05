@@ -94,6 +94,180 @@ func GetServicesScreenConfig() ScreenConfig {
 	}
 }
 
+// GetConfigMapsScreenConfig returns the config for the ConfigMaps screen (Level 1)
+func GetConfigMapsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "configmaps",
+		Title:        "ConfigMaps",
+		ResourceType: k8s.ResourceTypeConfigMap,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Data", Title: "Data", Width: 10},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected configmap", Shortcut: "d"},
+			{ID: "delete", Name: "Delete", Description: "Delete selected configmap", Shortcut: "x"},
+		},
+	}
+}
+
+// GetSecretsScreenConfig returns the config for the Secrets screen (Level 1)
+func GetSecretsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "secrets",
+		Title:        "Secrets",
+		ResourceType: k8s.ResourceTypeSecret,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Type", Title: "Type", Width: 30},
+			{Field: "Data", Title: "Data", Width: 10},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name", "Type"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected secret", Shortcut: "d"},
+			{ID: "delete", Name: "Delete", Description: "Delete selected secret", Shortcut: "x"},
+		},
+	}
+}
+
+// GetNamespacesScreenConfig returns the config for the Namespaces screen (Level 1)
+func GetNamespacesScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "namespaces",
+		Title:        "Namespaces",
+		ResourceType: k8s.ResourceTypeNamespace,
+		Columns: []ColumnConfig{
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Status", Title: "Status", Width: 15},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Name", "Status"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected namespace", Shortcut: "d"},
+			{ID: "delete", Name: "Delete", Description: "Delete selected namespace", Shortcut: "x"},
+		},
+	}
+}
+
+// GetStatefulSetsScreenConfig returns the config for the StatefulSets screen (Level 1)
+func GetStatefulSetsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "statefulsets",
+		Title:        "StatefulSets",
+		ResourceType: k8s.ResourceTypeStatefulSet,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Ready", Title: "Ready", Width: 10},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name"},
+		Operations: []OperationConfig{
+			{ID: "scale", Name: "Scale", Description: "Scale selected statefulset", Shortcut: "s"},
+			{ID: "describe", Name: "Describe", Description: "Describe selected statefulset", Shortcut: "d"},
+			{ID: "delete", Name: "Delete", Description: "Delete selected statefulset", Shortcut: "x"},
+		},
+	}
+}
+
+// GetDaemonSetsScreenConfig returns the config for the DaemonSets screen (Level 1)
+func GetDaemonSetsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "daemonsets",
+		Title:        "DaemonSets",
+		ResourceType: k8s.ResourceTypeDaemonSet,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Desired", Title: "Desired", Width: 10},
+			{Field: "Current", Title: "Current", Width: 10},
+			{Field: "Ready", Title: "Ready", Width: 10},
+			{Field: "UpToDate", Title: "Up-to-date", Width: 12},
+			{Field: "Available", Title: "Available", Width: 12},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected daemonset", Shortcut: "d"},
+			{ID: "delete", Name: "Delete", Description: "Delete selected daemonset", Shortcut: "x"},
+		},
+	}
+}
+
+// GetJobsScreenConfig returns the config for the Jobs screen (Level 1)
+func GetJobsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "jobs",
+		Title:        "Jobs",
+		ResourceType: k8s.ResourceTypeJob,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Completions", Title: "Completions", Width: 15},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected job", Shortcut: "d"},
+			{ID: "delete", Name: "Delete", Description: "Delete selected job", Shortcut: "x"},
+		},
+	}
+}
+
+// GetCronJobsScreenConfig returns the config for the CronJobs screen (Level 1)
+func GetCronJobsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "cronjobs",
+		Title:        "CronJobs",
+		ResourceType: k8s.ResourceTypeCronJob,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Schedule", Title: "Schedule", Width: 15},
+			{Field: "Suspend", Title: "Suspend", Width: 10},
+			{Field: "Active", Title: "Active", Width: 10},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name", "Schedule"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected cronjob", Shortcut: "d"},
+			{ID: "delete", Name: "Delete", Description: "Delete selected cronjob", Shortcut: "x"},
+		},
+	}
+}
+
+// GetNodesScreenConfig returns the config for the Nodes screen (Level 1)
+func GetNodesScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "nodes",
+		Title:        "Nodes",
+		ResourceType: k8s.ResourceTypeNode,
+		Columns: []ColumnConfig{
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Status", Title: "Status", Width: 12},
+			{Field: "Roles", Title: "Roles", Width: 15},
+			{Field: "Hostname", Title: "Hostname", Width: 30},
+			{Field: "InstanceType", Title: "Instance", Width: 20},
+			{Field: "Zone", Title: "Zone", Width: 20},
+			{Field: "NodePool", Title: "NodePool", Width: 20},
+			{Field: "Version", Title: "Version", Width: 15},
+			{Field: "OSImage", Title: "OS Image", Width: 40},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Name", "Status", "Roles", "Hostname", "InstanceType", "Zone", "NodePool", "OSImage"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected node", Shortcut: "d"},
+			{ID: "cordon", Name: "Cordon", Description: "Cordon selected node", Shortcut: "c"},
+			{ID: "drain", Name: "Drain", Description: "Drain selected node", Shortcut: "r"},
+		},
+	}
+}
+
 // tickCmd returns a command that sends a tickMsg after 1 second
 func tickCmd() tea.Cmd {
 	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {

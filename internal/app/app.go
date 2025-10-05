@@ -30,9 +30,22 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	registry := types.NewScreenRegistry()
 
 	// Register all screens using config-driven approach
+	// Tier 1: Critical (Pods)
 	registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(), repo, theme))
+
+	// Tier 2: Common resources
 	registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(), repo, theme))
 	registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, theme))
+
+	// Tier 3: Less common resources
+	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetDaemonSetsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetJobsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), repo, theme))
 
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")

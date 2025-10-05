@@ -80,6 +80,86 @@ func NewRegistry() *Registry {
 				},
 			},
 			{
+				Name:        "configmaps",
+				Description: "Switch to ConfigMaps screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "configmaps"}
+					}
+				},
+			},
+			{
+				Name:        "secrets",
+				Description: "Switch to Secrets screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "secrets"}
+					}
+				},
+			},
+			{
+				Name:        "namespaces",
+				Description: "Switch to Namespaces screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "namespaces"}
+					}
+				},
+			},
+			{
+				Name:        "statefulsets",
+				Description: "Switch to StatefulSets screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "statefulsets"}
+					}
+				},
+			},
+			{
+				Name:        "daemonsets",
+				Description: "Switch to DaemonSets screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "daemonsets"}
+					}
+				},
+			},
+			{
+				Name:        "jobs",
+				Description: "Switch to Jobs screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "jobs"}
+					}
+				},
+			},
+			{
+				Name:        "cronjobs",
+				Description: "Switch to CronJobs screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "cronjobs"}
+					}
+				},
+			},
+			{
+				Name:        "nodes",
+				Description: "Switch to Nodes screen",
+				Category:    CategoryResource,
+				Execute: func(ctx CommandContext) tea.Cmd {
+					return func() tea.Msg {
+						return types.ScreenSwitchMsg{ScreenID: "nodes"}
+					}
+				},
+			},
+			{
 				Name:        "ns",
 				Description: "Filter by namespace",
 				Category:    CategoryResource,
@@ -351,15 +431,74 @@ Events:
 				Name:          "scale",
 				Description:   "Scale replicas",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"deployments"}, // Only for deployments
+				ResourceTypes: []string{"deployments", "statefulsets"}, // For deployments and statefulsets
 				Execute: func(ctx CommandContext) tea.Cmd {
-					// Phase 3: Show which deployment to scale
 					resourceName := "unknown"
 					if name, ok := ctx.Selected["name"].(string); ok {
 						resourceName = name
 					}
 					return func() tea.Msg {
-						return types.ErrorMsg{Error: "Scale deployment/" + resourceName + " - Coming soon"}
+						return types.ErrorMsg{Error: "Scale " + ctx.ResourceType + "/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "cordon",
+				Description:   "Cordon node (mark unschedulable)",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"nodes"}, // Only for nodes
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Cordon node/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "drain",
+				Description:   "Drain node (evict all pods)",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"nodes"}, // Only for nodes
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Drain node/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "endpoints",
+				Description:   "Show service endpoints",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"services"}, // Only for services
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Show endpoints for service/" + resourceName + " - Coming soon"}
+					}
+				},
+			},
+			{
+				Name:          "restart",
+				Description:   "Restart deployment",
+				Category:      CategoryAction,
+				ResourceTypes: []string{"deployments"}, // Only for deployments
+				Execute: func(ctx CommandContext) tea.Cmd {
+					resourceName := "unknown"
+					if name, ok := ctx.Selected["name"].(string); ok {
+						resourceName = name
+					}
+					return func() tea.Msg {
+						return types.ErrorMsg{Error: "Restart deployment/" + resourceName + " - Coming soon"}
 					}
 				},
 			},

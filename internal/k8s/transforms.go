@@ -154,6 +154,256 @@ func transformService(u *unstructured.Unstructured) (interface{}, error) {
 	}, nil
 }
 
+// transformConfigMap converts an unstructured configmap to a typed ConfigMap
+func transformConfigMap(u *unstructured.Unstructured) (interface{}, error) {
+	namespace := u.GetNamespace()
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Count data items
+	data, _, _ := unstructured.NestedMap(u.Object, "data")
+	dataCount := len(data)
+
+	return ConfigMap{
+		Namespace: namespace,
+		Name:      name,
+		Data:      dataCount,
+		Age:       age,
+	}, nil
+}
+
+// transformSecret converts an unstructured secret to a typed Secret
+func transformSecret(u *unstructured.Unstructured) (interface{}, error) {
+	namespace := u.GetNamespace()
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Extract type
+	secretType, _, _ := unstructured.NestedString(u.Object, "type")
+
+	// Count data items
+	data, _, _ := unstructured.NestedMap(u.Object, "data")
+	dataCount := len(data)
+
+	return Secret{
+		Namespace: namespace,
+		Name:      name,
+		Type:      secretType,
+		Data:      dataCount,
+		Age:       age,
+	}, nil
+}
+
+// transformNamespace converts an unstructured namespace to a typed Namespace
+func transformNamespace(u *unstructured.Unstructured) (interface{}, error) {
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Extract status
+	status, _, _ := unstructured.NestedString(u.Object, "status", "phase")
+
+	return Namespace{
+		Name:   name,
+		Status: status,
+		Age:    age,
+	}, nil
+}
+
+// transformStatefulSet converts an unstructured statefulset to a typed StatefulSet
+func transformStatefulSet(u *unstructured.Unstructured) (interface{}, error) {
+	namespace := u.GetNamespace()
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Extract replica counts
+	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
+	desired, _, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
+
+	readyStatus := fmt.Sprintf("%d/%d", ready, desired)
+
+	return StatefulSet{
+		Namespace: namespace,
+		Name:      name,
+		Ready:     readyStatus,
+		Age:       age,
+	}, nil
+}
+
+// transformDaemonSet converts an unstructured daemonset to a typed DaemonSet
+func transformDaemonSet(u *unstructured.Unstructured) (interface{}, error) {
+	namespace := u.GetNamespace()
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Extract counts
+	desired, _, _ := unstructured.NestedInt64(u.Object, "status", "desiredNumberScheduled")
+	current, _, _ := unstructured.NestedInt64(u.Object, "status", "currentNumberScheduled")
+	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "numberReady")
+	upToDate, _, _ := unstructured.NestedInt64(u.Object, "status", "updatedNumberScheduled")
+	available, _, _ := unstructured.NestedInt64(u.Object, "status", "numberAvailable")
+
+	return DaemonSet{
+		Namespace: namespace,
+		Name:      name,
+		Desired:   int32(desired),
+		Current:   int32(current),
+		Ready:     int32(ready),
+		UpToDate:  int32(upToDate),
+		Available: int32(available),
+		Age:       age,
+	}, nil
+}
+
+// transformJob converts an unstructured job to a typed Job
+func transformJob(u *unstructured.Unstructured) (interface{}, error) {
+	namespace := u.GetNamespace()
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Extract completions
+	completions, _, _ := unstructured.NestedInt64(u.Object, "spec", "completions")
+	succeeded, _, _ := unstructured.NestedInt64(u.Object, "status", "succeeded")
+	completionsStr := fmt.Sprintf("%d/%d", succeeded, completions)
+
+	// Calculate duration
+	var duration time.Duration
+	if startTime, found, _ := unstructured.NestedString(u.Object, "status", "startTime"); found && startTime != "" {
+		if completionTime, found, _ := unstructured.NestedString(u.Object, "status", "completionTime"); found && completionTime != "" {
+			// Parse times and calculate duration
+			duration = 0 // Simplified for now
+		}
+	}
+
+	return Job{
+		Namespace:   namespace,
+		Name:        name,
+		Completions: completionsStr,
+		Duration:    duration,
+		Age:         age,
+	}, nil
+}
+
+// transformCronJob converts an unstructured cronjob to a typed CronJob
+func transformCronJob(u *unstructured.Unstructured) (interface{}, error) {
+	namespace := u.GetNamespace()
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Extract schedule
+	schedule, _, _ := unstructured.NestedString(u.Object, "spec", "schedule")
+
+	// Extract suspend flag
+	suspend, _, _ := unstructured.NestedBool(u.Object, "spec", "suspend")
+
+	// Count active jobs
+	activeJobs, _, _ := unstructured.NestedSlice(u.Object, "status", "active")
+	active := int32(len(activeJobs))
+
+	// Get last schedule time
+	var lastSchedule time.Duration
+	if lastScheduleTime, found, _ := unstructured.NestedString(u.Object, "status", "lastScheduleTime"); found && lastScheduleTime != "" {
+		// Parse time and calculate duration - simplified for now
+		lastSchedule = 0
+	}
+
+	return CronJob{
+		Namespace:    namespace,
+		Name:         name,
+		Schedule:     schedule,
+		Suspend:      suspend,
+		Active:       active,
+		LastSchedule: lastSchedule,
+		Age:          age,
+	}, nil
+}
+
+// transformNode converts an unstructured node to a typed Node
+func transformNode(u *unstructured.Unstructured) (interface{}, error) {
+	name := u.GetName()
+	age := time.Since(u.GetCreationTimestamp().Time)
+
+	// Extract status
+	conditions, _, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
+	status := "Unknown"
+	for _, c := range conditions {
+		condMap, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if condType, _, _ := unstructured.NestedString(condMap, "type"); condType == "Ready" {
+			if condStatus, _, _ := unstructured.NestedString(condMap, "status"); condStatus == "True" {
+				status = "Ready"
+			} else {
+				status = "NotReady"
+			}
+			break
+		}
+	}
+
+	// Extract roles from labels
+	labels := u.GetLabels()
+	roles := []string{}
+	for key := range labels {
+		if strings.HasPrefix(key, "node-role.kubernetes.io/") {
+			role := strings.TrimPrefix(key, "node-role.kubernetes.io/")
+			if role != "" {
+				roles = append(roles, role)
+			}
+		}
+	}
+	rolesStr := strings.Join(roles, ",")
+	if rolesStr == "" {
+		rolesStr = "<none>"
+	}
+
+	// Extract label-based metadata
+	hostname := labels["kubernetes.io/hostname"]
+	if hostname == "" {
+		hostname = "<none>"
+	}
+
+	instanceType := labels["beta.kubernetes.io/instance-type"]
+	if instanceType == "" {
+		instanceType = labels["node.kubernetes.io/instance-type"] // Try newer label
+	}
+	if instanceType == "" {
+		instanceType = "<none>"
+	}
+
+	zone := labels["topology.kubernetes.io/zone"]
+	if zone == "" {
+		zone = labels["failure-domain.beta.kubernetes.io/zone"] // Try older label
+	}
+	if zone == "" {
+		zone = "<none>"
+	}
+
+	nodePool := labels["karpenter.sh/nodepool"]
+	if nodePool == "" {
+		nodePool = "<none>"
+	}
+
+	// Extract version and OS image from nodeInfo
+	version, _, _ := unstructured.NestedString(u.Object, "status", "nodeInfo", "kubeletVersion")
+	osImage, _, _ := unstructured.NestedString(u.Object, "status", "nodeInfo", "osImage")
+	if osImage == "" {
+		osImage = "<none>"
+	}
+
+	return Node{
+		Name:         name,
+		Status:       status,
+		Roles:        rolesStr,
+		Age:          age,
+		Version:      version,
+		Hostname:     hostname,
+		InstanceType: instanceType,
+		Zone:         zone,
+		NodePool:     nodePool,
+		OSImage:      osImage,
+	}, nil
+}
+
 // getResourceRegistry returns the registry of all supported resources
 func getResourceRegistry() map[ResourceType]ResourceConfig {
 	return map[ResourceType]ResourceConfig{
@@ -189,6 +439,94 @@ func getResourceRegistry() map[ResourceType]ResourceConfig {
 			Namespaced: true,
 			Tier:       2, // Background load
 			Transform:  transformService,
+		},
+		ResourceTypeConfigMap: {
+			GVR: schema.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "configmaps",
+			},
+			Name:       "ConfigMaps",
+			Namespaced: true,
+			Tier:       2,
+			Transform:  transformConfigMap,
+		},
+		ResourceTypeSecret: {
+			GVR: schema.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "secrets",
+			},
+			Name:       "Secrets",
+			Namespaced: true,
+			Tier:       2,
+			Transform:  transformSecret,
+		},
+		ResourceTypeNamespace: {
+			GVR: schema.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "namespaces",
+			},
+			Name:       "Namespaces",
+			Namespaced: false, // Cluster-scoped
+			Tier:       2,
+			Transform:  transformNamespace,
+		},
+		ResourceTypeStatefulSet: {
+			GVR: schema.GroupVersionResource{
+				Group:    "apps",
+				Version:  "v1",
+				Resource: "statefulsets",
+			},
+			Name:       "StatefulSets",
+			Namespaced: true,
+			Tier:       3,
+			Transform:  transformStatefulSet,
+		},
+		ResourceTypeDaemonSet: {
+			GVR: schema.GroupVersionResource{
+				Group:    "apps",
+				Version:  "v1",
+				Resource: "daemonsets",
+			},
+			Name:       "DaemonSets",
+			Namespaced: true,
+			Tier:       3,
+			Transform:  transformDaemonSet,
+		},
+		ResourceTypeJob: {
+			GVR: schema.GroupVersionResource{
+				Group:    "batch",
+				Version:  "v1",
+				Resource: "jobs",
+			},
+			Name:       "Jobs",
+			Namespaced: true,
+			Tier:       3,
+			Transform:  transformJob,
+		},
+		ResourceTypeCronJob: {
+			GVR: schema.GroupVersionResource{
+				Group:    "batch",
+				Version:  "v1",
+				Resource: "cronjobs",
+			},
+			Name:       "CronJobs",
+			Namespaced: true,
+			Tier:       3,
+			Transform:  transformCronJob,
+		},
+		ResourceTypeNode: {
+			GVR: schema.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "nodes",
+			},
+			Name:       "Nodes",
+			Namespaced: false, // Cluster-scoped
+			Tier:       3,
+			Transform:  transformNode,
 		},
 	}
 }

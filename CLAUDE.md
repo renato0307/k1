@@ -310,18 +310,23 @@ The project has moved beyond prototyping into a structured application:
 ### ✅ Implemented
 - Core Bubble Tea application structure with screen routing
 - Screen registry system for managing multiple views
-- Three screens: Pods, Deployments, Services
+- **Config-driven architecture** with 3-level customization (PLAN-04 complete)
+- **11 resource screens**: Pods, Deployments, Services, ConfigMaps, Secrets, Namespaces, StatefulSets, DaemonSets, Jobs, CronJobs, Nodes
+- Enhanced Nodes screen with 10 columns (Name, Status, Roles, Hostname, InstanceType, Zone, NodePool, Version, OSImage, Age)
 - **Command bar component** with expandable states (Phase 1 complete)
 - Filter mode: real-time fuzzy search with negation support
 - Suggestion palette: `:` for navigation, `/` for commands
+- **Resource-specific commands**: cordon/drain (nodes), endpoints (services), restart (deployments), scale (deployments/statefulsets)
 - Theming system with 8 themes (charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
 - Global keybindings: quit (q/ctrl+c)
 - Header component with refresh time display
 - Layout component with dynamic body height calculation
 - Repository pattern with both dummy and live Kubernetes data sources
 - Live Kubernetes integration via informers (Pods only, with protobuf)
+- Dynamic client with unstructured resources for all 11 resource types
 - Command-line flags: -kubeconfig, -context, -theme, -dummy
-- **Comprehensive test suite** with envtest (shared TestMain, namespace isolation)
+- **Comprehensive test suite** with envtest (shared TestMain, namespace isolation, table-driven tests)
+- **Test coverage**: 76.7% (k8s), 71.0% (screens)
 - **Makefile** with test/build/run targets
 
 ### 🚧 In Progress / To Do
@@ -343,7 +348,10 @@ The project has moved beyond prototyping into a structured application:
 - **design/DDR-03.md**: Kubernetes informer-based repository design
 - **design/DDR-04.md**: Testing strategy with envtest (shared TestMain pattern)
 - **design/DDR-05.md**: Command-enhanced list browser UI/UX design
+- **design/DDR-06.md**: Describe and YAML commands implementation
+- **design/DDR-07.md**: Scalable multi-resource architecture with config-driven design
 - **plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
+- **plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
@@ -397,6 +405,7 @@ The project has moved beyond prototyping into a structured application:
 9. **Themes**: Add theme styles to `internal/ui/theme.go`
 10. **Messages**: Custom messages go in `internal/types/types.go`
 11. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
+12. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
 
 ## Quick Reference
 

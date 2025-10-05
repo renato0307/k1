@@ -1,0 +1,753 @@
+package k8s
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+func TestTransformConfigMap(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-cm",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"data": map[string]interface{}{
+				"key1": "value1",
+				"key2": "value2",
+			},
+		},
+	}
+
+	result, err := transformConfigMap(u)
+	require.NoError(t, err)
+
+	cm, ok := result.(ConfigMap)
+	require.True(t, ok)
+	assert.Equal(t, "test-cm", cm.Name)
+	assert.Equal(t, "default", cm.Namespace)
+	assert.Equal(t, 2, cm.Data)
+}
+
+func TestTransformSecret(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-secret",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"type": "Opaque",
+			"data": map[string]interface{}{
+				"password": "c2VjcmV0",
+				"username": "YWRtaW4=",
+			},
+		},
+	}
+
+	result, err := transformSecret(u)
+	require.NoError(t, err)
+
+	secret, ok := result.(Secret)
+	require.True(t, ok)
+	assert.Equal(t, "test-secret", secret.Name)
+	assert.Equal(t, "default", secret.Namespace)
+	assert.Equal(t, "Opaque", secret.Type)
+	assert.Equal(t, 2, secret.Data)
+}
+
+func TestTransformService(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name               string
+		spec               map[string]interface{}
+		status             map[string]interface{}
+		expectedType       string
+		expectedClusterIP  string
+		expectedExternalIP string
+		checkPorts         func(t *testing.T, ports string)
+	}{
+		{
+			name: "ClusterIP service with regular ports",
+			spec: map[string]interface{}{
+				"type":      "ClusterIP",
+				"clusterIP": "10.0.0.1",
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(80),
+						"protocol": "TCP",
+					},
+				},
+			},
+			status:             map[string]interface{}{},
+			expectedType:       "ClusterIP",
+			expectedClusterIP:  "10.0.0.1",
+			expectedExternalIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "80/TCP", ports)
+			},
+		},
+		{
+			name: "service with empty cluster IP",
+			spec: map[string]interface{}{
+				"type":      "ClusterIP",
+				"clusterIP": "",
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(443),
+						"protocol": "TCP",
+					},
+				},
+			},
+			status:             map[string]interface{}{},
+			expectedType:       "ClusterIP",
+			expectedClusterIP:  "<none>",
+			expectedExternalIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "443/TCP", ports)
+			},
+		},
+		{
+			name: "NodePort service with port mappings",
+			spec: map[string]interface{}{
+				"type":      "NodePort",
+				"clusterIP": "10.0.0.2",
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(80),
+						"nodePort": int64(30080),
+						"protocol": "TCP",
+					},
+					map[string]interface{}{
+						"port":     int64(443),
+						"nodePort": int64(30443),
+						"protocol": "TCP",
+					},
+				},
+			},
+			status:             map[string]interface{}{},
+			expectedType:       "NodePort",
+			expectedClusterIP:  "10.0.0.2",
+			expectedExternalIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Contains(t, ports, "80:30080/TCP")
+				assert.Contains(t, ports, "443:30443/TCP")
+			},
+		},
+		{
+			name: "LoadBalancer with IP in status",
+			spec: map[string]interface{}{
+				"type":      "LoadBalancer",
+				"clusterIP": "10.0.0.3",
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(80),
+						"protocol": "TCP",
+					},
+				},
+			},
+			status: map[string]interface{}{
+				"loadBalancer": map[string]interface{}{
+					"ingress": []interface{}{
+						map[string]interface{}{
+							"ip": "198.51.100.1",
+						},
+					},
+				},
+			},
+			expectedType:       "LoadBalancer",
+			expectedClusterIP:  "10.0.0.3",
+			expectedExternalIP: "198.51.100.1",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "80/TCP", ports)
+			},
+		},
+		{
+			name: "LoadBalancer with hostname in status",
+			spec: map[string]interface{}{
+				"type":      "LoadBalancer",
+				"clusterIP": "10.0.0.4",
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(443),
+						"protocol": "TCP",
+					},
+				},
+			},
+			status: map[string]interface{}{
+				"loadBalancer": map[string]interface{}{
+					"ingress": []interface{}{
+						map[string]interface{}{
+							"hostname": "lb.example.com",
+						},
+					},
+				},
+			},
+			expectedType:       "LoadBalancer",
+			expectedClusterIP:  "10.0.0.4",
+			expectedExternalIP: "lb.example.com",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "443/TCP", ports)
+			},
+		},
+		{
+			name: "service with external IPs from spec",
+			spec: map[string]interface{}{
+				"type":      "ClusterIP",
+				"clusterIP": "10.0.0.5",
+				"externalIPs": []interface{}{
+					"203.0.113.1",
+					"203.0.113.2",
+				},
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(8080),
+						"protocol": "TCP",
+					},
+				},
+			},
+			status:             map[string]interface{}{},
+			expectedType:       "ClusterIP",
+			expectedClusterIP:  "10.0.0.5",
+			expectedExternalIP: "203.0.113.1,203.0.113.2",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "8080/TCP", ports)
+			},
+		},
+		{
+			name: "service with no ports",
+			spec: map[string]interface{}{
+				"type":      "ClusterIP",
+				"clusterIP": "10.0.0.6",
+				"ports":     []interface{}{},
+			},
+			status:             map[string]interface{}{},
+			expectedType:       "ClusterIP",
+			expectedClusterIP:  "10.0.0.6",
+			expectedExternalIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "<none>", ports)
+			},
+		},
+		{
+			name: "service with invalid port map",
+			spec: map[string]interface{}{
+				"type":      "ClusterIP",
+				"clusterIP": "10.0.0.7",
+				"ports": []interface{}{
+					"invalid-port-string", // Not a map
+					map[string]interface{}{
+						"port":     int64(9090),
+						"protocol": "UDP",
+					},
+				},
+			},
+			status:             map[string]interface{}{},
+			expectedType:       "ClusterIP",
+			expectedClusterIP:  "10.0.0.7",
+			expectedExternalIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				// Should skip invalid entry and only include valid one
+				assert.Equal(t, "9090/UDP", ports)
+			},
+		},
+		{
+			name: "LoadBalancer with invalid ingress entry",
+			spec: map[string]interface{}{
+				"type":      "LoadBalancer",
+				"clusterIP": "10.0.0.8",
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(80),
+						"protocol": "TCP",
+					},
+				},
+			},
+			status: map[string]interface{}{
+				"loadBalancer": map[string]interface{}{
+					"ingress": []interface{}{
+						"invalid-ingress-string", // Not a map
+					},
+				},
+			},
+			expectedType:       "LoadBalancer",
+			expectedClusterIP:  "10.0.0.8",
+			expectedExternalIP: "<none>",
+			checkPorts: func(t *testing.T, ports string) {
+				assert.Equal(t, "80/TCP", ports)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-svc",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"spec":   tt.spec,
+					"status": tt.status,
+				},
+			}
+
+			result, err := transformService(u)
+			require.NoError(t, err)
+
+			svc, ok := result.(Service)
+			require.True(t, ok)
+			assert.Equal(t, "test-svc", svc.Name)
+			assert.Equal(t, "default", svc.Namespace)
+			assert.Equal(t, tt.expectedType, svc.Type)
+			assert.Equal(t, tt.expectedClusterIP, svc.ClusterIP)
+			assert.Equal(t, tt.expectedExternalIP, svc.ExternalIP)
+			tt.checkPorts(t, svc.Ports)
+		})
+	}
+}
+
+func TestTransformNamespace(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-ns",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"status": map[string]interface{}{
+				"phase": "Active",
+			},
+		},
+	}
+
+	result, err := transformNamespace(u)
+	require.NoError(t, err)
+
+	ns, ok := result.(Namespace)
+	require.True(t, ok)
+	assert.Equal(t, "test-ns", ns.Name)
+	assert.Equal(t, "Active", ns.Status)
+}
+
+func TestTransformStatefulSet(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-sts",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"spec": map[string]interface{}{
+				"replicas": int64(3),
+			},
+			"status": map[string]interface{}{
+				"readyReplicas": int64(2),
+			},
+		},
+	}
+
+	result, err := transformStatefulSet(u)
+	require.NoError(t, err)
+
+	sts, ok := result.(StatefulSet)
+	require.True(t, ok)
+	assert.Equal(t, "test-sts", sts.Name)
+	assert.Equal(t, "default", sts.Namespace)
+	assert.Equal(t, "2/3", sts.Ready)
+}
+
+func TestTransformDaemonSet(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-ds",
+				"namespace":         "kube-system",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"status": map[string]interface{}{
+				"desiredNumberScheduled": int64(5),
+				"currentNumberScheduled": int64(5),
+				"numberReady":            int64(4),
+				"updatedNumberScheduled": int64(5),
+				"numberAvailable":        int64(4),
+			},
+		},
+	}
+
+	result, err := transformDaemonSet(u)
+	require.NoError(t, err)
+
+	ds, ok := result.(DaemonSet)
+	require.True(t, ok)
+	assert.Equal(t, "test-ds", ds.Name)
+	assert.Equal(t, "kube-system", ds.Namespace)
+	assert.Equal(t, int32(5), ds.Desired)
+	assert.Equal(t, int32(5), ds.Current)
+	assert.Equal(t, int32(4), ds.Ready)
+	assert.Equal(t, int32(5), ds.UpToDate)
+	assert.Equal(t, int32(4), ds.Available)
+}
+
+func TestTransformJob(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name                string
+		spec                map[string]interface{}
+		status              map[string]interface{}
+		expectedCompletions string
+		expectedDuration    time.Duration
+	}{
+		{
+			name: "job with completions and succeeded",
+			spec: map[string]interface{}{
+				"completions": int64(5),
+			},
+			status: map[string]interface{}{
+				"succeeded": int64(3),
+			},
+			expectedCompletions: "3/5",
+			expectedDuration:    0,
+		},
+		{
+			name: "job with start time only",
+			spec: map[string]interface{}{
+				"completions": int64(1),
+			},
+			status: map[string]interface{}{
+				"succeeded": int64(0),
+				"startTime": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			expectedCompletions: "0/1",
+			expectedDuration:    0,
+		},
+		{
+			name: "job with start and completion time",
+			spec: map[string]interface{}{
+				"completions": int64(1),
+			},
+			status: map[string]interface{}{
+				"succeeded":      int64(1),
+				"startTime":      metav1.NewTime(now).Format(time.RFC3339),
+				"completionTime": metav1.NewTime(now.Add(5 * time.Minute)).Format(time.RFC3339),
+			},
+			expectedCompletions: "1/1",
+			expectedDuration:    0, // Simplified calculation returns 0
+		},
+		{
+			name: "job with no completions",
+			spec: map[string]interface{}{},
+			status: map[string]interface{}{
+				"succeeded": int64(0),
+			},
+			expectedCompletions: "0/0",
+			expectedDuration:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-job",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"spec":   tt.spec,
+					"status": tt.status,
+				},
+			}
+
+			result, err := transformJob(u)
+			require.NoError(t, err)
+
+			job, ok := result.(Job)
+			require.True(t, ok)
+			assert.Equal(t, "test-job", job.Name)
+			assert.Equal(t, "default", job.Namespace)
+			assert.Equal(t, tt.expectedCompletions, job.Completions)
+			assert.Equal(t, tt.expectedDuration, job.Duration)
+		})
+	}
+}
+
+func TestTransformCronJob(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name                 string
+		spec                 map[string]interface{}
+		status               map[string]interface{}
+		expectedSchedule     string
+		expectedSuspend      bool
+		expectedActive       int32
+		expectedLastSchedule time.Duration
+	}{
+		{
+			name: "active cronjob with multiple jobs",
+			spec: map[string]interface{}{
+				"schedule": "0 * * * *",
+				"suspend":  false,
+			},
+			status: map[string]interface{}{
+				"active": []interface{}{
+					map[string]interface{}{"name": "job-1"},
+					map[string]interface{}{"name": "job-2"},
+				},
+			},
+			expectedSchedule:     "0 * * * *",
+			expectedSuspend:      false,
+			expectedActive:       2,
+			expectedLastSchedule: 0,
+		},
+		{
+			name: "suspended cronjob",
+			spec: map[string]interface{}{
+				"schedule": "*/5 * * * *",
+				"suspend":  true,
+			},
+			status: map[string]interface{}{
+				"active": []interface{}{},
+			},
+			expectedSchedule:     "*/5 * * * *",
+			expectedSuspend:      true,
+			expectedActive:       0,
+			expectedLastSchedule: 0,
+		},
+		{
+			name: "cronjob with last schedule time",
+			spec: map[string]interface{}{
+				"schedule": "0 0 * * *",
+				"suspend":  false,
+			},
+			status: map[string]interface{}{
+				"active":           []interface{}{},
+				"lastScheduleTime": metav1.NewTime(now.Add(-1 * time.Hour)).Format(time.RFC3339),
+			},
+			expectedSchedule:     "0 0 * * *",
+			expectedSuspend:      false,
+			expectedActive:       0,
+			expectedLastSchedule: 0, // Simplified calculation returns 0
+		},
+		{
+			name: "cronjob with no status",
+			spec: map[string]interface{}{
+				"schedule": "0 12 * * *",
+				"suspend":  false,
+			},
+			status:               map[string]interface{}{},
+			expectedSchedule:     "0 12 * * *",
+			expectedSuspend:      false,
+			expectedActive:       0,
+			expectedLastSchedule: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-cron",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"spec":   tt.spec,
+					"status": tt.status,
+				},
+			}
+
+			result, err := transformCronJob(u)
+			require.NoError(t, err)
+
+			cron, ok := result.(CronJob)
+			require.True(t, ok)
+			assert.Equal(t, "test-cron", cron.Name)
+			assert.Equal(t, "default", cron.Namespace)
+			assert.Equal(t, tt.expectedSchedule, cron.Schedule)
+			assert.Equal(t, tt.expectedSuspend, cron.Suspend)
+			assert.Equal(t, tt.expectedActive, cron.Active)
+			assert.Equal(t, tt.expectedLastSchedule, cron.LastSchedule)
+		})
+	}
+}
+
+func TestTransformNode(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name                  string
+		labels                map[string]interface{}
+		conditionStatus       string
+		kubeletVersion        string
+		osImage               string
+		expectedStatus        string
+		expectedRoles         string
+		expectedHostname      string
+		expectedInstanceType  string
+		expectedZone          string
+		expectedNodePool      string
+		expectedOSImage       string
+		rolesContains         []string // For multiple roles (order-independent)
+	}{
+		{
+			name: "ready node with all labels",
+			labels: map[string]interface{}{
+				"node-role.kubernetes.io/control-plane": "",
+				"kubernetes.io/hostname":                "ip-10-0-1-100",
+				"beta.kubernetes.io/instance-type":      "t3.large",
+				"topology.kubernetes.io/zone":           "us-east-1a",
+				"karpenter.sh/nodepool":                 "default",
+			},
+			conditionStatus:      "True",
+			kubeletVersion:       "v1.28.0",
+			osImage:              "Amazon Linux 2",
+			expectedStatus:       "Ready",
+			expectedRoles:        "control-plane",
+			expectedHostname:     "ip-10-0-1-100",
+			expectedInstanceType: "t3.large",
+			expectedZone:         "us-east-1a",
+			expectedNodePool:     "default",
+			expectedOSImage:      "Amazon Linux 2",
+		},
+		{
+			name: "not ready node with minimal labels",
+			labels: map[string]interface{}{
+				"kubernetes.io/hostname": "node-2",
+			},
+			conditionStatus:      "False",
+			kubeletVersion:       "v1.28.0",
+			osImage:              "",
+			expectedStatus:       "NotReady",
+			expectedRoles:        "<none>",
+			expectedHostname:     "node-2",
+			expectedInstanceType: "<none>",
+			expectedZone:         "<none>",
+			expectedNodePool:     "<none>",
+			expectedOSImage:      "<none>",
+		},
+		{
+			name: "node with multiple roles",
+			labels: map[string]interface{}{
+				"node-role.kubernetes.io/master":        "",
+				"node-role.kubernetes.io/control-plane": "",
+				"kubernetes.io/hostname":                "node-3",
+			},
+			conditionStatus:  "True",
+			kubeletVersion:   "v1.28.0",
+			expectedStatus:   "Ready",
+			expectedHostname: "node-3",
+			rolesContains:    []string{"master", "control-plane"},
+		},
+		{
+			name: "node with newer instance-type label",
+			labels: map[string]interface{}{
+				"node.kubernetes.io/instance-type": "m5.xlarge",
+				"kubernetes.io/hostname":           "node-4",
+			},
+			conditionStatus:      "True",
+			kubeletVersion:       "v1.28.0",
+			expectedStatus:       "Ready",
+			expectedHostname:     "node-4",
+			expectedInstanceType: "m5.xlarge",
+		},
+		{
+			name: "node with older zone label",
+			labels: map[string]interface{}{
+				"failure-domain.beta.kubernetes.io/zone": "us-west-2b",
+				"kubernetes.io/hostname":                  "node-5",
+			},
+			conditionStatus:  "True",
+			kubeletVersion:   "v1.28.0",
+			expectedStatus:   "Ready",
+			expectedHostname: "node-5",
+			expectedZone:     "us-west-2b",
+		},
+		{
+			name: "node with no labels",
+			labels: map[string]interface{}{},
+			conditionStatus:      "True",
+			kubeletVersion:       "v1.28.0",
+			expectedStatus:       "Ready",
+			expectedRoles:        "<none>",
+			expectedHostname:     "<none>",
+			expectedInstanceType: "<none>",
+			expectedZone:         "<none>",
+			expectedNodePool:     "<none>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-node",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+						"labels":            tt.labels,
+					},
+					"status": map[string]interface{}{
+						"conditions": []interface{}{
+							map[string]interface{}{
+								"type":   "Ready",
+								"status": tt.conditionStatus,
+							},
+						},
+						"nodeInfo": map[string]interface{}{
+							"kubeletVersion": tt.kubeletVersion,
+							"osImage":        tt.osImage,
+						},
+					},
+				},
+			}
+
+			result, err := transformNode(u)
+			require.NoError(t, err)
+
+			node, ok := result.(Node)
+			require.True(t, ok)
+			assert.Equal(t, "test-node", node.Name)
+			assert.Equal(t, tt.expectedStatus, node.Status)
+			assert.Equal(t, tt.kubeletVersion, node.Version)
+
+			if tt.rolesContains != nil {
+				// For multiple roles, check each is present (order-independent)
+				for _, role := range tt.rolesContains {
+					assert.Contains(t, node.Roles, role)
+				}
+			} else if tt.expectedRoles != "" {
+				assert.Equal(t, tt.expectedRoles, node.Roles)
+			}
+
+			if tt.expectedHostname != "" {
+				assert.Equal(t, tt.expectedHostname, node.Hostname)
+			}
+			if tt.expectedInstanceType != "" {
+				assert.Equal(t, tt.expectedInstanceType, node.InstanceType)
+			}
+			if tt.expectedZone != "" {
+				assert.Equal(t, tt.expectedZone, node.Zone)
+			}
+			if tt.expectedNodePool != "" {
+				assert.Equal(t, tt.expectedNodePool, node.NodePool)
+			}
+			if tt.expectedOSImage != "" {
+				assert.Equal(t, tt.expectedOSImage, node.OSImage)
+			}
+		})
+	}
+}

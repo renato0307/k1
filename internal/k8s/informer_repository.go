@@ -403,6 +403,22 @@ func extractAge(item interface{}) time.Duration {
 		return v.Age
 	case Service:
 		return v.Age
+	case ConfigMap:
+		return v.Age
+	case Secret:
+		return v.Age
+	case Namespace:
+		return v.Age
+	case StatefulSet:
+		return v.Age
+	case DaemonSet:
+		return v.Age
+	case Job:
+		return v.Age
+	case CronJob:
+		return v.Age
+	case Node:
+		return v.Age
 	default:
 		return 0
 	}
@@ -416,6 +432,22 @@ func extractName(item interface{}) string {
 	case Deployment:
 		return v.Name
 	case Service:
+		return v.Name
+	case ConfigMap:
+		return v.Name
+	case Secret:
+		return v.Name
+	case Namespace:
+		return v.Name
+	case StatefulSet:
+		return v.Name
+	case DaemonSet:
+		return v.Name
+	case Job:
+		return v.Name
+	case CronJob:
+		return v.Name
+	case Node:
 		return v.Name
 	default:
 		return ""

@@ -225,3 +225,97 @@ func TestConfigScreen_Operations(t *testing.T) {
 	assert.Equal(t, "Delete", ops[1].Name)
 	assert.Equal(t, "x", ops[1].Shortcut)
 }
+
+func TestConfigScreen_Init(t *testing.T) {
+	cfg := ScreenConfig{
+		ID:           "test",
+		Title:        "Test",
+		ResourceType: k8s.ResourceTypePod,
+		Columns:      []ColumnConfig{{Field: "Name", Title: "Name", Width: 0}},
+		SearchFields: []string{"Name"},
+	}
+
+	screen := NewConfigScreen(cfg, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+
+	cmd := screen.Init()
+	assert.NotNil(t, cmd, "Init should return a command")
+}
+
+func TestConfigScreen_SetSize(t *testing.T) {
+	cfg := ScreenConfig{
+		ID:           "test",
+		Title:        "Test",
+		ResourceType: k8s.ResourceTypePod,
+		Columns:      []ColumnConfig{{Field: "Name", Title: "Name", Width: 0}},
+		SearchFields: []string{"Name"},
+	}
+
+	screen := NewConfigScreen(cfg, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+
+	screen.SetSize(100, 50)
+	assert.Equal(t, 100, screen.width)
+	assert.Equal(t, 50, screen.height)
+}
+
+func TestConfigScreen_View(t *testing.T) {
+	cfg := ScreenConfig{
+		ID:           "pods",
+		Title:        "Pods",
+		ResourceType: k8s.ResourceTypePod,
+		Columns: []ColumnConfig{
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Status", Title: "Status", Width: 15},
+		},
+		SearchFields: []string{"Name"},
+	}
+
+	screen := NewConfigScreen(cfg, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+	screen.SetSize(80, 24)
+
+	// Perform a refresh to populate data
+	screen.Refresh()()
+
+	view := screen.View()
+	assert.NotEmpty(t, view, "View should return non-empty string")
+}
+
+func TestGetFieldValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		item      interface{}
+		fieldName string
+		expected  interface{}
+	}{
+		{
+			name:      "valid pod name",
+			item:      k8s.Pod{Name: "test-pod", Namespace: "default"},
+			fieldName: "Name",
+			expected:  "test-pod",
+		},
+		{
+			name:      "valid pod namespace",
+			item:      k8s.Pod{Name: "test-pod", Namespace: "default"},
+			fieldName: "Namespace",
+			expected:  "default",
+		},
+		{
+			name:      "non-existent field returns empty string",
+			item:      k8s.Pod{Name: "test-pod"},
+			fieldName: "NonExistent",
+			expected:  "",
+		},
+		{
+			name:      "deployment ready field",
+			item:      k8s.Deployment{Name: "deploy1", Ready: "2/2"},
+			fieldName: "Ready",
+			expected:  "2/2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getFieldValue(tt.item, tt.fieldName)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
