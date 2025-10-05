@@ -54,7 +54,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	header.SetScreenTitle(initialScreen.Title())
 	header.SetWidth(80)
 
-	commandBar := components.NewCommandBar(theme)
+	commandBar := components.NewCommandBar(repo, theme)
 	commandBar.SetWidth(80)
 	commandBar.SetScreen("pods") // Set initial screen context
 

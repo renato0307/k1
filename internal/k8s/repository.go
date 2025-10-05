@@ -24,6 +24,26 @@ const (
 	ResourceTypeNode        ResourceType = "nodes"
 )
 
+// GetGVRForResourceType returns the GroupVersionResource for a resource type string
+func GetGVRForResourceType(resourceType string) (schema.GroupVersionResource, bool) {
+	gvrMap := map[string]schema.GroupVersionResource{
+		"pods":         {Group: "", Version: "v1", Resource: "pods"},
+		"deployments":  {Group: "apps", Version: "v1", Resource: "deployments"},
+		"services":     {Group: "", Version: "v1", Resource: "services"},
+		"configmaps":   {Group: "", Version: "v1", Resource: "configmaps"},
+		"secrets":      {Group: "", Version: "v1", Resource: "secrets"},
+		"namespaces":   {Group: "", Version: "v1", Resource: "namespaces"},
+		"statefulsets": {Group: "apps", Version: "v1", Resource: "statefulsets"},
+		"daemonsets":   {Group: "apps", Version: "v1", Resource: "daemonsets"},
+		"jobs":         {Group: "batch", Version: "v1", Resource: "jobs"},
+		"cronjobs":     {Group: "batch", Version: "v1", Resource: "cronjobs"},
+		"nodes":        {Group: "", Version: "v1", Resource: "nodes"},
+	}
+
+	gvr, ok := gvrMap[resourceType]
+	return gvr, ok
+}
+
 // ResourceConfig defines configuration for a resource type
 type ResourceConfig struct {
 	GVR        schema.GroupVersionResource
@@ -45,6 +65,10 @@ type Repository interface {
 	GetPods() ([]Pod, error)
 	GetDeployments() ([]Deployment, error)
 	GetServices() ([]Service, error)
+
+	// Resource detail commands (using kubectl libraries)
+	GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error)
+	DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error)
 
 	Close()
 }
@@ -271,6 +295,25 @@ func (r *DummyRepository) GetServices() ([]Service, error) {
 			Age:        48 * time.Hour,
 		},
 	}, nil
+}
+
+func (r *DummyRepository) GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
+	// Return dummy YAML for development
+	return `apiVersion: v1
+kind: Pod
+metadata:
+  name: ` + name + `
+  namespace: ` + namespace + `
+status:
+  phase: Running`, nil
+}
+
+func (r *DummyRepository) DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
+	// Return dummy describe output for development
+	return `Name:         ` + name + `
+Namespace:    ` + namespace + `
+Status:       Running
+(Dummy data - connect to real cluster for actual describe output)`, nil
 }
 
 func (r *DummyRepository) Close() {

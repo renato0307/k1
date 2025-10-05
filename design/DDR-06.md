@@ -4,12 +4,14 @@
 |----------|---------------------------------------------|
 | Date     | 2025-10-04                                  |
 | Author   | @renato0307                                 |
-| Status   | Proposed                                    |
+| Status   | Implemented                                 |
 | Tags     | commands, describe, yaml, kubectl, informer |
 
-| Revision | Date       | Author      | Info           |
-|----------|------------|-------------|----------------|
-| 1        | 2025-10-04 | @renato0307 | Initial design |
+| Revision | Date       | Author      | Info                                           |
+|----------|------------|-------------|------------------------------------------------|
+| 1        | 2025-10-04 | @renato0307 | Initial design                                 |
+| 2        | 2025-10-05 | @renato0307 | Use kubectl library for both yaml/describe    |
+| 3        | 2025-10-05 | @renato0307 | Use on-demand event fetching (no informer)    |
 
 ## Context and Problem Statement
 
@@ -76,37 +78,52 @@ exec.Command("kubectl", "describe", "pod", name)
 
 ---
 
-### Option 2: Use k8s.io/kubectl/pkg/describe
+### Option 2: Use k8s.io/kubectl/pkg/describe (RECOMMENDED)
 
 **Implementation:**
 ```go
 import (
     "k8s.io/kubectl/pkg/describe"
     "k8s.io/kubectl/pkg/describe/versioned"
+    "k8s.io/kubectl/pkg/printers"
 )
 
+// For describe
 describer := versioned.NewHumanReadablePrinter(...)
 describer.Describe(pod, events)
+
+// For YAML
+printer := printers.NewTypeSetter(scheme.Scheme).ToPrinter(
+    &printers.YAMLPrinter{})
+printer.PrintObj(pod, writer)
 ```
 
 **Pros:**
-- Fast (~10ms with informer cache)
-- Same logic as kubectl (exact output match)
+- Fast (~1-10ms with informer cache)
+- Same logic as kubectl (exact output match for both yaml and describe)
 - Pure Go solution (no subprocess)
-- Works for both describe and YAML generation
+- Consistent approach for both commands
+- Works for all resource types
 
 **Cons:**
 - Adds new dependency (`k8s.io/kubectl`)
 - Larger binary size (~5-10MB increase)
 - More complex to integrate than subprocess
 
-**Performance:** ~10ms (cache lookup + formatting)
+**Performance:**
+- `/yaml`: ~1-5ms (cache lookup + kubectl printer)
+- `/describe`: ~5-10ms (cache lookup + formatting + events)
 
 **Why faster than kubectl CLI?**
 We skip process spawn, kubeconfig parsing, and API calls by using:
 1. Informer cache for resource data (microsecond lookup)
 2. Events informer for related events (microsecond lookup)
-3. kubectl/pkg/describe for formatting only
+3. kubectl/pkg/describe and kubectl/pkg/printers for formatting only
+
+**Decision:** Use this approach for both yaml and describe. The 1-10ms
+performance is acceptable for TUI use case, and it provides consistency,
+exact kubectl output parity, and simpler implementation than hybrid
+approaches.
 
 ---
 
@@ -136,7 +153,7 @@ yamlBytes, err := yaml.Marshal(pod)
 
 ---
 
-### Option 4: Hybrid approach (RECOMMENDED)
+### Option 4: Hybrid approach
 
 **YAML:** Use Option 3 (in-memory marshal from cache)
 **Describe:** Use Option 2 (kubectl/pkg/describe)
@@ -156,6 +173,11 @@ yamlBytes, err := yaml.Marshal(pod)
 - Binary size increases ~5-10MB (currently ~20-30MB)
 - YAML output may differ slightly from kubectl
 - Need to add Events informer for describe
+
+**Not chosen:** While this provides the best raw performance, the
+additional complexity of maintaining two different approaches (custom
+marshal vs kubectl library) is not justified. The 1-10ms vs <1ms
+difference is negligible in practice.
 
 ## Design
 
@@ -272,8 +294,10 @@ type Repository interface {
 
 ```go
 import (
+    "bytes"
     "fmt"
-    "sigs.k8s.io/yaml"
+    "k8s.io/cli-runtime/pkg/printers"
+    "k8s.io/client-go/kubernetes/scheme"
 )
 
 func (r *InformerRepository) GetPodYAML(
@@ -285,24 +309,25 @@ func (r *InformerRepository) GetPodYAML(
         return "", fmt.Errorf("pod not found: %w", err)
     }
 
-    // Marshal to YAML (sub-millisecond)
-    yamlBytes, err := yaml.Marshal(pod)
-    if err != nil {
-        return "", fmt.Errorf("failed to marshal: %w", err)
+    // Create kubectl YAML printer
+    printer := printers.NewTypeSetter(scheme.Scheme).ToPrinter(
+        &printers.YAMLPrinter{})
+
+    // Print to buffer (1-5ms)
+    var buf bytes.Buffer
+    if err := printer.PrintObj(pod, &buf); err != nil {
+        return "", fmt.Errorf("failed to print YAML: %w", err)
     }
 
-    return string(yamlBytes), nil
+    return buf.String(), nil
 }
 ```
 
-**Note:** The marshaled YAML will be from the cached object, which may
-differ slightly from a fresh API call:
-- Managed fields might be missing or stale
-- Status reflects last sync (up to 30 seconds old)
-- Field ordering may differ
-
-For TUI use case, this is acceptable. Users want to see the resource
-spec quickly, not wait for API round-trip.
+**Benefits of using kubectl printers:**
+- Exact output match with `kubectl get -o yaml`
+- Proper type information and metadata formatting
+- Handles all resource types consistently
+- Same approach as describe (consistency)
 
 ### Describe Implementation
 
@@ -371,18 +396,61 @@ func filterEventsForObject(
 `InformerRepository`. Events are essential for describe output (show
 recent pod events, scheduling info, errors, etc.).
 
-### Events Informer Addition
+### Events: On-Demand Fetching (Revision 3)
 
-Events should be loaded in **Tier 2** (background) because:
-- Not needed for initial UI (Pods screen)
-- High volume resource (can be 1000s of events)
-- Only needed when user runs `/describe`
+**Decision (2025-10-05):** Use on-demand event fetching instead of
+Events informer.
 
-If events aren't synced yet when `/describe` is called:
-1. Check if events informer is synced
-2. If not synced, make direct API call (fallback, ~30-50ms)
-3. Show loading indicator in modal
-4. Once synced, use cache (fast path)
+**Rationale:**
+- Events are high-volume (100s-10,000s in busy clusters)
+- Memory overhead: 1-20MB depending on cluster activity
+- `/describe` is not performance-critical (user action, not hot path)
+- 50-100ms latency for event fetching is acceptable for this use case
+
+**Implementation:**
+```go
+func (r *InformerRepository) DescribeResource(...) (string, error) {
+    // ... get resource from cache ...
+
+    // Fetch events on-demand (not cached)
+    events, err := r.fetchEventsForResource(namespace, name, uid)
+    // Format and display events
+}
+
+func (r *InformerRepository) fetchEventsForResource(
+    namespace, name, uid string) ([]corev1.Event, error) {
+
+    fieldSelector := fmt.Sprintf(
+        "involvedObject.name=%s,involvedObject.namespace=%s,involvedObject.uid=%s",
+        name, namespace, uid)
+
+    eventList, err := r.clientset.CoreV1().Events(namespace).List(
+        ctx, metav1.ListOptions{
+            FieldSelector: fieldSelector,
+            Limit:         100,
+        })
+    return eventList.Items, err
+}
+```
+
+**Performance:**
+- YAML: <5ms (from cache, no events needed)
+- Describe: 50-100ms (cache lookup + on-demand event fetch)
+
+**Trade-offs:**
+- ✅ Zero memory overhead for events
+- ✅ Simple implementation (no informer lifecycle management)
+- ✅ Works 100% of the time (direct API call)
+- ❌ Slightly slower describe (~50-100ms vs ~10ms with cache)
+- ✅ Acceptable for TUI use case (user-initiated action)
+
+### ~~Events Informer Addition~~ (Superseded by Revision 3)
+
+**Original approach (Revision 1-2):** Events should be loaded in
+**Tier 2** (background) using informer.
+
+**Superseded by:** On-demand fetching (Revision 3) for better memory
+efficiency
 
 ```go
 func (r *InformerRepository) DescribePod(
@@ -670,20 +738,22 @@ network issues (informer reconnects automatically).
 
 ### Positive
 
-- **Blazing fast YAML:** <1ms response time, instant user feedback
-- **Fast describe:** ~10ms, 10x faster than kubectl subprocess
+- **Fast response:** 1-10ms response time, feels instant in TUI
+- **10-20x faster than kubectl CLI:** No process spawn or kubeconfig
+  parsing overhead
 - **No external dependencies:** Works without kubectl in PATH
-- **Output parity:** Describe matches kubectl exactly (same code)
+- **Output parity:** Both yaml and describe match kubectl exactly
+  (same code)
 - **Leverages cache:** No API calls, no server load
 - **Consistent UX:** Both commands feel instant in the TUI
+- **Consistent implementation:** Same approach (kubectl libraries) for
+  both commands
 - **Future-proof:** Can add features (syntax highlighting, search, copy)
 
 ### Negative
 
-- **Binary size:** Increases ~5-10MB due to kubectl/pkg/describe import
+- **Binary size:** Increases ~5-10MB due to kubectl packages import
   (from ~20-30MB to ~25-40MB)
-- **YAML differences:** Cached YAML may differ slightly from kubectl
-  (managed fields, timestamp staleness)
 - **Events required:** Describe needs Events informer, adds Tier 2
   loading complexity
 - **Code complexity:** More complex than subprocess, but manageable
@@ -691,12 +761,12 @@ network issues (informer reconnects automatically).
 
 ### Neutral
 
-- **Multiple implementations:** YAML (in-house) vs describe (library)
-  is acceptable trade-off
+- **Unified approach:** Using kubectl libraries for both commands
+  simplifies maintenance
 - **Fallback strategy:** Events API call fallback adds ~30-50ms if not
   synced, but only temporary
-- **kubectl dependency:** Adding k8s.io/kubectl package, but it's
-  official and stable
+- **kubectl dependency:** Adding k8s.io/kubectl and k8s.io/cli-runtime
+  packages, but they're official and stable
 
 ## Implementation Notes
 
@@ -705,9 +775,14 @@ network issues (informer reconnects automatically).
 Add to `go.mod`:
 ```bash
 go get k8s.io/kubectl@v0.34.1
+go get k8s.io/cli-runtime@v0.34.1
 ```
 
-Ensure version matches existing k8s.io/client-go version (0.34.1).
+Ensure versions match existing k8s.io/client-go version (0.34.1).
+
+Both packages are needed:
+- `k8s.io/kubectl`: For describe formatters
+- `k8s.io/cli-runtime`: For printers (YAML/JSON output)
 
 ### Events Informer Configuration
 
@@ -779,5 +854,7 @@ Show errors in temporary banner or modal, not crash application.
 - [kubectl source code](
   https://github.com/kubernetes/kubectl/tree/master/pkg/describe)
 - DDR-03: Kubernetes Informer-Based Repository Implementation
+- DDR-08: Pragmatic Command Implementation (explains why yaml/describe
+  are exceptions requiring pure Go)
 - PLAN-03: Command-Enhanced UI Implementation (Phase 3: Resource
   Commands)
