@@ -162,11 +162,11 @@ migrate one screen at a time with feature parity validation
 - [x] Verify existing screens still work (all tests passing)
 
 ### Phase 2: ConfigScreen Foundation
-- [ ] Create ScreenConfig struct definition
-- [ ] Implement ConfigScreen with core list logic
-- [ ] Add reflection-based field access (columns, filtering)
-- [ ] Support custom override function pointers
-- [ ] Test with sample config
+- [x] Create ScreenConfig struct definition
+- [x] Implement ConfigScreen with core list logic
+- [x] Add reflection-based field access (columns, filtering)
+- [x] Support custom override function pointers
+- [x] Test with sample config (all tests passing)
 
 ### Phase 3: Migrate Existing Screens
 - [ ] Migrate Deployments to pure config
