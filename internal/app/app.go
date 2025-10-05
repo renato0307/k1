@@ -29,10 +29,10 @@ type Model struct {
 func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	registry := types.NewScreenRegistry()
 
-	// Register all screens with theme
-	registry.Register(screens.NewPodsScreen(repo, theme))
-	registry.Register(screens.NewDeploymentsScreen(repo, theme))
-	registry.Register(screens.NewServicesScreen(repo, theme))
+	// Register all screens using config-driven approach
+	registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(), repo, theme))
 
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")

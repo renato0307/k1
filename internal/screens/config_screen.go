@@ -14,6 +14,9 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
+// tickMsg triggers periodic refresh
+type tickMsg time.Time
+
 // ColumnConfig defines a column in the resource list table
 type ColumnConfig struct {
 	Field  string                      // Field name in resource struct
@@ -123,7 +126,16 @@ func (s *ConfigScreen) Operations() []types.Operation {
 }
 
 func (s *ConfigScreen) Init() tea.Cmd {
-	return s.Refresh()
+	cmds := []tea.Cmd{s.Refresh()}
+
+	// If periodic refresh is enabled, start the tick cycle
+	if s.config.EnablePeriodicRefresh {
+		cmds = append(cmds, tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
+			return tickMsg(t)
+		}))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
