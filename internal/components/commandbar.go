@@ -242,6 +242,20 @@ func (cb *CommandBar) handleKeyMsg(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 
 // handleHiddenState handles input when command bar is hidden
 func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
+	// Handle paste events - transition directly to filter mode
+	if msg.Paste {
+		pastedText := string(msg.Runes)
+		cb.state = StateFilter
+		cb.input = pastedText
+		cb.inputType = CommandTypeFilter
+		cb.cursorPos = len(pastedText)
+		cb.height = 1
+		// Send initial filter with pasted text
+		return cb, func() tea.Msg {
+			return types.FilterUpdateMsg{Filter: cb.input}
+		}
+	}
+
 	switch msg.String() {
 	case ":":
 		cb.transitionToPalette(":", CommandTypeResource)
@@ -271,6 +285,17 @@ func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 
 // handleFilterState handles input in filter mode
 func (cb *CommandBar) handleFilterState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
+	// Handle paste events
+	if msg.Paste {
+		pastedText := string(msg.Runes)
+		cb.input += pastedText
+		cb.cursorPos += len(pastedText)
+		// Send updated filter
+		return cb, func() tea.Msg {
+			return types.FilterUpdateMsg{Filter: cb.input}
+		}
+	}
+
 	switch msg.String() {
 	case "esc":
 		// Clear filter and return to hidden
@@ -328,6 +353,24 @@ func (cb *CommandBar) handleFilterState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 
 // handlePaletteState handles input when suggestion palette is visible
 func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
+	// Handle paste events
+	if msg.Paste {
+		pastedText := string(msg.Runes)
+		cb.input += pastedText
+		cb.cursorPos += len(pastedText)
+		// Re-filter palette
+		query := cb.input[1:] // Remove prefix
+		cb.paletteItems = cb.getPaletteItems(cb.inputType, query)
+		cb.paletteIdx = 0
+		// Recalculate height
+		itemCount := len(cb.paletteItems)
+		if itemCount > 8 {
+			itemCount = 8
+		}
+		cb.height = 1 + itemCount
+		return cb, nil
+	}
+
 	switch msg.String() {
 	case "esc":
 		// Dismiss palette and return to hidden
@@ -514,6 +557,14 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 
 // handleInputState handles direct command input
 func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
+	// Handle paste events
+	if msg.Paste {
+		pastedText := string(msg.Runes)
+		cb.input += pastedText
+		cb.cursorPos += len(pastedText)
+		return cb, nil
+	}
+
 	switch msg.String() {
 	case "esc":
 		// Cancel input and return to hidden

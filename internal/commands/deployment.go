@@ -12,7 +12,7 @@ import (
 
 // ScaleArgs defines arguments for scale command
 type ScaleArgs struct {
-	Replicas int `form:"replicas" title:"Replicas" validate:"min=0,max=100" default:"1"`
+	Replicas int `form:"replicas" title:"Replicas" validate:"required,min=0,max=100"`
 }
 
 // ScaleCommand returns execute function for scaling deployments/statefulsets

@@ -14,7 +14,7 @@ func GetPodsScreenConfig() ScreenConfig {
 		Title:        "Pods",
 		ResourceType: k8s.ResourceTypePod,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0}, // Dynamic width
 			{Field: "Ready", Title: "Ready", Width: 8},
 			{Field: "Status", Title: "Status", Width: 15},
@@ -56,7 +56,7 @@ func GetDeploymentsScreenConfig() ScreenConfig {
 		Title:        "Deployments",
 		ResourceType: k8s.ResourceTypeDeployment,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0}, // Dynamic width
 			{Field: "Ready", Title: "Ready", Width: 10},
 			{Field: "UpToDate", Title: "Up-to-date", Width: 12},
@@ -83,7 +83,7 @@ func GetServicesScreenConfig() ScreenConfig {
 		Title:        "Services",
 		ResourceType: k8s.ResourceTypeService,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0}, // Dynamic width
 			{Field: "Type", Title: "Type", Width: 15},
 			{Field: "ClusterIP", Title: "Cluster-IP", Width: 15},
@@ -111,7 +111,7 @@ func GetConfigMapsScreenConfig() ScreenConfig {
 		Title:        "ConfigMaps",
 		ResourceType: k8s.ResourceTypeConfigMap,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Data", Title: "Data", Width: 10},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
@@ -135,7 +135,7 @@ func GetSecretsScreenConfig() ScreenConfig {
 		Title:        "Secrets",
 		ResourceType: k8s.ResourceTypeSecret,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Type", Title: "Type", Width: 30},
 			{Field: "Data", Title: "Data", Width: 10},
@@ -183,7 +183,7 @@ func GetStatefulSetsScreenConfig() ScreenConfig {
 		Title:        "StatefulSets",
 		ResourceType: k8s.ResourceTypeStatefulSet,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Ready", Title: "Ready", Width: 10},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
@@ -208,7 +208,7 @@ func GetDaemonSetsScreenConfig() ScreenConfig {
 		Title:        "DaemonSets",
 		ResourceType: k8s.ResourceTypeDaemonSet,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Desired", Title: "Desired", Width: 10},
 			{Field: "Current", Title: "Current", Width: 10},
@@ -236,7 +236,7 @@ func GetJobsScreenConfig() ScreenConfig {
 		Title:        "Jobs",
 		ResourceType: k8s.ResourceTypeJob,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Completions", Title: "Completions", Width: 15},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
@@ -260,7 +260,7 @@ func GetCronJobsScreenConfig() ScreenConfig {
 		Title:        "CronJobs",
 		ResourceType: k8s.ResourceTypeCronJob,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Schedule", Title: "Schedule", Width: 15},
 			{Field: "Suspend", Title: "Suspend", Width: 10},

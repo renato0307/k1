@@ -13,14 +13,14 @@ import (
 // ShellArgs defines arguments for shell command
 type ShellArgs struct {
 	Container string `form:"container" title:"Container" optional:"true"`
-	Shell     string `form:"shell" title:"Shell" default:"/bin/sh"`
+	Shell     string `form:"shell" title:"Shell" default:"/bin/sh" optional:"true"`
 }
 
 // LogsArgs defines arguments for logs command
 type LogsArgs struct {
 	Container string `form:"container" title:"Container" optional:"true"`
-	Tail      int    `form:"tail" title:"Tail Lines" default:"100" validate:"min=0"`
-	Follow    bool   `form:"follow" title:"Follow" default:"false"`
+	Tail      int    `form:"tail" title:"Tail Lines" default:"100" optional:"true" validate:"min=0"`
+	Follow    bool   `form:"follow" title:"Follow" default:"false" optional:"true"`
 }
 
 // PortForwardArgs defines arguments for port-forward command

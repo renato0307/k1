@@ -114,21 +114,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "ctrl+y":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /yaml command
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("yaml", commands.CategoryAction)
 			m.commandBar = updatedBar
 			return m, barCmd
 		case "ctrl+d":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /describe command
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("describe", commands.CategoryAction)
 			m.commandBar = updatedBar
 			return m, barCmd
 		case "ctrl+l":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /logs command
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("logs", commands.CategoryAction)
 			m.commandBar = updatedBar
 			return m, barCmd
 		case "ctrl+x":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /delete command (will show confirmation)
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("delete", commands.CategoryAction)
 			m.commandBar = updatedBar

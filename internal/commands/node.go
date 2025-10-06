@@ -12,9 +12,9 @@ import (
 
 // DrainArgs defines arguments for drain command
 type DrainArgs struct {
-	GracePeriod      int  `form:"grace" title:"Grace Period (seconds)" default:"30"`
-	Force            bool `form:"force" title:"Force Drain" default:"false"`
-	IgnoreDaemonsets bool `form:"ignore-daemonsets" title:"Ignore DaemonSets" default:"true"`
+	GracePeriod      int  `form:"grace" title:"Grace Period (seconds)" default:"30" optional:"true"`
+	Force            bool `form:"force" title:"Force Drain" default:"false" optional:"true"`
+	IgnoreDaemonsets bool `form:"ignore-daemonsets" title:"Ignore DaemonSets" default:"true" optional:"true"`
 }
 
 // CordonCommand returns execute function for cordoning nodes
