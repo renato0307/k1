@@ -16,12 +16,18 @@ optimize hot paths with pure Go later.
 ## Success Criteria
 
 - ✅ kubectl subprocess executor infrastructure works reliably
-- ✅ Input form system allows users to enter command parameters
+- ✅ All commands work with inline positional args (power users)
 - ✅ Core commands (delete, scale, restart) work end-to-end
-- ✅ Complex commands (logs, port-forward, shell) handle streaming/TTY
 - ✅ Node commands (cordon, drain) work with confirmation
-- ✅ Inline positional args work for power users
+- ✅ Service commands (endpoints) work
+- ✅ Complex commands (shell, logs, port-forward) copy command to clipboard
 - ✅ Error messages from kubectl are properly surfaced to users
+- ✅ Form support added incrementally after inline args work
+
+**Clipboard mode for complex commands**: /shell, /logs, /port-forward
+generate kubectl command and copy to clipboard instead of executing
+directly. User can run in separate terminal. Avoids complex TUI suspend,
+streaming, and background process management.
 
 ## Key Decisions
 
@@ -38,6 +44,10 @@ faster typing in TUI context.
 **Use huh for forms**: Leverage github.com/charmbracelet/huh for form UI
 instead of building custom forms. Reduces code, better UX, maintained by
 Charmbracelet team.
+
+**Phased delivery**: Implement inline args first for all commands (deliver
+working app for power users), then add forms incrementally (improve UX for
+new users). Enables faster iteration and early feedback.
 
 ## Code Issues to Address
 
@@ -113,6 +123,10 @@ them. KubectlExecutor needs these to pass to kubectl subprocess.
 
 ## Implementation Phases
 
+**Strategy**: Implement inline args first (Phases 1-4), then add form
+support (Phases 5-6). This delivers a working app faster and enables early
+testing with real usage.
+
 ### Phase 1: Foundation (3-4 hours)
 
 **Goal**: Build kubectl executor and struct tags args infrastructure.
@@ -149,78 +163,10 @@ them. KubectlExecutor needs these to pass to kubectl subprocess.
 **Deliverable**: Struct tags work, KubectlExecutor works, can run simple
 kubectl commands
 
-### Phase 2: Input Forms with huh (1-2 hours)
+### Phase 2: Core Commands with Inline Args Only (2-3 hours)
 
-**Goal**: Enable users to enter command parameters via form UI in expanded
-command bar.
-
-**Tasks**:
-1. Add huh dependency
-   - Run: go get github.com/charmbracelet/huh
-
-2. Add StateInputForm to CommandBar
-   - Add StateInputForm constant
-   - Add huh.Form field to CommandBar struct
-   - Implement buildHuhForm() to convert InputFields → huh.Form
-   - Calculate form height dynamically (huh forms are variable height)
-
-3. Integrate huh into command bar
-   - Add viewInputForm() that renders huh.Form.View()
-   - Add handleInputFormState() that passes keys to huh.Form.Update()
-   - Handle form completion (huh.Form.State == huh.StateCompleted)
-   - Extract values using ParseFormArgs() and execute command
-
-4. Wire up struct tags to command execution
-   - When command has ArgsType: generate InputFields via GenerateInputFields()
-   - Create huh.Form from generated InputFields
-   - On inline args: call ParseInlineArgs(argsType, args string)
-   - On form complete: call ParseFormArgs(argsType, huh.Form)
-
-5. Update palette rendering for ArgPattern
-   - Show ArgPattern in command list (e.g., "/scale <replicas>")
-   - Use <arg> for required, [arg] for optional
-
-6. Route command execution through form or inline
-   - Check if command has InputFields
-   - If inline args provided -> parse and execute
-   - If no args -> create huh.Form and expand command bar
-
-**Deliverable**: Users can enter params via huh form (expanded command bar)
-or inline args
-
-**Key insight**: huh.Form is a tea.Model, so it integrates naturally into
-command bar. Command bar expands (like confirmation state) to show the
-form, user fills it, form completes, command bar extracts values and
-executes.
-
-**UI Flow**:
-```
-User types: /scale [Enter]
-  ↓
-CommandBar checks: command has InputFields but no inline args
-  ↓
-CommandBar.state = StateInputForm
-CommandBar.height expands (like confirmation: 5-8 lines)
-CommandBar.huhForm = buildHuhForm(command.InputFields)
-  ↓
-viewInputForm() renders huhForm.View() in expanded command bar
-  ↓
-User fills form (huh handles all input)
-  ↓
-User presses Enter on last field
-  ↓
-huhForm.State() == huh.StateCompleted
-  ↓
-Extract values from huhForm, build CommandContext.Args
-  ↓
-Execute command with args
-  ↓
-CommandBar.state = StateHidden (collapse)
-```
-
-### Phase 3: Core Commands (2-3 hours)
-
-**Goal**: Implement high-priority resource commands with struct tags.
+**Goal**: Implement delete, scale, restart commands using inline positional
+args only. No forms yet - deliver working commands for power users first.
 
 **Tasks**:
 1. Implement /delete command
@@ -229,164 +175,218 @@ CommandBar.state = StateHidden (collapse)
    - Simple kubectl delete execution
    - Return success/error message
 
-2. Implement /scale command with struct tags
-   - Define ScaleArgs struct:
-   ```go
-   type ScaleArgs struct {
-       Replicas int `form:"replicas" title:"Replicas" validate:"min=0,max=100" default:"1"`
-   }
-   ```
-   - Use ctx.ParseArgs(&args) in Execute function
-   - ArgPattern: " <replicas>"
-   - Build kubectl scale command with args.Replicas
+2. Implement /scale command with inline args
+   - Define ScaleArgs struct (as documented in Phase 3 example)
+   - Implement ParseInlineArgs for "/scale 5" format
+   - ArgPattern: " <replicas>" (show in palette)
+   - Build kubectl scale command
    - Apply to deployments and statefulsets
+   - Test: `/scale 5` scales to 5 replicas
 
 3. Implement /restart command
-   - No args needed (operates on selected deployment)
+   - No args needed
    - Use kubectl rollout restart
    - Show progress message
 
-4. Update command definitions in registry
-   - Add ArgsType to commands that need arguments
-   - Add ArgPattern to all commands for palette display
+4. Wire up inline args parsing in CommandBar
+   - Parse command string: "/scale 5" → cmd="scale", args="5"
+   - If command has ArgsType → call ParseInlineArgs(argsType, args)
+   - Pass parsed struct to Execute function via CommandContext
+   - Execute command with type-safe args
 
-**Example pattern**:
-```go
-// In internal/commands/deployment.go
-type ScaleArgs struct {
-    Replicas int `form:"replicas" title:"Replicas" validate:"min=0,max=100" default:"1"`
-}
+5. Update palette to show ArgPattern
+   - Display "/scale <replicas>" in command list
+   - Use <arg> for required args
 
-func ScaleCommand(repo k8s.Repository) *Command {
-    return &Command{
-        Name:        "scale",
-        Description: "Scale Deployment",
-        Category:    CategoryAction,
-        ArgsType:    &ScaleArgs{},  // Struct pointer
-        ArgPattern:  " <replicas>",
-        Execute: func(ctx CommandContext) tea.Cmd {
-            var args ScaleArgs
-            if err := ctx.ParseArgs(&args); err != nil {
-                return errorCmd(err)
-            }
+**Deliverable**: delete, scale, restart work with inline args only. App is
+functional for power users who can type `/scale 5` directly.
 
-            // Type-safe: args.Replicas is int
-            kubectlArgs := []string{
-                "scale", ctx.ResourceType,
-                ctx.Selected["name"].(string),
-                "--replicas", strconv.Itoa(args.Replicas),
-            }
-            // ... execute kubectl
-        },
-    }
-}
-```
+**Note**: Forms deferred to Phase 5. Focus on working implementation first.
 
-**Deliverable**: delete, scale, restart work end-to-end with type-safe args
+### Phase 3: Node & Service Commands with Inline Args (1-2 hours)
 
-### Phase 4: Complex Commands (3-4 hours)
-
-**Goal**: Handle streaming and interactive commands with struct tags.
+**Goal**: Implement node and service commands with inline args only.
 
 **Tasks**:
-1. Implement /logs command with struct tags
+1. Implement /cordon command
+   - No args needed
+   - kubectl cordon <node>
+   - No confirmation (non-destructive)
+   - Test on nodes screen
+
+2. Implement /drain command with inline args
+   - Define DrainArgs struct:
+   ```go
+   type DrainArgs struct {
+       GracePeriod      int  `form:"grace" title:"Grace Period (seconds)" default:"30"`
+       Force            bool `form:"force" title:"Force Drain" default:"false"`
+       IgnoreDaemonsets bool `form:"ignore-daemonsets" title:"Ignore DaemonSets" default:"true"`
+   }
+   ```
+   - ArgPattern: " [grace-period] [force] [ignore-daemonsets]"
+   - Parse inline: "/drain 60 true true" → grace=60, force=true, ignore=true
+   - Optional args use defaults: "/drain" uses all defaults
+   - Confirmation already works (NeedsConfirmation: true)
+
+3. Implement /endpoints command
+   - No args needed
+   - kubectl get endpoints <service>
+   - Show in full-screen view
+
+**Deliverable**: Node and service commands work with inline args
+
+### Phase 4: Clipboard Commands (1-2 hours)
+
+**Goal**: Implement complex commands in "clipboard mode" - generate kubectl
+command and copy to clipboard for user to run in separate terminal.
+
+**Pattern**: For commands that would require complex implementation (TTY,
+streaming, background processes), generate the kubectl command string and
+copy to clipboard. Show message: "Command copied to clipboard: kubectl
+exec -it pod-name -- /bin/sh"
+
+**Tasks**:
+1. Add clipboard library
+   - Use: github.com/atotto/clipboard (cross-platform)
+   - Implement CopyToClipboard(text string) helper
+
+2. Implement /shell command in clipboard mode
+   - Define ShellArgs struct:
+   ```go
+   type ShellArgs struct {
+       Container string `form:"container" title:"Container" optional:"true"`
+       Shell     string `form:"shell" title:"Shell" default:"/bin/sh"`
+   }
+   ```
+   - ArgPattern: " [container] [shell]"
+   - Parse inline: "/shell nginx /bin/bash" or "/shell" (defaults)
+   - Generate command: "kubectl exec -it <pod> -c <container> -- <shell>"
+   - Copy to clipboard and show message
+
+3. Implement /logs command in clipboard mode
    - Define LogsArgs struct:
    ```go
    type LogsArgs struct {
-       Container string `form:"container" title:"Container" type:"select" optional:"true"`
+       Container string `form:"container" title:"Container" optional:"true"`
        Tail      int    `form:"tail" title:"Tail Lines" default:"100" validate:"min=0"`
        Follow    bool   `form:"follow" title:"Follow" default:"false"`
    }
    ```
    - ArgPattern: " [container] [tail] [follow]"
-   - Dynamic field population (container names from pod spec)
-   - Handle follow mode (streaming output)
-   - Show in full-screen view
+   - Generate: "kubectl logs <pod> -c <container> --tail=100 -f"
+   - Copy to clipboard
 
-2. Implement /shell command with struct tags
-   - Define ShellArgs struct:
-   ```go
-   type ShellArgs struct {
-       Container string `form:"container" title:"Container" type:"select" optional:"true"`
-       Shell     string `form:"shell" title:"Shell" default:"/bin/sh"`
-   }
-   ```
-   - Exit k1 TUI temporarily
-   - Run kubectl exec -it with proper TTY
-   - Return to k1 after shell exits
-
-3. Implement /port-forward command with struct tags
+4. Implement /port-forward command in clipboard mode
    - Define PortForwardArgs struct:
    ```go
    type PortForwardArgs struct {
        Ports string `form:"ports" title:"Port Mapping" validate:"portmap"`
    }
    ```
-   - Custom validation for "local:remote" format
-   - Run in background, show connection status
-   - Keep running until user cancels
+   - ArgPattern: " <local:remote>"
+   - Generate: "kubectl port-forward <pod> 8080:80"
+   - Copy to clipboard
 
-**Deliverable**: logs, shell, port-forward work with streaming/TTY and
-type-safe args
+**Deliverable**: /shell, /logs, /port-forward generate kubectl commands and
+copy to clipboard. User can run in separate terminal.
 
-### Phase 5: Node & Service Commands (1-2 hours)
+**Future pattern**: Use clipboard mode for any command that would require
+complex implementation (keep k1 simple, leverage kubectl).
 
-**Goal**: Complete remaining resource-specific commands with struct tags.
+### Phase 5: Add huh Form Support (2-3 hours)
+
+**Goal**: Add form UI infrastructure so commands can show forms when no
+inline args provided. Improves UX for new users.
 
 **Tasks**:
-1. Implement /cordon command
-   - No args needed
-   - kubectl cordon <node>
-   - No confirmation needed (non-destructive)
+1. Add huh dependency
+   - Run: go get github.com/charmbracelet/huh
 
-2. Implement /drain command with struct tags
-   - Define DrainArgs struct:
-   ```go
-   type DrainArgs struct {
-       GracePeriod       int  `form:"grace" title:"Grace Period (seconds)" default:"30"`
-       Force             bool `form:"force" title:"Force Drain" default:"false"`
-       IgnoreDaemonsets  bool `form:"ignore-daemonsets" title:"Ignore DaemonSets" default:"true"`
-   }
-   ```
-   - ArgPattern: " [grace-period] [force] [ignore-daemonsets]"
-   - Confirmation already works (NeedsConfirmation: true)
-   - Show progress during drain
+2. Implement form generation from struct tags
+   - Update GenerateInputFields() to create huh-compatible fields
+   - Implement BuildHuhForm(argsStruct) → huh.Form
+   - Map struct tags to huh field types (Input, Select, Confirm)
+   - Wire up default values and validation
 
-3. Implement /endpoints command
-   - No args needed
-   - kubectl get endpoints <service>
-   - Show in full-screen view or command bar result
+3. Add StateInputForm to CommandBar
+   - Add StateInputForm constant
+   - Add huh.Form field to CommandBar struct
+   - Calculate form height dynamically
 
-**Deliverable**: All node and service commands work with type-safe args
+4. Integrate huh into command bar
+   - Add viewInputForm() that renders huh.Form.View()
+   - Add handleInputFormState() that passes keys to huh.Form.Update()
+   - Handle form completion (huh.Form.State == huh.StateCompleted)
+   - Extract values using ParseFormArgs() and execute command
 
-### Phase 6: Testing & Polish (2-3 hours)
+5. Route execution through inline args or form
+   - If inline args provided → ParseInlineArgs() and execute
+   - If no args and ArgsType exists → BuildHuhForm() and expand command bar
+   - Show "Press Enter to show form" hint if needed
+
+**Deliverable**: Form infrastructure works, commands can show forms when
+invoked without args (e.g., `/scale` shows form, `/scale 5` executes
+directly)
+
+### Phase 6: Incremental Form Addition (1-2 hours)
+
+**Goal**: Add form support to commands one by one, test each thoroughly.
+
+**Tasks**:
+1. Test /scale with both inline and form
+   - Test: `/scale 5` → executes immediately
+   - Test: `/scale` → shows form with replica input
+   - Verify form validation (0-100 range)
+   - Verify form defaults work
+
+2. Test /drain with both inline and form
+   - Test: `/drain 60 true` → executes with args
+   - Test: `/drain` → shows form with 3 fields
+   - Verify optional args work
+   - Verify boolean checkboxes work
+
+3. Test /shell with form
+   - Test: `/shell nginx /bin/bash` → inline args
+   - Test: `/shell` → shows form with container select + shell input
+   - Verify container list populates dynamically from pod spec
+
+4. Document form patterns
+   - Add examples to CLAUDE.md
+   - Document struct tag options
+   - Show inline vs form usage for each command
+
+**Deliverable**: All commands support both inline args and forms, well
+tested and documented
+
+### Phase 7: Testing & Polish (1-2 hours)
 
 **Goal**: Ensure reliability and good error handling.
 
 **Tasks**:
-1. Add executor tests
-   - Mock exec.Command for unit tests
-   - Test error handling (command not found, timeout, RBAC errors)
-   - Test kubeconfig/context passing
-
-2. Test error scenarios
+1. Test error scenarios
    - kubectl not installed
    - Invalid kubeconfig/context
    - RBAC permission denied
    - Resource not found
-   - Validation errors in form
+   - Invalid inline args (validation errors)
 
-3. Add performance monitoring
+2. Add performance monitoring
    - Log command execution times
    - Track which commands are used most
    - Identify candidates for pure Go migration
 
+3. Test all commands end-to-end
+   - Manual testing on real cluster
+   - Verify confirmations work
+   - Verify error messages are clear
+
 4. Update documentation
-   - Update CLAUDE.md with new command usage
-   - Document positional args format
+   - Update CLAUDE.md with command usage patterns
+   - Document struct tags approach
    - Add troubleshooting section
 
-**Deliverable**: Robust, well-tested command execution
+**Deliverable**: Robust, well-tested command execution with good error
+handling
 
 ## Migration Strategy
 
@@ -438,36 +438,45 @@ After 1-2 weeks of usage, review metrics to identify hot paths:
 - [ ] Implement KubectlExecutor (internal/commands/executor.go)
 - [ ] Add kubectl availability check to main.go
 
-### Phase 2: Input Forms with huh
+### Phase 2: Core Commands with Inline Args Only (2-3 hours)
+- [ ] Implement /delete command (no args)
+- [ ] Implement /scale command with ScaleArgs struct
+- [ ] Implement ParseInlineArgs for "/scale 5" format
+- [ ] Implement /restart command (no args)
+- [ ] Wire up inline args parsing in CommandBar
+- [ ] Update palette to show ArgPattern
+
+### Phase 3: Node & Service Commands with Inline Args (1-2 hours)
+- [ ] Implement /cordon command (no args)
+- [ ] Implement /drain command with DrainArgs struct
+- [ ] Parse inline: "/drain 60 true" with optional args
+- [ ] Implement /endpoints command (no args)
+
+### Phase 4: Clipboard Commands (1-2 hours)
+- [ ] Add clipboard library (github.com/atotto/clipboard)
+- [ ] Implement CopyToClipboard helper
+- [ ] Implement /shell in clipboard mode (generate kubectl exec command)
+- [ ] Implement /logs in clipboard mode (generate kubectl logs command)
+- [ ] Implement /port-forward in clipboard mode (generate kubectl port-forward)
+- [ ] Test clipboard functionality on macOS/Linux
+
+### Phase 5: Add huh Form Support (2-3 hours)
 - [ ] Add huh dependency (go get github.com/charmbracelet/huh)
-- [ ] Add StateInputForm and huh.Form to CommandBar
-- [ ] Implement buildHuhForm() to convert InputFields → huh.Form
+- [ ] Implement BuildHuhForm(argsStruct) → huh.Form
+- [ ] Add StateInputForm to CommandBar
 - [ ] Integrate huh rendering and updates in command bar
-- [ ] Handle form completion and value extraction
-- [ ] Implement inline args parsing
-- [ ] Update palette rendering for ArgPattern
-- [ ] Route execution through form or inline
+- [ ] Route execution through inline args or form
 
-### Phase 3: Core Commands
-- [ ] Implement /delete command
-- [ ] Implement /scale command with InputField
-- [ ] Implement /restart command
-- [ ] Update command registry with InputFields/ArgPattern
+### Phase 6: Incremental Form Addition (1-2 hours)
+- [ ] Test /scale with both inline and form
+- [ ] Test /drain with both inline and form
+- [ ] Test /shell with form (dynamic container list)
+- [ ] Document form patterns and struct tags
 
-### Phase 4: Complex Commands
-- [ ] Implement /logs command with streaming
-- [ ] Implement /shell command with TTY
-- [ ] Implement /port-forward command
-
-### Phase 5: Node & Service Commands
-- [ ] Implement /cordon command
-- [ ] Implement /drain command with options
-- [ ] Implement /endpoints command
-
-### Phase 6: Testing & Polish
-- [ ] Add executor tests
-- [ ] Test error scenarios
+### Phase 7: Testing & Polish (1-2 hours)
+- [ ] Test error scenarios (kubectl missing, RBAC, etc)
 - [ ] Add performance monitoring
+- [ ] Test all commands end-to-end on real cluster
 - [ ] Update documentation
 
 ## Notes
@@ -478,15 +487,23 @@ After 1-2 weeks of usage, review metrics to identify hot paths:
 - Create branch: feat/plan-06-kubectl-commands
 - Each phase should compile and be testable independently
 - Avoid over-engineering - focus on pragmatic delivery
-- **huh saves time**: Phase 2 reduced from 2-3 hours to 1-2 hours by using
-  huh instead of custom forms.
-- **Struct tags add time but huge value**: Phase 1 increases from 2-3 to
-  3-4 hours for reflection helpers, but eliminates magic strings and
-  provides type safety across all commands.
-- **Total plan**: 12-18 hours (Phase 1: 3-4h, Phase 2: 1-2h, Phase 3: 2-3h,
-  Phase 4: 3-4h, Phase 5: 1-2h, Phase 6: 2-3h)
+- **Phased delivery strategy**: Implement inline args first (Phases 1-4,
+  9-13 hours), then add forms (Phases 5-6, 3-5 hours), then polish (Phase
+  7, 1-2 hours). Delivers working app faster.
+- **Total plan**: 13-20 hours
+  - Phase 1 (Foundation): 3-4 hours
+  - Phase 2 (Core commands): 2-3 hours
+  - Phase 3 (Node/Service): 1-2 hours
+  - Phase 4 (Clipboard commands): 1-2 hours
+  - Phase 5 (huh forms): 2-3 hours
+  - Phase 6 (Form testing): 1-2 hours
+  - Phase 7 (Polish): 1-2 hours
 - **Command bar expansion**: Forms appear in expanded command bar (5-8
   lines), NOT overlays/modals. Follows existing confirmation pattern.
 - **Struct tags pattern**: Each command defines typed args struct with form
   tags. Reflection helpers auto-generate forms and parse values. Type-safe,
   self-documenting, no magic strings.
+- **Clipboard pattern**: /shell, /logs, /port-forward use clipboard mode
+  (generate kubectl command, copy to clipboard, show message). Avoids
+  complex TUI suspend, streaming, and background process management. Good
+  fallback pattern for future complex commands.
