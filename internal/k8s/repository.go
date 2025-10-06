@@ -174,14 +174,14 @@ type Job struct {
 
 // CronJob represents a Kubernetes cronjob
 type CronJob struct {
-	Namespace      string
-	Name           string
-	Schedule       string
-	Suspend        bool
-	Active         int32
-	LastSchedule   time.Duration
-	Age            time.Duration
-	CreatedAt      time.Time // Stable creation timestamp for sorting
+	Namespace    string
+	Name         string
+	Schedule     string
+	Suspend      bool
+	Active       int32
+	LastSchedule time.Duration
+	Age          time.Duration
+	CreatedAt    time.Time // Stable creation timestamp for sorting
 }
 
 // Node represents a Kubernetes node

@@ -54,24 +54,37 @@ func (sb *StatusBar) View() string {
 		return baseStyle.Render("")
 	}
 
-	// Use subtle background with colored foreground (better for dark backgrounds)
-	messageStyle := baseStyle.Copy().
-		Background(sb.theme.Subtle).
-		Bold(true)
-
+	// Use colored background with theme foreground for high visibility
+	var messageStyle lipgloss.Style
 	var prefix string
+
 	switch sb.messageType {
 	case types.MessageTypeSuccess:
-		messageStyle = messageStyle.Foreground(sb.theme.Success)
+		// Green background with contrasting text
+		messageStyle = baseStyle.Copy().
+			Background(sb.theme.Success).
+			Foreground(sb.theme.Background).
+			Bold(true)
 		prefix = "✓ "
 	case types.MessageTypeError:
-		messageStyle = messageStyle.Foreground(sb.theme.Error)
+		// Red background with contrasting text
+		messageStyle = baseStyle.Copy().
+			Background(sb.theme.Error).
+			Foreground(sb.theme.Background).
+			Bold(true)
 		prefix = "✗ "
 	case types.MessageTypeInfo:
-		messageStyle = messageStyle.Foreground(sb.theme.Primary)
+		// Blue/Primary background with contrasting text
+		messageStyle = baseStyle.Copy().
+			Background(sb.theme.Primary).
+			Foreground(sb.theme.Background).
+			Bold(true)
 		prefix = "ℹ "
 	default:
-		messageStyle = messageStyle.Foreground(sb.theme.Primary)
+		messageStyle = baseStyle.Copy().
+			Background(sb.theme.Primary).
+			Foreground(sb.theme.Background).
+			Bold(true)
 		prefix = "ℹ "
 	}
 

@@ -438,17 +438,33 @@ The project has moved beyond prototyping into a structured application:
    git checkout -b feat/correct-branch-name
    git cherry-pick <commit-hash>
    ```
-2. **Prefer Makefile**: Always use Makefile targets when available (e.g., `make test`, `make build`, `make run`)
-3. **Build and Clean**: After building with `go build`, always delete the binary (or use `make build` + `make clean`)
-4. **Dependencies**: Run `go mod tidy` after adding/removing imports
-5. **External Downloads**: Save external repos to `.tmp/` directory
-6. **Screens**: New screens go in `internal/screens/`, implement `types.Screen` interface
-7. **Modals**: New modals go in `internal/modals/`, follow existing pattern
-8. **Components**: Reusable UI elements go in `internal/components/`
-9. **Themes**: Add theme styles to `internal/ui/theme.go`
-10. **Messages**: Custom messages go in `internal/types/types.go`
-11. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
-12. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
+
+2. **Testing and Commits**: NEVER commit code without user testing first
+   - After implementing features, build and wait for user to test
+   - User will verify functionality works as expected
+   - Only create commits AFTER user confirms testing is complete
+   - If user finds issues during testing, fix them before committing
+   - Example workflow:
+     ```bash
+     # After implementation:
+     go build -o k1 cmd/k1/main.go && rm k1  # Build to verify compilation
+     git add -A && git status                 # Stage changes and show status
+     # WAIT for user to test
+     # User confirms: "tests passed, commit it"
+     git commit -m "feat: your commit message"
+     ```
+
+3. **Prefer Makefile**: Always use Makefile targets when available (e.g., `make test`, `make build`, `make run`)
+4. **Build and Clean**: After building with `go build`, always delete the binary (or use `make build` + `make clean`)
+5. **Dependencies**: Run `go mod tidy` after adding/removing imports
+6. **External Downloads**: Save external repos to `.tmp/` directory
+7. **Screens**: New screens go in `internal/screens/`, implement `types.Screen` interface
+8. **Modals**: New modals go in `internal/modals/`, follow existing pattern
+9. **Components**: Reusable UI elements go in `internal/components/`
+10. **Themes**: Add theme styles to `internal/ui/theme.go`
+11. **Messages**: Custom messages go in `internal/types/types.go`
+12. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
+13. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
 
 ## Quick Reference
 

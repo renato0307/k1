@@ -12,16 +12,35 @@ import (
 	"github.com/renato0307/k1/internal/types"
 )
 
+// isClusterScoped returns true if the resource type is cluster-scoped (not namespaced)
+func isClusterScoped(resourceType string) bool {
+	clusterScopedResources := map[string]bool{
+		"nodes":      true,
+		"namespaces": true,
+	}
+	return clusterScopedResources[resourceType]
+}
+
 // YamlCommand returns execute function for viewing resource YAML
 func YamlCommand(repo k8s.Repository) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
-		namespace := "default"
+		namespace := ""
+		displayName := ""
+
 		if name, ok := ctx.Selected["name"].(string); ok {
 			resourceName = name
 		}
-		if ns, ok := ctx.Selected["namespace"].(string); ok {
-			namespace = ns
+
+		// Only set namespace for namespaced resources
+		if !isClusterScoped(ctx.ResourceType) {
+			namespace = "default"
+			if ns, ok := ctx.Selected["namespace"].(string); ok {
+				namespace = ns
+			}
+			displayName = namespace + "/" + resourceName
+		} else {
+			displayName = resourceName
 		}
 
 		// Get GVR for the resource type
@@ -43,7 +62,7 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 		return func() tea.Msg {
 			return types.ShowFullScreenMsg{
 				ViewType:     0, // YAML
-				ResourceName: namespace + "/" + resourceName,
+				ResourceName: displayName,
 				Content:      yamlContent,
 			}
 		}
@@ -54,12 +73,22 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
-		namespace := "default"
+		namespace := ""
+		displayName := ""
+
 		if name, ok := ctx.Selected["name"].(string); ok {
 			resourceName = name
 		}
-		if ns, ok := ctx.Selected["namespace"].(string); ok {
-			namespace = ns
+
+		// Only set namespace for namespaced resources
+		if !isClusterScoped(ctx.ResourceType) {
+			namespace = "default"
+			if ns, ok := ctx.Selected["namespace"].(string); ok {
+				namespace = ns
+			}
+			displayName = namespace + "/" + resourceName
+		} else {
+			displayName = resourceName
 		}
 
 		// Get GVR for the resource type
@@ -81,7 +110,7 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 		return func() tea.Msg {
 			return types.ShowFullScreenMsg{
 				ViewType:     1, // Describe
-				ResourceName: namespace + "/" + resourceName,
+				ResourceName: displayName,
 				Content:      describeContent,
 			}
 		}
@@ -93,12 +122,17 @@ func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Get resource info
 		resourceName := "unknown"
-		namespace := "default"
+		namespace := ""
 		if name, ok := ctx.Selected["name"].(string); ok {
 			resourceName = name
 		}
-		if ns, ok := ctx.Selected["namespace"].(string); ok {
-			namespace = ns
+
+		// Only set namespace for namespaced resources
+		if !isClusterScoped(ctx.ResourceType) {
+			namespace = "default"
+			if ns, ok := ctx.Selected["namespace"].(string); ok {
+				namespace = ns
+			}
 		}
 
 		// Build kubectl delete command
@@ -106,7 +140,11 @@ func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 			"delete",
 			ctx.ResourceType,
 			resourceName,
-			"--namespace", namespace,
+		}
+
+		// Add namespace flag only for namespaced resources
+		if namespace != "" {
+			args = append(args, "--namespace", namespace)
 		}
 
 		// Return a command that executes kubectl asynchronously

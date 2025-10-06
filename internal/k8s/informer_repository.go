@@ -113,12 +113,12 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 
 	// Create dynamic informers for all registered resources
 	dynamicListers := make(map[schema.GroupVersionResource]cache.GenericLister)
-	dynamicInformers := []cache.SharedIndexInformer{}
+	dynamicInformers := make(map[schema.GroupVersionResource]cache.SharedIndexInformer)
 
 	for _, resCfg := range resourceRegistry {
 		informer := dynamicFactory.ForResource(resCfg.GVR).Informer()
 		dynamicListers[resCfg.GVR] = dynamicFactory.ForResource(resCfg.GVR).Lister()
-		dynamicInformers = append(dynamicInformers, informer)
+		dynamicInformers[resCfg.GVR] = informer
 	}
 
 	// Create context for lifecycle management
@@ -128,19 +128,43 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	factory.Start(ctx.Done())
 	dynamicFactory.Start(ctx.Done())
 
-	// Wait for all caches to sync (both typed and dynamic)
-	allInformers := []cache.InformerSynced{
+	// Wait for caches to sync with timeout (graceful handling of RBAC errors)
+	// Try to sync each informer individually, continue on failures
+	syncTimeout := 10 * time.Second
+	syncCtx, syncCancel := context.WithTimeout(ctx, syncTimeout)
+	defer syncCancel()
+
+	// Track which informers synced successfully
+	syncedInformers := make(map[schema.GroupVersionResource]bool)
+
+	// Try typed informers first (pods, deployments, services)
+	typedSynced := cache.WaitForCacheSync(syncCtx.Done(),
 		podInformer.HasSynced,
 		deploymentInformer.HasSynced,
 		serviceInformer.HasSynced,
-	}
-	for _, inf := range dynamicInformers {
-		allInformers = append(allInformers, inf.HasSynced)
+	)
+	if !typedSynced {
+		fmt.Fprintf(os.Stderr, "Warning: Some core resources (pods/deployments/services) failed to sync - may have permission issues\n")
 	}
 
-	if !cache.WaitForCacheSync(ctx.Done(), allInformers...) {
+	// Try each dynamic informer individually
+	for gvr, informer := range dynamicInformers {
+		informerCtx, informerCancel := context.WithTimeout(ctx, 5*time.Second)
+		if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
+			syncedInformers[gvr] = true
+		} else {
+			// Informer failed to sync (likely RBAC), remove from listers
+			delete(dynamicListers, gvr)
+			fmt.Fprintf(os.Stderr, "Warning: Resource %s/%s failed to sync - you may not have permission to watch this resource\n",
+				gvr.Group, gvr.Resource)
+		}
+		informerCancel()
+	}
+
+	// Check if at least pods synced (critical resource)
+	if !typedSynced {
 		cancel()
-		return nil, fmt.Errorf("failed to sync caches")
+		return nil, fmt.Errorf("failed to sync critical resources (pods/deployments/services) - check RBAC permissions")
 	}
 
 	return &InformerRepository{

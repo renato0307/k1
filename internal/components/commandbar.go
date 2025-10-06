@@ -826,6 +826,15 @@ func (cb *CommandBar) viewFilter() string {
 	// Show input with cursor
 	display := cb.input + "█"
 
+	// Add argument hint if applicable
+	hint := cb.getArgumentHint()
+	if hint != "" {
+		hintStyle := lipgloss.NewStyle().
+			Foreground(cb.theme.Dimmed).
+			Italic(true)
+		display += hintStyle.Render(hint)
+	}
+
 	return barStyle.Render(display)
 }
 
@@ -841,9 +850,14 @@ func (cb *CommandBar) viewPalette() string {
 		Italic(true)
 
 	inputDisplay := cb.input + "█"
-	hint := hintStyle.Render(" [↑↓: navigate  tab: complete  enter: execute  esc: cancel]")
 
-	return inputStyle.Render(inputDisplay + hint)
+	// Add argument hint if applicable
+	argHint := cb.getArgumentHint()
+	if argHint != "" {
+		inputDisplay += hintStyle.Render(argHint)
+	}
+
+	return inputStyle.Render(inputDisplay)
 }
 
 // ViewPaletteItems renders the palette items (shown below command bar)
@@ -1037,6 +1051,92 @@ func (cb *CommandBar) viewResult() string {
 		Bold(true)
 
 	return resultStyle.Render("✓ " + cb.input)
+}
+
+// getArgumentHint returns the argument pattern hint for the current input
+// Shows remaining args as user types: "/logs " → "[container] [tail] [follow]"
+//                                      "/logs nginx " → "[tail] [follow]"
+func (cb *CommandBar) getArgumentHint() string {
+	// Only show hints for command inputs (: or /)
+	if len(cb.input) == 0 {
+		return ""
+	}
+
+	prefix := cb.input[:1]
+	if prefix != ":" && prefix != "/" {
+		return ""
+	}
+
+	// Parse command name and args from input
+	parts := strings.Fields(cb.input)
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// Extract command name (without prefix)
+	cmdNameWithPrefix := parts[0]
+	cmdName := strings.TrimPrefix(cmdNameWithPrefix, ":")
+	cmdName = strings.TrimPrefix(cmdName, "/")
+
+	// Determine command category
+	var category commands.CommandCategory
+	if prefix == ":" {
+		category = commands.CategoryResource
+	} else if strings.HasPrefix(cb.input, "/ai ") {
+		category = commands.CategoryLLMAction
+	} else {
+		category = commands.CategoryAction
+	}
+
+	// Look up command in registry
+	cmd := cb.registry.Get(cmdName, category)
+	if cmd == nil || cmd.ArgPattern == "" {
+		return ""
+	}
+
+	// Parse arg pattern to extract individual placeholders
+	// ArgPattern format: " <required> [optional1] [optional2]"
+	argPattern := strings.TrimSpace(cmd.ArgPattern)
+	if argPattern == "" {
+		return ""
+	}
+
+	// Split pattern into individual arg placeholders
+	// Handle both <required> and [optional] format
+	argPlaceholders := []string{}
+	inBracket := false
+	currentArg := ""
+	for _, ch := range argPattern {
+		if ch == '<' || ch == '[' {
+			inBracket = true
+			currentArg = string(ch)
+		} else if ch == '>' || ch == ']' {
+			currentArg += string(ch)
+			argPlaceholders = append(argPlaceholders, currentArg)
+			currentArg = ""
+			inBracket = false
+		} else if inBracket {
+			currentArg += string(ch)
+		}
+	}
+
+	// Count how many args user has already typed (exclude command name)
+	typedArgsCount := len(parts) - 1
+
+	// If user is in the middle of typing an arg (no trailing space), don't show hint yet
+	// Only show hint when there's a trailing space (ready for next arg)
+	if !strings.HasSuffix(cb.input, " ") && typedArgsCount > 0 {
+		return ""
+	}
+
+	// Show remaining args
+	if typedArgsCount < len(argPlaceholders) {
+		remaining := argPlaceholders[typedArgsCount:]
+		return " " + strings.Join(remaining, " ")
+	}
+
+	// All args typed
+	return ""
 }
 
 // getPaletteItems returns palette items for the given command type and query

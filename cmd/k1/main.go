@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"k8s.io/klog/v2"
 
 	"github.com/renato0307/k1/internal/app"
 	"github.com/renato0307/k1/internal/k8s"
@@ -14,12 +15,19 @@ import (
 )
 
 func main() {
+	// Suppress klog errors from client-go (RBAC permission errors during watch)
+	klog.InitFlags(nil)
+	flag.Set("logtostderr", "false")
+	flag.Set("stderrthreshold", "FATAL") // Only show FATAL errors
+	flag.Set("v", "0")                   // Minimum verbosity
+
 	// Parse flags
 	themeFlag := flag.String("theme", "charm", "Theme to use (charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)")
 	kubeconfigFlag := flag.String("kubeconfig", "", "Path to kubeconfig file (default: $HOME/.kube/config)")
 	contextFlag := flag.String("context", "", "Kubernetes context to use")
 	dummyFlag := flag.Bool("dummy", false, "Use dummy data instead of connecting to cluster")
 	flag.Parse()
+	defer klog.Flush()
 
 	// Load theme
 	theme := ui.GetTheme(*themeFlag)
