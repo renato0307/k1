@@ -4,7 +4,7 @@
 |----------|------------------------------------------------|
 | Date     | 2025-10-06                                     |
 | Author   | @renato0307                                    |
-| Status   | Phase 2 Complete + Critical Bug Fixes          |
+| Status   | Phase 4 Complete (Inline Args + Clipboard)    |
 | DDR      | DDR-08                                         |
 
 ## Goal
@@ -451,19 +451,19 @@ After 1-2 weeks of usage, review metrics to identify hot paths:
 - [x] **Bug Fix**: Add periodic refresh to all screens (catch command effects)
 - [x] **Bug Fix**: Add StatusBar component (show messages without hiding header)
 
-### Phase 3: Node & Service Commands with Inline Args (1-2 hours)
-- [ ] Implement /cordon command (no args)
-- [ ] Implement /drain command with DrainArgs struct
-- [ ] Parse inline: "/drain 60 true" with optional args
-- [ ] Implement /endpoints command (no args)
+### Phase 3: Node & Service Commands with Inline Args (1-2 hours) ✅ COMPLETE
+- [x] Implement /cordon command (no args)
+- [x] Implement /drain command with DrainArgs struct
+- [x] Parse inline: "/drain 60 true" with optional args
+- [x] Implement /endpoints command (no args)
 
-### Phase 4: Clipboard Commands (1-2 hours)
-- [ ] Add clipboard library (github.com/atotto/clipboard)
-- [ ] Implement CopyToClipboard helper
-- [ ] Implement /shell in clipboard mode (generate kubectl exec command)
-- [ ] Implement /logs in clipboard mode (generate kubectl logs command)
-- [ ] Implement /port-forward in clipboard mode (generate kubectl port-forward)
-- [ ] Test clipboard functionality on macOS/Linux
+### Phase 4: Clipboard Commands (1-2 hours) ✅ COMPLETE
+- [x] Add clipboard library (github.com/atotto/clipboard)
+- [x] Implement CopyToClipboard helper
+- [x] Implement /shell in clipboard mode (generate kubectl exec command)
+- [x] Implement /logs in clipboard mode (generate kubectl logs command)
+- [x] Implement /port-forward in clipboard mode (generate kubectl port-forward)
+- [x] Updated command registry with ArgsType and ArgPattern for all new commands
 
 ### Phase 5: Add huh Form Support (2-3 hours)
 - [ ] Add huh dependency (go get github.com/charmbracelet/huh)

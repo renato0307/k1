@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"fmt"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/types"
@@ -10,11 +13,38 @@ import (
 func EndpointsCommand(repo k8s.Repository) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
+		namespace := "default"
 		if name, ok := ctx.Selected["name"].(string); ok {
 			resourceName = name
 		}
+		if ns, ok := ctx.Selected["namespace"].(string); ok {
+			namespace = ns
+		}
+
+		// Build kubectl get endpoints command
+		kubectlArgs := []string{
+			"get",
+			"endpoints",
+			resourceName,
+			"--namespace", namespace,
+			"-o", "wide",
+		}
+
+		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
-			return types.InfoMsg("Show endpoints for service/" + resourceName + " - Coming soon")
+			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
+			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
+
+			if err != nil {
+				return types.ErrorStatusMsg(fmt.Sprintf("Get endpoints failed: %v", err))
+			}
+
+			// Show endpoints in full-screen view
+			return types.ShowFullScreenMsg{
+				ViewType:     2, // Endpoints (custom view type)
+				ResourceName: namespace + "/" + resourceName,
+				Content:      strings.TrimSpace(output),
+			}
 		}
 	}
 }
