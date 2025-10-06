@@ -569,6 +569,7 @@ Store design decisions in `design/` folder:
   - Add new items discovered during implementation
   - DO NOT use TodoWrite tool - track progress directly in the plan markdown file
   - Update plan status at top of file to reflect current phase
-- during this prototype phase, please don't run tests, not needed
-- keep claude authoring stuff of of generated code or commit messages
+- During this prototype phase, please don't run tests, not needed
+- Keep claude authoring stuff of of generated code or commit messages
 - Keep track of golang patterns or approaches we use
+- Each time we do changes, please review the README.md to ensure we keep it updated
