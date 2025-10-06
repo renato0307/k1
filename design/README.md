@@ -14,4 +14,4 @@ DDR stands for Design Decision Record. This is a collection of design documents 
 | [DDR-08](DDR-08.md) | commands, kubectl, performance, pragmatism, strategy | Pragmatic command implementation: kubectl subprocess first for quick delivery, migrate to pure Go client-go for performance over time |
 | [DDR-09](DDR-09.md) | logging, troubleshooting, diagnostics, slog | File-based structured logging system using slog: rotation, configurable verbosity, performance metrics, non-intrusive to TUI |
 | [DDR-10](DDR-10.md) | cli, flags, configuration | Flag parsing simplicity-first approach: pflag as drop-in stdlib replacement with better UX, Kubernetes ecosystem alignment, minimal migration |
-| [DDR-11](DDR-11.md) | metrics, observability, prometheus | Prometheus metrics instrumentation: textfile collector pattern for performance and operation metrics, optional HTTP endpoint, evaluation of Push Gateway |
+| [DDR-11](DDR-11.md) | metrics, observability, telemetry | Prometheus metrics collection: historical time-series retention with on-demand remote push to Push Gateway, Grafana Cloud, and self-hosted Grafana, privacy-first opt-in model |
