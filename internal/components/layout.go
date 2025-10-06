@@ -41,10 +41,10 @@ func (l *Layout) CalculateBodyHeight() int {
 	return bodyHeight
 }
 
-// CalculateBodyHeightWithCommandBar returns the available height accounting for dynamic command bar
+// CalculateBodyHeightWithCommandBar returns the available height accounting for dynamic command bar and status bar
 func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
-	// Reserve space for: title (1) + header (1) + empty line after header (1) + command bar (dynamic)
-	reserved := 3 + commandBarHeight
+	// Reserve space for: title (1) + header (1) + empty line after header (1) + status bar (1) + command bar (dynamic)
+	reserved := 4 + commandBarHeight
 	bodyHeight := l.height - reserved
 	if bodyHeight < 3 {
 		bodyHeight = 3
@@ -53,15 +53,8 @@ func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
 }
 
 // Render builds the full layout
-func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints string) string {
+func (l *Layout) Render(header, body, statusBar, commandBar, paletteItems, hints string) string {
 	sections := []string{}
-
-	// Error style using theme
-	errorStyle := lipgloss.NewStyle().
-		Foreground(l.theme.Error).
-		Background(l.theme.Background).
-		Padding(0, 1).
-		Bold(true)
 
 	// Title line with app name and emoji using theme's AppTitle style
 	titleText := l.appName + " 💨"
@@ -87,9 +80,9 @@ func (l *Layout) Render(header, body, message, commandBar, paletteItems, hints s
 		sections = append(sections, body)
 	}
 
-	// Error message (if present)
-	if message != "" {
-		sections = append(sections, errorStyle.Render(message))
+	// Status bar (shown above command bar when message is set)
+	if statusBar != "" {
+		sections = append(sections, statusBar)
 	}
 
 	// Command bar at the bottom (always rendered)

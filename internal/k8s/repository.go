@@ -70,6 +70,10 @@ type Repository interface {
 	GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error)
 	DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error)
 
+	// Kubeconfig and context (for kubectl subprocess commands)
+	GetKubeconfig() string
+	GetContext() string
+
 	Close()
 }
 
@@ -81,6 +85,7 @@ type Pod struct {
 	Status    string
 	Restarts  int32
 	Age       time.Duration
+	CreatedAt time.Time // Stable creation timestamp for sorting
 	Node      string
 	IP        string
 }
@@ -93,6 +98,7 @@ type Deployment struct {
 	UpToDate  int32
 	Available int32
 	Age       time.Duration
+	CreatedAt time.Time // Stable creation timestamp for sorting
 }
 
 // Service represents a Kubernetes service
@@ -104,6 +110,7 @@ type Service struct {
 	ExternalIP string
 	Ports      string
 	Age        time.Duration
+	CreatedAt  time.Time // Stable creation timestamp for sorting
 }
 
 // ConfigMap represents a Kubernetes configmap
@@ -112,6 +119,7 @@ type ConfigMap struct {
 	Name      string
 	Data      int // Number of data items
 	Age       time.Duration
+	CreatedAt time.Time // Stable creation timestamp for sorting
 }
 
 // Secret represents a Kubernetes secret
@@ -121,13 +129,15 @@ type Secret struct {
 	Type      string
 	Data      int // Number of data items
 	Age       time.Duration
+	CreatedAt time.Time // Stable creation timestamp for sorting
 }
 
 // Namespace represents a Kubernetes namespace
 type Namespace struct {
-	Name   string
-	Status string
-	Age    time.Duration
+	Name      string
+	Status    string
+	Age       time.Duration
+	CreatedAt time.Time // Stable creation timestamp for sorting
 }
 
 // StatefulSet represents a Kubernetes statefulset
@@ -136,6 +146,7 @@ type StatefulSet struct {
 	Name      string
 	Ready     string
 	Age       time.Duration
+	CreatedAt time.Time // Stable creation timestamp for sorting
 }
 
 // DaemonSet represents a Kubernetes daemonset
@@ -148,6 +159,7 @@ type DaemonSet struct {
 	UpToDate  int32
 	Available int32
 	Age       time.Duration
+	CreatedAt time.Time // Stable creation timestamp for sorting
 }
 
 // Job represents a Kubernetes job
@@ -157,17 +169,19 @@ type Job struct {
 	Completions string
 	Duration    time.Duration
 	Age         time.Duration
+	CreatedAt   time.Time // Stable creation timestamp for sorting
 }
 
 // CronJob represents a Kubernetes cronjob
 type CronJob struct {
-	Namespace      string
-	Name           string
-	Schedule       string
-	Suspend        bool
-	Active         int32
-	LastSchedule   time.Duration
-	Age            time.Duration
+	Namespace    string
+	Name         string
+	Schedule     string
+	Suspend      bool
+	Active       int32
+	LastSchedule time.Duration
+	Age          time.Duration
+	CreatedAt    time.Time // Stable creation timestamp for sorting
 }
 
 // Node represents a Kubernetes node
@@ -176,6 +190,7 @@ type Node struct {
 	Status       string
 	Roles        string
 	Age          time.Duration
+	CreatedAt    time.Time // Stable creation timestamp for sorting
 	Version      string
 	Hostname     string
 	InstanceType string
@@ -318,6 +333,14 @@ Status:       Running
 
 func (r *DummyRepository) Close() {
 	// No-op for dummy repository
+}
+
+func (r *DummyRepository) GetKubeconfig() string {
+	return ""
+}
+
+func (r *DummyRepository) GetContext() string {
+	return ""
 }
 
 func (r *DummyRepository) GetResources(resourceType ResourceType) ([]interface{}, error) {

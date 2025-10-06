@@ -125,19 +125,6 @@ go test -v ./... -timeout 60s
 
 See `design/DDR-04.md` for detailed testing architecture.
 
-### Running Prototypes
-
-```bash
-# Kubernetes informers with metadata-only mode (blazing fast)
-go run cmd/proto-k8s-informers/main.go [--context CONTEXT]
-
-# Bubble Tea TUI exploration
-go run cmd/proto-bubbletea/main.go
-
-# Full-featured pod list viewer (main prototype)
-go run cmd/proto-pods-tui/main.go [--context CONTEXT]
-```
-
 ## Key Dependencies
 
 - **Bubble Tea** (github.com/charmbracelet/bubbletea): TUI framework
@@ -156,7 +143,6 @@ go run cmd/proto-pods-tui/main.go [--context CONTEXT]
 ```
 cmd/
   k1/main.go                - Main application entry point (binary: k1)
-  proto-*/                  - Prototype applications for exploration
 
 internal/
   app/app.go                - Root Bubble Tea model with screen routing
@@ -212,135 +198,6 @@ internal/
 - `types.ErrorMsg`: Displays temporary error message
 - `types.FilterUpdateMsg`: Updates filter on current screen (from command bar)
 - `types.ClearFilterMsg`: Clears filter on current screen
-
-## Prototype Learnings (cmd/proto-pods-tui)
-
-### What Works Well
-
-1. **Full Pod Informers with Protobuf** (Not Metadata-Only)
-   - Originally planned metadata-only, but needed full pod status (Ready, Status, Restarts, Node, IP)
-   - **Trade-off accepted**: Full informers with protobuf encoding still fast enough
-   - Protobuf reduces payload size vs JSON: `config.ContentType = "application/vnd.kubernetes.protobuf"`
-   - Real-world sync time: ~1-2 seconds for hundreds of pods
-
-2. **Fuzzy Search is Superior**
-   - Library: `github.com/sahilm/fuzzy`
-   - Much better UX than exact substring matching
-   - Search speed: 1-5ms for 100s of pods, 10-50ms for 1000s
-   - Automatic ranking by match score (best matches first)
-   - Negation still works: `!pattern` excludes fuzzy matches
-
-3. **Bubble Tea Immediate Mode UI**
-   - Full-screen mode with `tea.WithAltScreen()`
-   - `bubbles/table` component handles most complexity
-   - Dynamic column widths based on terminal size
-   - Real-time updates from informer cache (1-second refresh)
-
-4. **Smart Cursor Tracking**
-   - Track selected pod by `namespace/name` key across filter/sort changes
-   - Maintains selection when data updates (avoids jumping cursor)
-   - Falls back gracefully when pod disappears
-
-5. **Filter UX Patterns**
-   - `/` to enter filter mode (vim-style)
-   - Type to filter with live preview
-   - Paste support (bracketed paste from terminal)
-   - `!` prefix for negation (exclude matches)
-   - ESC to clear/cancel
-   - Show search timing in header for transparency
-
-### Architecture Decisions
-
-1. **Column Layout** (fixed widths except Name)
-   - Namespace: 36 chars (fits UUIDs)
-   - Name: Dynamic (fills remaining space, truncates with `...`)
-   - Ready: 8 chars
-   - Status: 12 chars
-   - Restarts: 10 chars
-   - Age: 10 chars
-   - Node: 40 chars (fits long node names)
-   - IP: 15 chars
-
-2. **Sorting Strategy**
-   - Primary: Age (newest first) - most common use case
-   - Secondary: Name (alphabetical) - stable sort
-   - Fuzzy search overrides with match score ranking
-
-3. **Search Scope**
-   - Fields: Namespace, Name, Status, Node, IP
-   - Combine into single lowercase string for fuzzy matching
-   - Pre-lowercase at search time (not at pod creation) to save memory
-
-### Performance Strategy
-
-1. **Kubernetes Informer Caching**
-   - **Key Finding**: Informer caches load all-at-once (not progressive)
-   - Once synced, cache queries are microsecond-fast (~15-25μs)
-   - Real-time updates via watch connections
-   - Accept brief initial sync time for instant subsequent queries
-
-2. **Protobuf Encoding**
-   - Use `application/vnd.kubernetes.protobuf` content type
-   - Reduces network transfer and parsing time vs JSON
-   - Transparent to application code (client-go handles it)
-
-3. **Search Performance**
-   - Fuzzy search on 100s of pods: 1-5ms (fast enough to run on every keystroke)
-   - No debouncing needed for typical cluster sizes
-   - Display timing in UI for transparency
-
-4. **UI Rendering**
-   - Bubble Tea handles efficient terminal updates
-   - Only re-render on state changes (filter, data refresh, resize)
-   - Table component optimized for scrolling large lists
-
-### What to Avoid
-
-1. **Metadata-Only Informers for Pod Lists**
-   - Too limiting - need Status, Node, IP for useful display
-   - Full informers with protobuf are fast enough
-
-2. **Progressive Loading**
-   - Informers don't support it (all-or-nothing cache sync)
-   - Better to show loading indicator + fast sync than fake progress
-
-3. **Complex String Operations**
-   - Custom `toLower`/`contains` slower than stdlib
-   - Use `strings.ToLower` and fuzzy library
-
-4. **Table Height/Width Management**
-   - Centralize calculation logic (avoid manual adjustments scattered in code)
-   - Recalculate on window resize only
-
-### Next Steps for Production
-
-1. **Multi-Resource Support**
-   - Pod list works well, replicate pattern for Deployments, Services, etc.
-   - Lazy-load informers (only start when user views resource type)
-
-2. **Drill-Down Views**
-   - List view with metadata/summary
-   - Detail view on selection (fetch full YAML/JSON if needed)
-   - Log streaming for pods
-
-3. **Namespace Filtering**
-   - Allow watching specific namespaces only (reduces memory)
-   - UI to switch namespaces or watch all
-
-4. **Configuration**
-   - Save column preferences
-   - Default namespace/context
-   - Keybindings
-
-5. **Error Handling**
-   - Better kubeconfig error messages
-   - Handle disconnections gracefully
-   - Show informer sync errors in UI
-
-6. **Misc**
-   - Compile the code using "go build" but delete the binary after testing
-   - Execute go mod tidy to fix dependencies
-   - if you need to download repositories, save them into .tmp
 
 ## Current Status
 
@@ -438,17 +295,139 @@ The project has moved beyond prototyping into a structured application:
    git checkout -b feat/correct-branch-name
    git cherry-pick <commit-hash>
    ```
-2. **Prefer Makefile**: Always use Makefile targets when available (e.g., `make test`, `make build`, `make run`)
-3. **Build and Clean**: After building with `go build`, always delete the binary (or use `make build` + `make clean`)
-4. **Dependencies**: Run `go mod tidy` after adding/removing imports
-5. **External Downloads**: Save external repos to `.tmp/` directory
-6. **Screens**: New screens go in `internal/screens/`, implement `types.Screen` interface
-7. **Modals**: New modals go in `internal/modals/`, follow existing pattern
-8. **Components**: Reusable UI elements go in `internal/components/`
-9. **Themes**: Add theme styles to `internal/ui/theme.go`
-10. **Messages**: Custom messages go in `internal/types/types.go`
-11. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
-12. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
+
+2. **Testing and Commits**: NEVER commit code without user testing first
+   - After implementing features, build and wait for user to test
+   - User will verify functionality works as expected
+   - Only create commits AFTER user confirms testing is complete
+   - If user finds issues during testing, fix them before committing
+   - Example workflow:
+     ```bash
+     # After implementation:
+     go build -o k1 cmd/k1/main.go && rm k1  # Build to verify compilation
+     git add -A && git status                 # Stage changes and show status
+     # WAIT for user to test
+     # User confirms: "tests passed, commit it"
+     git commit -m "feat: your commit message"
+     ```
+
+3. **Prefer Makefile**: Always use Makefile targets when available (e.g., `make test`, `make build`, `make run`)
+4. **Build and Clean**: After building with `go build`, always delete the binary (or use `make build` + `make clean`)
+5. **Dependencies**: Run `go mod tidy` after adding/removing imports
+6. **External Downloads**: Save external repos to `.tmp/` directory
+7. **Screens**: New screens go in `internal/screens/`, implement `types.Screen` interface
+8. **Modals**: New modals go in `internal/modals/`, follow existing pattern
+9. **Components**: Reusable UI elements go in `internal/components/`
+10. **Themes**: Add theme styles to `internal/ui/theme.go`
+11. **Messages**: Custom messages go in `internal/types/types.go`
+12. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
+13. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
+
+## Code Patterns and Conventions
+
+### Constants Organization
+
+**Pattern**: Use per-package constants to avoid circular dependencies.
+
+**DO**:
+```go
+// internal/components/constants.go
+package components
+
+const (
+    MaxPaletteItems = 8
+    FullScreenReservedLines = 3
+)
+```
+
+**DON'T**:
+```go
+// internal/constants/constants.go - AVOID central constants package
+package constants
+
+const MaxPaletteItems = 8  // Creates import cycles
+```
+
+**Rationale**: Central constants package creates circular dependencies when packages need to import each other. Per-package constants keep dependencies clean.
+
+**Existing constant files**:
+- `internal/components/constants.go` - UI constants
+- `internal/k8s/constants.go` - Kubernetes client constants
+- `internal/commands/constants.go` - Command execution constants
+- `internal/screens/constants.go` - Screen configuration constants
+
+### Message Helpers for Commands
+
+**Pattern**: Use message helpers from `internal/messages` for consistent command responses.
+
+**Command layer pattern**:
+```go
+import "github.com/renato0307/k1/internal/messages"
+
+func ScaleCommand(repo k8s.Repository) ExecuteFunc {
+    return func(ctx CommandContext) tea.Cmd {
+        if err := validateArgs(); err != nil {
+            return messages.ErrorCmd("Invalid args: %v", err)
+        }
+
+        // ... execute operation ...
+
+        if err != nil {
+            return messages.ErrorCmd("Scale failed: %v", err)
+        }
+        return messages.SuccessCmd("Scaled %s to %d replicas", name, count)
+    }
+}
+```
+
+**Available helpers**:
+- `messages.ErrorCmd(format, args...)` - Red error message
+- `messages.SuccessCmd(format, args...)` - Green success message
+- `messages.InfoCmd(format, args...)` - Blue info message
+- `messages.WrapError(err, format, args...)` - Wrap errors with context (repository layer)
+
+**Repository layer pattern**:
+```go
+func (r *Repository) GetPods() ([]Pod, error) {
+    pods, err := r.lister.List()
+    if err != nil {
+        return nil, fmt.Errorf("failed to list pods: %w", err)
+    }
+    return pods, nil
+}
+```
+
+See `internal/messages/doc.go` for complete patterns and guidelines.
+
+### Helper Function Philosophy
+
+**Only create helpers that reduce boilerplate**. Avoid unnecessary abstractions.
+
+**Good helpers** (reduce repetitive code):
+- `messages.ErrorCmd()` - Wraps `tea.Cmd` + `types.ErrorStatusMsg` boilerplate
+- `messages.WrapError()` - Makes error wrapping intent explicit
+
+**Bad helpers** (unnecessary aliases):
+- `NewError()` - Just use `fmt.Errorf()` directly (everyone knows it)
+- `StringContains()` - Just use `strings.Contains()` directly
+
+**Rule of thumb**: If the helper is just calling one standard library function, it's probably not worth it.
+
+### Go Idioms
+
+**Use modern Go types**:
+```go
+// DO (Go 1.18+)
+func Format(format string, args ...any) string
+
+// DON'T (outdated)
+func Format(format string, args ...interface{}) string
+```
+
+**Prefer standard library over custom implementations**:
+- Use `strings.ToLower()` not custom `toLower()`
+- Use `fmt.Errorf()` not custom error builders
+- Use `strconv.Itoa()` not custom number formatters
 
 ## Quick Reference
 
@@ -553,5 +532,7 @@ Store design decisions in `design/` folder:
   - Add new items discovered during implementation
   - DO NOT use TodoWrite tool - track progress directly in the plan markdown file
   - Update plan status at top of file to reflect current phase
-- during this prototype phase, please don't run tests, not needed
-- keep claude authoring stuff of of generated code or commit messages
+- Keep claude authoring stuff of of generated code or commit messages
+- Keep track of golang patterns or approaches we use
+- Each time we do changes, please review the README.md to ensure we keep it updated
+- don't forget go mod tidy

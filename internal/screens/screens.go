@@ -14,7 +14,7 @@ func GetPodsScreenConfig() ScreenConfig {
 		Title:        "Pods",
 		ResourceType: k8s.ResourceTypePod,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0}, // Dynamic width
 			{Field: "Ready", Title: "Ready", Width: 8},
 			{Field: "Status", Title: "Status", Width: 15},
@@ -30,18 +30,22 @@ func GetPodsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected pod", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
-		// Custom update handler to support periodic refresh
-		CustomUpdate: func(s *ConfigScreen, msg tea.Msg) (tea.Model, tea.Cmd) {
-			switch msg.(type) {
-			case tickMsg:
-				// Refresh and schedule next tick
-				return s, tea.Batch(s.Refresh(), tickCmd())
-			default:
-				return s.DefaultUpdate(msg)
-			}
-		},
+		CustomUpdate:          getPeriodicRefreshUpdate(),
+	}
+}
+
+// getPeriodicRefreshUpdate returns a shared CustomUpdate handler for periodic refresh
+func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, tea.Cmd) {
+	return func(s *ConfigScreen, msg tea.Msg) (tea.Model, tea.Cmd) {
+		switch msg.(type) {
+		case tickMsg:
+			// Refresh and schedule next tick
+			return s, tea.Batch(s.Refresh(), tickCmd())
+		default:
+			return s.DefaultUpdate(msg)
+		}
 	}
 }
 
@@ -52,7 +56,7 @@ func GetDeploymentsScreenConfig() ScreenConfig {
 		Title:        "Deployments",
 		ResourceType: k8s.ResourceTypeDeployment,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0}, // Dynamic width
 			{Field: "Ready", Title: "Ready", Width: 10},
 			{Field: "UpToDate", Title: "Up-to-date", Width: 12},
@@ -65,7 +69,10 @@ func GetDeploymentsScreenConfig() ScreenConfig {
 			{ID: "restart", Name: "Restart", Description: "Restart selected deployment", Shortcut: "r"},
 			{ID: "describe", Name: "Describe", Description: "Describe selected deployment", Shortcut: "d"},
 		},
-		TrackSelection: false, // No need for cursor tracking on deployments
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -76,7 +83,7 @@ func GetServicesScreenConfig() ScreenConfig {
 		Title:        "Services",
 		ResourceType: k8s.ResourceTypeService,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0}, // Dynamic width
 			{Field: "Type", Title: "Type", Width: 15},
 			{Field: "ClusterIP", Title: "Cluster-IP", Width: 15},
@@ -90,7 +97,10 @@ func GetServicesScreenConfig() ScreenConfig {
 			{ID: "endpoints", Name: "Show Endpoints", Description: "Show service endpoints", Shortcut: "e"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected service", Shortcut: "x"},
 		},
-		TrackSelection: false,
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -101,7 +111,7 @@ func GetConfigMapsScreenConfig() ScreenConfig {
 		Title:        "ConfigMaps",
 		ResourceType: k8s.ResourceTypeConfigMap,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Data", Title: "Data", Width: 10},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
@@ -111,6 +121,10 @@ func GetConfigMapsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected configmap", Shortcut: "d"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected configmap", Shortcut: "x"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -121,7 +135,7 @@ func GetSecretsScreenConfig() ScreenConfig {
 		Title:        "Secrets",
 		ResourceType: k8s.ResourceTypeSecret,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Type", Title: "Type", Width: 30},
 			{Field: "Data", Title: "Data", Width: 10},
@@ -132,6 +146,10 @@ func GetSecretsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected secret", Shortcut: "d"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected secret", Shortcut: "x"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -151,6 +169,10 @@ func GetNamespacesScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected namespace", Shortcut: "d"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected namespace", Shortcut: "x"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -161,7 +183,7 @@ func GetStatefulSetsScreenConfig() ScreenConfig {
 		Title:        "StatefulSets",
 		ResourceType: k8s.ResourceTypeStatefulSet,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Ready", Title: "Ready", Width: 10},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
@@ -172,6 +194,10 @@ func GetStatefulSetsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected statefulset", Shortcut: "d"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected statefulset", Shortcut: "x"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -182,7 +208,7 @@ func GetDaemonSetsScreenConfig() ScreenConfig {
 		Title:        "DaemonSets",
 		ResourceType: k8s.ResourceTypeDaemonSet,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Desired", Title: "Desired", Width: 10},
 			{Field: "Current", Title: "Current", Width: 10},
@@ -196,6 +222,10 @@ func GetDaemonSetsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected daemonset", Shortcut: "d"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected daemonset", Shortcut: "x"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -206,7 +236,7 @@ func GetJobsScreenConfig() ScreenConfig {
 		Title:        "Jobs",
 		ResourceType: k8s.ResourceTypeJob,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Completions", Title: "Completions", Width: 15},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
@@ -216,6 +246,10 @@ func GetJobsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected job", Shortcut: "d"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected job", Shortcut: "x"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -226,7 +260,7 @@ func GetCronJobsScreenConfig() ScreenConfig {
 		Title:        "CronJobs",
 		ResourceType: k8s.ResourceTypeCronJob,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Schedule", Title: "Schedule", Width: 15},
 			{Field: "Suspend", Title: "Suspend", Width: 10},
@@ -238,6 +272,10 @@ func GetCronJobsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected cronjob", Shortcut: "d"},
 			{ID: "delete", Name: "Delete", Description: "Delete selected cronjob", Shortcut: "x"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -265,6 +303,10 @@ func GetNodesScreenConfig() ScreenConfig {
 			{ID: "cordon", Name: "Cordon", Description: "Cordon selected node", Shortcut: "c"},
 			{ID: "drain", Name: "Drain", Description: "Drain selected node", Shortcut: "r"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 

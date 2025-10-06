@@ -4,7 +4,7 @@
 |----------|----------------------------|
 | Date     | 2025-10-06                 |
 | Author   | @renato0307                |
-| Status   | `Proposed`                 |
+| Status   | `Accepted`                 |
 | Tags     | refactoring, code-quality, architecture, solid, testing |
 | Updates  | -                          |
 
@@ -362,18 +362,27 @@ Transform functions re-executed on every refresh.
 
 ### Security Concerns
 
-#### 1. Command Injection Risk
+#### 1. Command Injection Risk (FALSE POSITIVE)
 
-String concatenation for kubectl commands:
+**Status**: Not a real vulnerability - removed from high-priority list.
+
+String concatenation for kubectl commands in clipboard mode:
 ```go
 // clipboard.go
 var kubectlCmd strings.Builder
 kubectlCmd.WriteString("kubectl exec -it ")
-kubectlCmd.WriteString(podName) // Not sanitized
+kubectlCmd.WriteString(podName) // From Kubernetes API
 ```
 
-**Impact**: Potential command injection if resource names contain
-special characters.
+**Analysis**: This is NOT a vulnerability because:
+- Resource names come from Kubernetes API server which enforces strict
+  validation: `[a-z0-9]([-a-z0-9]*[a-z0-9])?`
+- API server prevents shell metacharacters in resource names
+- Commands are copied to clipboard for user review, not executed directly
+- This is a local TUI operated by cluster owner, not untrusted input
+- Kubernetes itself would reject malicious resource names before they exist
+
+**Impact**: None. Initial assessment overestimated risk.
 
 #### 2. RBAC Error Handling
 
@@ -406,13 +415,7 @@ Adopt a **phased refactoring strategy** with three priority tiers:
 
 ### High Priority (Sprint 1-2: 2 weeks)
 
-1. **Split CommandBar** into 4 focused components:
-   - `InputManager`: Handle input state machine
-   - `PaletteRenderer`: Display and filter commands
-   - `CommandExecutor`: Execute commands with confirmation
-   - `HistoryManager`: Track command history
-
-2. **Extract constants** for all magic numbers:
+1. **Extract constants** for all magic numbers:
    ```go
    const (
        MaxPaletteItems = 8
@@ -422,20 +425,22 @@ Adopt a **phased refactoring strategy** with three priority tiers:
    )
    ```
 
-3. **Remove dead code**:
-   - Delete LLM stubs or implement minimal versions
-   - Move prototypes to separate directory (examples/ or archive/)
-   - Remove unused struct fields
-
-4. **Fix command injection vulnerabilities**:
-   - Use proper command builders with argument arrays
-   - Sanitize all user/resource inputs in kubectl commands
-
-5. **Standardize error handling**:
+2. **Standardize error handling**:
    - Define error handling patterns per layer
    - Repository: return errors
    - Commands: return tea.Cmd with StatusMsg
    - UI: display StatusMsg in status bar
+
+3. **Split CommandBar** into 4 focused components:
+   - `InputManager`: Handle input state machine
+   - `PaletteRenderer`: Display and filter commands
+   - `CommandExecutor`: Execute commands with confirmation
+   - `HistoryManager`: Track command history
+
+4. **Remove dead code**:
+   - Delete LLM stubs or implement minimal versions
+   - Move prototypes to separate directory (examples/ or archive/)
+   - Remove unused struct fields
 
 ### Medium Priority (Sprint 3-4: 2 weeks)
 

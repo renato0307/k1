@@ -17,7 +17,13 @@ const (
 type CommandContext struct {
 	ResourceType string                 // Type of resource (pods, deployments, services)
 	Selected     map[string]interface{} // Selected resource data (name, namespace, etc.)
-	Args         string                 // Additional command arguments
+	Args         string                 // Additional command arguments (inline args string)
+}
+
+// ParseArgs parses inline args string into a typed struct using reflection
+// Usage: ctx.ParseArgs(&myArgsStruct)
+func (ctx *CommandContext) ParseArgs(dest interface{}) error {
+	return ParseInlineArgs(dest, ctx.Args)
 }
 
 // ExecuteFunc is a function that executes a command and returns a Bubble Tea command
@@ -32,4 +38,6 @@ type Command struct {
 	Execute           ExecuteFunc     // Execution function
 	ResourceTypes     []string        // Resource types this command applies to (empty = all)
 	Shortcut          string          // Keyboard shortcut (e.g., "ctrl+y")
+	ArgsType          interface{}     // Pointer to args struct (e.g., &ScaleArgs{}) for reflection
+	ArgPattern        string          // Display pattern for palette (e.g., " <replicas>" or " [grace] [force]")
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/components"
+	"github.com/renato0307/k1/internal/components/commandbar"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/screens"
 	"github.com/renato0307/k1/internal/types"
@@ -19,7 +20,8 @@ type Model struct {
 	currentScreen  types.Screen
 	header         *components.Header
 	layout         *components.Layout
-	commandBar     *components.CommandBar
+	statusBar      *components.StatusBar
+	commandBar     *commandbar.CommandBar
 	fullScreen     *components.FullScreen
 	fullScreenMode bool
 	repo           k8s.Repository
@@ -54,14 +56,17 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	header.SetScreenTitle(initialScreen.Title())
 	header.SetWidth(80)
 
-	commandBar := components.NewCommandBar(repo, theme)
-	commandBar.SetWidth(80)
-	commandBar.SetScreen("pods") // Set initial screen context
+	cmdBar := commandbar.New(repo, theme)
+	cmdBar.SetWidth(80)
+	cmdBar.SetScreen("pods") // Set initial screen context
+
+	statusBar := components.NewStatusBar(theme)
+	statusBar.SetWidth(80)
 
 	layout := components.NewLayout(80, 24, theme)
 
 	// Set initial size for the screen
-	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(commandBar.GetTotalHeight())
+	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(cmdBar.GetTotalHeight())
 	if screenWithSize, ok := initialScreen.(interface{ SetSize(int, int) }); ok {
 		screenWithSize.SetSize(80, initialBodyHeight)
 	}
@@ -76,7 +81,8 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 		currentScreen: initialScreen,
 		header:        header,
 		layout:        layout,
-		commandBar:    commandBar,
+		statusBar:     statusBar,
+		commandBar:    cmdBar,
 		repo:          repo,
 		theme:         theme,
 	}
@@ -93,6 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.Height = msg.Height
 		m.layout.SetSize(msg.Width, msg.Height)
 		m.header.SetWidth(msg.Width)
+		m.statusBar.SetWidth(msg.Width)
 		m.commandBar.SetWidth(msg.Width)
 
 		bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
@@ -108,21 +115,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "ctrl+y":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /yaml command
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("yaml", commands.CategoryAction)
 			m.commandBar = updatedBar
 			return m, barCmd
 		case "ctrl+d":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /describe command
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("describe", commands.CategoryAction)
 			m.commandBar = updatedBar
 			return m, barCmd
 		case "ctrl+l":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /logs command
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("logs", commands.CategoryAction)
 			m.commandBar = updatedBar
 			return m, barCmd
 		case "ctrl+x":
+			// Update selection context before executing command
+			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			}
 			// Execute /delete command (will show confirmation)
 			updatedBar, barCmd := m.commandBar.ExecuteCommand("delete", commands.CategoryAction)
 			m.commandBar = updatedBar
@@ -163,7 +186,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Forward to screen only if command bar is hidden or in filter mode
 		// (In palette mode, arrows navigate palette not list)
-		if oldState == 0 || oldState == 1 { // StateHidden or StateFilter
+		if oldState == commandbar.StateHidden || oldState == commandbar.StateFilter {
 			model, screenCmd := m.currentScreen.Update(msg)
 			m.currentScreen = model.(types.Screen)
 			return m, tea.Batch(barCmd, screenCmd)
@@ -196,14 +219,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.header.SetLastRefresh(time.Now())
 		return m, nil
 
-	case types.ErrorMsg:
-		m.state.ErrorMessage = msg.Error
-		return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
-			return types.ClearErrorMsg{}
+	case types.StatusMsg:
+		m.statusBar.SetMessage(msg.Message, msg.Type)
+		return m, tea.Tick(components.StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+			return types.ClearStatusMsg{}
 		})
 
-	case types.ClearErrorMsg:
-		m.state.ErrorMessage = ""
+	case types.ClearStatusMsg:
+		m.statusBar.ClearMessage()
 		return m, nil
 
 	case types.ShowFullScreenMsg:
@@ -241,12 +264,12 @@ func (m Model) View() string {
 	// Build main layout
 	header := m.header.View()
 	body := m.currentScreen.View()
-	message := m.state.ErrorMessage
+	statusBar := m.statusBar.View()
 	commandBar := m.commandBar.View()
 	paletteItems := m.commandBar.ViewPaletteItems()
 	hints := m.commandBar.ViewHints()
 
-	baseView := m.layout.Render(header, body, message, commandBar, paletteItems, hints)
+	baseView := m.layout.Render(header, body, statusBar, commandBar, paletteItems, hints)
 
 	// Return layout directly - it's already sized correctly via body height calculations
 	return baseView

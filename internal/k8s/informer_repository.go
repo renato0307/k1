@@ -43,6 +43,10 @@ type InformerRepository struct {
 	resources      map[ResourceType]ResourceConfig
 	dynamicListers map[schema.GroupVersionResource]cache.GenericLister
 
+	// Kubeconfig and context (for kubectl subprocess commands)
+	kubeconfig  string
+	contextName string
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -88,9 +92,9 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		return nil, fmt.Errorf("error creating dynamic client: %w", err)
 	}
 
-	// Create shared informer factories with 30 second resync period
-	factory := informers.NewSharedInformerFactory(clientset, 30*time.Second)
-	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 30*time.Second)
+	// Create shared informer factories with resync period
+	factory := informers.NewSharedInformerFactory(clientset, InformerResyncPeriod)
+	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, InformerResyncPeriod)
 
 	// Create pod informer and lister
 	podInformer := factory.Core().V1().Pods().Informer()
@@ -109,12 +113,12 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 
 	// Create dynamic informers for all registered resources
 	dynamicListers := make(map[schema.GroupVersionResource]cache.GenericLister)
-	dynamicInformers := []cache.SharedIndexInformer{}
+	dynamicInformers := make(map[schema.GroupVersionResource]cache.SharedIndexInformer)
 
 	for _, resCfg := range resourceRegistry {
 		informer := dynamicFactory.ForResource(resCfg.GVR).Informer()
 		dynamicListers[resCfg.GVR] = dynamicFactory.ForResource(resCfg.GVR).Lister()
-		dynamicInformers = append(dynamicInformers, informer)
+		dynamicInformers[resCfg.GVR] = informer
 	}
 
 	// Create context for lifecycle management
@@ -124,19 +128,43 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	factory.Start(ctx.Done())
 	dynamicFactory.Start(ctx.Done())
 
-	// Wait for all caches to sync (both typed and dynamic)
-	allInformers := []cache.InformerSynced{
+	// Wait for caches to sync with timeout (graceful handling of RBAC errors)
+	// Try to sync each informer individually, continue on failures
+	syncTimeout := 10 * time.Second
+	syncCtx, syncCancel := context.WithTimeout(ctx, syncTimeout)
+	defer syncCancel()
+
+	// Track which informers synced successfully
+	syncedInformers := make(map[schema.GroupVersionResource]bool)
+
+	// Try typed informers first (pods, deployments, services)
+	typedSynced := cache.WaitForCacheSync(syncCtx.Done(),
 		podInformer.HasSynced,
 		deploymentInformer.HasSynced,
 		serviceInformer.HasSynced,
-	}
-	for _, inf := range dynamicInformers {
-		allInformers = append(allInformers, inf.HasSynced)
+	)
+	if !typedSynced {
+		fmt.Fprintf(os.Stderr, "Warning: Some core resources (pods/deployments/services) failed to sync - may have permission issues\n")
 	}
 
-	if !cache.WaitForCacheSync(ctx.Done(), allInformers...) {
+	// Try each dynamic informer individually
+	for gvr, informer := range dynamicInformers {
+		informerCtx, informerCancel := context.WithTimeout(ctx, 5*time.Second)
+		if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
+			syncedInformers[gvr] = true
+		} else {
+			// Informer failed to sync (likely RBAC), remove from listers
+			delete(dynamicListers, gvr)
+			fmt.Fprintf(os.Stderr, "Warning: Resource %s/%s failed to sync - you may not have permission to watch this resource\n",
+				gvr.Group, gvr.Resource)
+		}
+		informerCancel()
+	}
+
+	// Check if at least pods synced (critical resource)
+	if !typedSynced {
 		cancel()
-		return nil, fmt.Errorf("failed to sync caches")
+		return nil, fmt.Errorf("failed to sync critical resources (pods/deployments/services) - check RBAC permissions")
 	}
 
 	return &InformerRepository{
@@ -149,6 +177,8 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		dynamicFactory:   dynamicFactory,
 		resources:        resourceRegistry,
 		dynamicListers:   dynamicListers,
+		kubeconfig:       kubeconfig,
+		contextName:      contextName,
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -198,15 +228,16 @@ func (r *InformerRepository) GetPods() ([]Pod, error) {
 			Status:    status,
 			Restarts:  totalRestarts,
 			Age:       age,
+			CreatedAt: pod.CreationTimestamp.Time,
 			Node:      node,
 			IP:        ip,
 		})
 	}
 
-	// Sort by age (newest first), then by name for stable sort
+	// Sort by creation time (newest first), then by name for stable sort
 	sort.Slice(pods, func(i, j int) bool {
-		if pods[i].Age != pods[j].Age {
-			return pods[i].Age < pods[j].Age
+		if !pods[i].CreatedAt.Equal(pods[j].CreatedAt) {
+			return pods[i].CreatedAt.After(pods[j].CreatedAt) // Newer first
 		}
 		return pods[i].Name < pods[j].Name
 	})
@@ -250,13 +281,14 @@ func (r *InformerRepository) GetDeployments() ([]Deployment, error) {
 			UpToDate:  upToDate,
 			Available: available,
 			Age:       age,
+			CreatedAt: deploy.CreationTimestamp.Time,
 		})
 	}
 
-	// Sort by age (newest first), then by name for stable sort
+	// Sort by creation time (newest first), then by name for stable sort
 	sort.Slice(deployments, func(i, j int) bool {
-		if deployments[i].Age != deployments[j].Age {
-			return deployments[i].Age < deployments[j].Age
+		if !deployments[i].CreatedAt.Equal(deployments[j].CreatedAt) {
+			return deployments[i].CreatedAt.After(deployments[j].CreatedAt) // Newer first
 		}
 		return deployments[i].Name < deployments[j].Name
 	})
@@ -319,13 +351,14 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 			ExternalIP: externalIP,
 			Ports:      portsStr,
 			Age:        age,
+			CreatedAt:  svc.CreationTimestamp.Time,
 		})
 	}
 
-	// Sort by age (newest first), then by name for stable sort
+	// Sort by creation time (newest first), then by name for stable sort
 	sort.Slice(services, func(i, j int) bool {
-		if services[i].Age != services[j].Age {
-			return services[i].Age < services[j].Age
+		if !services[i].CreatedAt.Equal(services[j].CreatedAt) {
+			return services[i].CreatedAt.After(services[j].CreatedAt) // Newer first
 		}
 		return services[i].Name < services[j].Name
 	})
@@ -548,6 +581,16 @@ func (r *InformerRepository) Close() {
 	}
 }
 
+// GetKubeconfig returns the kubeconfig path
+func (r *InformerRepository) GetKubeconfig() string {
+	return r.kubeconfig
+}
+
+// GetContext returns the context name
+func (r *InformerRepository) GetContext() string {
+	return r.contextName
+}
+
 // GetResources returns all resources of the specified type using dynamic informers
 func (r *InformerRepository) GetResources(resourceType ResourceType) ([]interface{}, error) {
 	// Get resource config
@@ -590,15 +633,15 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]interfac
 	return results, nil
 }
 
-// sortByAge sorts resources by Age field if present
+// sortByAge sorts resources by CreatedAt field if present (newest first)
 func sortByAge(items []interface{}) {
 	sort.Slice(items, func(i, j int) bool {
-		// Try to extract Age from both items
-		ageI := extractAge(items[i])
-		ageJ := extractAge(items[j])
+		// Try to extract CreatedAt from both items
+		createdI := extractCreatedAt(items[i])
+		createdJ := extractCreatedAt(items[j])
 
-		if ageI != ageJ {
-			return ageI < ageJ
+		if !createdI.Equal(createdJ) {
+			return createdI.After(createdJ) // Newer first
 		}
 
 		// Fall back to name comparison
@@ -606,6 +649,36 @@ func sortByAge(items []interface{}) {
 		nameJ := extractName(items[j])
 		return nameI < nameJ
 	})
+}
+
+// extractCreatedAt tries to extract CreatedAt field from an interface{}
+func extractCreatedAt(item interface{}) time.Time {
+	switch v := item.(type) {
+	case Pod:
+		return v.CreatedAt
+	case Deployment:
+		return v.CreatedAt
+	case Service:
+		return v.CreatedAt
+	case ConfigMap:
+		return v.CreatedAt
+	case Secret:
+		return v.CreatedAt
+	case Namespace:
+		return v.CreatedAt
+	case StatefulSet:
+		return v.CreatedAt
+	case DaemonSet:
+		return v.CreatedAt
+	case Job:
+		return v.CreatedAt
+	case CronJob:
+		return v.CreatedAt
+	case Node:
+		return v.CreatedAt
+	default:
+		return time.Time{} // Zero time
+	}
 }
 
 // extractAge tries to extract Age field from an interface{}

@@ -17,7 +17,7 @@ func TestNewConfigScreen(t *testing.T) {
 		Title:        "Test Screen",
 		ResourceType: k8s.ResourceTypePod,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
 		},
@@ -41,7 +41,7 @@ func TestConfigScreen_Refresh(t *testing.T) {
 		Title:        "Pods",
 		ResourceType: k8s.ResourceTypePod,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Ready", Title: "Ready", Width: 10},
 			{Field: "Status", Title: "Status", Width: 15},
@@ -77,7 +77,7 @@ func TestConfigScreen_SetFilter(t *testing.T) {
 		Title:        "Pods",
 		ResourceType: k8s.ResourceTypePod,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 			{Field: "Status", Title: "Status", Width: 15},
 		},
@@ -111,7 +111,7 @@ func TestConfigScreen_SetFilter_Negation(t *testing.T) {
 		Title:        "Pods",
 		ResourceType: k8s.ResourceTypePod,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 		},
 		SearchFields: []string{"Namespace", "Name"},
@@ -148,7 +148,7 @@ func TestConfigScreen_GetSelectedResource(t *testing.T) {
 		Title:        "Pods",
 		ResourceType: k8s.ResourceTypePod,
 		Columns: []ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20},
+			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0},
 		},
 		SearchFields: []string{"Namespace", "Name"},

@@ -50,6 +50,7 @@ func transformPod(u *unstructured.Unstructured) (interface{}, error) {
 		Status:    status,
 		Restarts:  totalRestarts,
 		Age:       age,
+		CreatedAt: u.GetCreationTimestamp().Time,
 		Node:      node,
 		IP:        ip,
 	}, nil
@@ -76,6 +77,7 @@ func transformDeployment(u *unstructured.Unstructured) (interface{}, error) {
 		UpToDate:  int32(upToDate),
 		Available: int32(available),
 		Age:       age,
+		CreatedAt: u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -151,6 +153,7 @@ func transformService(u *unstructured.Unstructured) (interface{}, error) {
 		ExternalIP: externalIP,
 		Ports:      portsStr,
 		Age:        age,
+		CreatedAt:  u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -169,6 +172,7 @@ func transformConfigMap(u *unstructured.Unstructured) (interface{}, error) {
 		Name:      name,
 		Data:      dataCount,
 		Age:       age,
+		CreatedAt: u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -191,6 +195,7 @@ func transformSecret(u *unstructured.Unstructured) (interface{}, error) {
 		Type:      secretType,
 		Data:      dataCount,
 		Age:       age,
+		CreatedAt: u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -203,9 +208,10 @@ func transformNamespace(u *unstructured.Unstructured) (interface{}, error) {
 	status, _, _ := unstructured.NestedString(u.Object, "status", "phase")
 
 	return Namespace{
-		Name:   name,
-		Status: status,
-		Age:    age,
+		Name:      name,
+		Status:    status,
+		Age:       age,
+		CreatedAt: u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -226,6 +232,7 @@ func transformStatefulSet(u *unstructured.Unstructured) (interface{}, error) {
 		Name:      name,
 		Ready:     readyStatus,
 		Age:       age,
+		CreatedAt: u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -251,6 +258,7 @@ func transformDaemonSet(u *unstructured.Unstructured) (interface{}, error) {
 		UpToDate:  int32(upToDate),
 		Available: int32(available),
 		Age:       age,
+		CreatedAt: u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -280,6 +288,7 @@ func transformJob(u *unstructured.Unstructured) (interface{}, error) {
 		Completions: completionsStr,
 		Duration:    duration,
 		Age:         age,
+		CreatedAt:   u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -314,6 +323,7 @@ func transformCronJob(u *unstructured.Unstructured) (interface{}, error) {
 		Active:       active,
 		LastSchedule: lastSchedule,
 		Age:          age,
+		CreatedAt:    u.GetCreationTimestamp().Time,
 	}, nil
 }
 
@@ -395,6 +405,7 @@ func transformNode(u *unstructured.Unstructured) (interface{}, error) {
 		Status:       status,
 		Roles:        rolesStr,
 		Age:          age,
+		CreatedAt:    u.GetCreationTimestamp().Time,
 		Version:      version,
 		Hostname:     hostname,
 		InstanceType: instanceType,

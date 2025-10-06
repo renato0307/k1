@@ -118,10 +118,12 @@ func NewRegistry(repo k8s.Repository) *Registry {
 			},
 			{
 				Name:          "logs",
-				Description:   "View pod logs",
+				Description:   "View pod logs (clipboard)",
 				Category:      CategoryAction,
 				ResourceTypes: []string{"pods"}, // Only for pods
 				Shortcut:      "ctrl+l",
+				ArgsType:      &LogsArgs{},
+				ArgPattern:    " [container] [tail] [follow]",
 				Execute:       LogsCommand(repo),
 			},
 			{
@@ -133,16 +135,20 @@ func NewRegistry(repo k8s.Repository) *Registry {
 			},
 			{
 				Name:          "port-forward",
-				Description:   "Port forward to pod",
+				Description:   "Port forward to pod (clipboard)",
 				Category:      CategoryAction,
 				ResourceTypes: []string{"pods"}, // Only for pods
+				ArgsType:      &PortForwardArgs{},
+				ArgPattern:    " <local:remote>",
 				Execute:       PortForwardCommand(repo),
 			},
 			{
 				Name:          "shell",
-				Description:   "Open shell in pod",
+				Description:   "Open shell in pod (clipboard)",
 				Category:      CategoryAction,
 				ResourceTypes: []string{"pods"}, // Only for pods
+				ArgsType:      &ShellArgs{},
+				ArgPattern:    " [container] [shell]",
 				Execute:       ShellCommand(repo),
 			},
 			{
@@ -164,6 +170,8 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Description:   "Scale replicas",
 				Category:      CategoryAction,
 				ResourceTypes: []string{"deployments", "statefulsets"}, // For deployments and statefulsets
+				ArgsType:      &ScaleArgs{},
+				ArgPattern:    " <replicas>",
 				Execute:       ScaleCommand(repo),
 			},
 			{
@@ -174,11 +182,14 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Execute:       CordonCommand(repo),
 			},
 			{
-				Name:          "drain",
-				Description:   "Drain node (evict all pods)",
-				Category:      CategoryAction,
-				ResourceTypes: []string{"nodes"}, // Only for nodes
-				Execute:       DrainCommand(repo),
+				Name:              "drain",
+				Description:       "Drain node (evict all pods)",
+				Category:          CategoryAction,
+				ResourceTypes:     []string{"nodes"}, // Only for nodes
+				ArgsType:          &DrainArgs{},
+				ArgPattern:        " [grace] [force] [ignore-daemonsets]",
+				NeedsConfirmation: true,
+				Execute:           DrainCommand(repo),
 			},
 			{
 				Name:          "endpoints",
