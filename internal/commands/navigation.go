@@ -109,7 +109,7 @@ func NamespaceFilterCommand() ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Phase 3: Return placeholder message (namespace filtering needs state management)
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Namespace filtering - Coming soon"}
+			return types.InfoMsg("Namespace filtering - Coming soon")
 		}
 	}
 }

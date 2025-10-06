@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,7 +28,7 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 		gvr, ok := k8s.GetGVRForResourceType(ctx.ResourceType)
 		if !ok {
 			return func() tea.Msg {
-				return types.ErrorMsg{Error: "Unknown resource type: " + ctx.ResourceType}
+				return types.ErrorStatusMsg("Unknown resource type: " + ctx.ResourceType)
 			}
 		}
 
@@ -35,7 +36,7 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 		yamlContent, err := repo.GetResourceYAML(gvr, namespace, resourceName)
 		if err != nil {
 			return func() tea.Msg {
-				return types.ErrorMsg{Error: "Failed to get YAML: " + err.Error()}
+				return types.ErrorStatusMsg("Failed to get YAML: " + err.Error())
 			}
 		}
 
@@ -65,7 +66,7 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 		gvr, ok := k8s.GetGVRForResourceType(ctx.ResourceType)
 		if !ok {
 			return func() tea.Msg {
-				return types.ErrorMsg{Error: "Unknown resource type: " + ctx.ResourceType}
+				return types.ErrorStatusMsg("Unknown resource type: " + ctx.ResourceType)
 			}
 		}
 
@@ -73,7 +74,7 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 		describeContent, err := repo.DescribeResource(gvr, namespace, resourceName)
 		if err != nil {
 			return func() tea.Msg {
-				return types.ErrorMsg{Error: "Failed to describe resource: " + err.Error()}
+				return types.ErrorStatusMsg("Failed to describe resource: " + err.Error())
 			}
 		}
 
@@ -90,13 +91,37 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 // DeleteCommand returns execute function for deleting a resource
 func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
-		// TODO: Phase 3 - Implement actual deletion with repo.DeleteResource()
+		// Get resource info
 		resourceName := "unknown"
+		namespace := "default"
 		if name, ok := ctx.Selected["name"].(string); ok {
 			resourceName = name
 		}
+		if ns, ok := ctx.Selected["namespace"].(string); ok {
+			namespace = ns
+		}
+
+		// Build kubectl delete command
+		args := []string{
+			"delete",
+			ctx.ResourceType,
+			resourceName,
+			"--namespace", namespace,
+		}
+
+		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Deleted " + ctx.ResourceType + "/" + resourceName + " (dummy)"}
+			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
+			output, err := executor.Execute(args, ExecuteOptions{})
+
+			if err != nil {
+				return types.ErrorStatusMsg(fmt.Sprintf("Delete failed: %v", err))
+			}
+			msg := fmt.Sprintf("Deleted %s/%s", ctx.ResourceType, resourceName)
+			if output != "" {
+				msg = strings.TrimSpace(output)
+			}
+			return types.SuccessMsg(msg)
 		}
 	}
 }

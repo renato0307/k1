@@ -204,15 +204,16 @@ func (r *InformerRepository) GetPods() ([]Pod, error) {
 			Status:    status,
 			Restarts:  totalRestarts,
 			Age:       age,
+			CreatedAt: pod.CreationTimestamp.Time,
 			Node:      node,
 			IP:        ip,
 		})
 	}
 
-	// Sort by age (newest first), then by name for stable sort
+	// Sort by creation time (newest first), then by name for stable sort
 	sort.Slice(pods, func(i, j int) bool {
-		if pods[i].Age != pods[j].Age {
-			return pods[i].Age < pods[j].Age
+		if !pods[i].CreatedAt.Equal(pods[j].CreatedAt) {
+			return pods[i].CreatedAt.After(pods[j].CreatedAt) // Newer first
 		}
 		return pods[i].Name < pods[j].Name
 	})
@@ -256,13 +257,14 @@ func (r *InformerRepository) GetDeployments() ([]Deployment, error) {
 			UpToDate:  upToDate,
 			Available: available,
 			Age:       age,
+			CreatedAt: deploy.CreationTimestamp.Time,
 		})
 	}
 
-	// Sort by age (newest first), then by name for stable sort
+	// Sort by creation time (newest first), then by name for stable sort
 	sort.Slice(deployments, func(i, j int) bool {
-		if deployments[i].Age != deployments[j].Age {
-			return deployments[i].Age < deployments[j].Age
+		if !deployments[i].CreatedAt.Equal(deployments[j].CreatedAt) {
+			return deployments[i].CreatedAt.After(deployments[j].CreatedAt) // Newer first
 		}
 		return deployments[i].Name < deployments[j].Name
 	})
@@ -325,13 +327,14 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 			ExternalIP: externalIP,
 			Ports:      portsStr,
 			Age:        age,
+			CreatedAt:  svc.CreationTimestamp.Time,
 		})
 	}
 
-	// Sort by age (newest first), then by name for stable sort
+	// Sort by creation time (newest first), then by name for stable sort
 	sort.Slice(services, func(i, j int) bool {
-		if services[i].Age != services[j].Age {
-			return services[i].Age < services[j].Age
+		if !services[i].CreatedAt.Equal(services[j].CreatedAt) {
+			return services[i].CreatedAt.After(services[j].CreatedAt) // Newer first
 		}
 		return services[i].Name < services[j].Name
 	})
@@ -606,15 +609,15 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]interfac
 	return results, nil
 }
 
-// sortByAge sorts resources by Age field if present
+// sortByAge sorts resources by CreatedAt field if present (newest first)
 func sortByAge(items []interface{}) {
 	sort.Slice(items, func(i, j int) bool {
-		// Try to extract Age from both items
-		ageI := extractAge(items[i])
-		ageJ := extractAge(items[j])
+		// Try to extract CreatedAt from both items
+		createdI := extractCreatedAt(items[i])
+		createdJ := extractCreatedAt(items[j])
 
-		if ageI != ageJ {
-			return ageI < ageJ
+		if !createdI.Equal(createdJ) {
+			return createdI.After(createdJ) // Newer first
 		}
 
 		// Fall back to name comparison
@@ -622,6 +625,36 @@ func sortByAge(items []interface{}) {
 		nameJ := extractName(items[j])
 		return nameI < nameJ
 	})
+}
+
+// extractCreatedAt tries to extract CreatedAt field from an interface{}
+func extractCreatedAt(item interface{}) time.Time {
+	switch v := item.(type) {
+	case Pod:
+		return v.CreatedAt
+	case Deployment:
+		return v.CreatedAt
+	case Service:
+		return v.CreatedAt
+	case ConfigMap:
+		return v.CreatedAt
+	case Secret:
+		return v.CreatedAt
+	case Namespace:
+		return v.CreatedAt
+	case StatefulSet:
+		return v.CreatedAt
+	case DaemonSet:
+		return v.CreatedAt
+	case Job:
+		return v.CreatedAt
+	case CronJob:
+		return v.CreatedAt
+	case Node:
+		return v.CreatedAt
+	default:
+		return time.Time{} // Zero time
+	}
 }
 
 // extractAge tries to extract Age field from an interface{}

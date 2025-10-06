@@ -14,7 +14,7 @@ func CordonCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Cordon node/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Cordon node/" + resourceName + " - Coming soon")
 		}
 	}
 }
@@ -27,7 +27,7 @@ func DrainCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Drain node/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Drain node/" + resourceName + " - Coming soon")
 		}
 	}
 }

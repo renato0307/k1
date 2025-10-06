@@ -240,9 +240,7 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 
 		items, err := s.repo.GetResources(s.config.ResourceType)
 		if err != nil {
-			return types.ErrorMsg{
-				Error: fmt.Sprintf("Failed to fetch %s: %v", s.config.Title, err),
-			}
+			return types.ErrorStatusMsg(fmt.Sprintf("Failed to fetch %s: %v", s.config.Title, err))
 		}
 
 		s.items = items

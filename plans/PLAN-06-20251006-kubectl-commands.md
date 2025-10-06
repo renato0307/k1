@@ -4,7 +4,7 @@
 |----------|------------------------------------------------|
 | Date     | 2025-10-06                                     |
 | Author   | @renato0307                                    |
-| Status   | Planning                                       |
+| Status   | Phase 2 Complete + Critical Bug Fixes          |
 | DDR      | DDR-08                                         |
 
 ## Goal
@@ -427,24 +427,29 @@ After 1-2 weeks of usage, review metrics to identify hot paths:
 
 ## TODO
 
-### Phase 1: Foundation (3-4 hours)
-- [ ] Implement struct tags args system (internal/commands/args.go)
-- [ ] Implement GenerateInputFields(argsStruct) reflection helper
-- [ ] Implement ParseInlineArgs(argsStruct, string) helper
-- [ ] Implement ParseFormArgs(argsStruct, form) helper
-- [ ] Add CommandContext.ParseArgs(dest) convenience method
-- [ ] Update Command struct to include ArgsType field
-- [ ] Store kubeconfig/context in Repository (add GetKubeconfig/GetContext)
-- [ ] Implement KubectlExecutor (internal/commands/executor.go)
-- [ ] Add kubectl availability check to main.go
+### Phase 1: Foundation (3-4 hours) ✅ COMPLETE
+- [x] Implement struct tags args system (internal/commands/args.go)
+- [x] Implement GenerateInputFields(argsStruct) reflection helper
+- [x] Implement ParseInlineArgs(argsStruct, string) helper
+- [x] Implement ParseFormArgs(argsStruct, form) helper (deferred to Phase 5)
+- [x] Add CommandContext.ParseArgs(dest) convenience method
+- [x] Update Command struct to include ArgsType field
+- [x] Store kubeconfig/context in Repository (add GetKubeconfig/GetContext)
+- [x] Implement KubectlExecutor (internal/commands/executor.go)
+- [x] Add kubectl availability check to main.go
 
-### Phase 2: Core Commands with Inline Args Only (2-3 hours)
-- [ ] Implement /delete command (no args)
-- [ ] Implement /scale command with ScaleArgs struct
-- [ ] Implement ParseInlineArgs for "/scale 5" format
-- [ ] Implement /restart command (no args)
-- [ ] Wire up inline args parsing in CommandBar
-- [ ] Update palette to show ArgPattern
+### Phase 2: Core Commands with Inline Args Only (2-3 hours) ✅ COMPLETE
+- [x] Implement /delete command (no args)
+- [x] Implement /scale command with ScaleArgs struct
+- [x] ParseInlineArgs already works from Phase 1
+- [x] Implement /restart command (no args)
+- [x] Wire up inline args parsing in CommandBar (parse command and args)
+- [x] Update palette to show ArgPattern (displays "/scale <replicas>")
+- [x] Update Command registry with ArgsType and ArgPattern
+- [x] **Bug Fix**: Make kubectl execution truly async (move Execute inside tea.Cmd)
+- [x] **Bug Fix**: Handle inline args in palette state (detect space in input)
+- [x] **Bug Fix**: Add periodic refresh to all screens (catch command effects)
+- [x] **Bug Fix**: Add StatusBar component (show messages without hiding header)
 
 ### Phase 3: Node & Service Commands with Inline Args (1-2 hours)
 - [ ] Implement /cordon command (no args)
@@ -478,6 +483,51 @@ After 1-2 weeks of usage, review metrics to identify hot paths:
 - [ ] Add performance monitoring
 - [ ] Test all commands end-to-end on real cluster
 - [ ] Update documentation
+
+## Critical Bug Fixes (Phase 2)
+
+During Phase 2 implementation, several critical bugs were discovered and
+fixed:
+
+### Bug 1: UI Stalling on Command Execution
+**Problem**: Typing `/scale 2` and pressing Enter froze the UI.
+**Root Cause**: kubectl.Execute() was called synchronously before returning
+tea.Cmd, blocking the UI thread.
+**Fix**: Moved kubectl execution INSIDE the tea.Cmd function so Bubble Tea
+runs it in a goroutine. The command now returns a function that will execute
+asynchronously.
+
+### Bug 2: Commands with Inline Args Not Executing from Palette
+**Problem**: Typing `/scale 3` with inline args and pressing Enter did
+nothing.
+**Root Cause**: In StateSuggestionPalette, Enter only worked for selected
+palette items, not typed commands with spaces.
+**Fix**: Added check in handlePaletteState to detect space in input,
+transition to StateInput, and execute command.
+
+### Bug 3: Informer Not Updating After Commands
+**Problem**: After successful /scale command, deployment list didn't update to
+show new replica count.
+**Root Cause**: Some commands take time to apply, and informers don't always
+catch changes immediately via watch.
+**Solution**: Enabled periodic refresh (1 second interval) for ALL screens,
+not just pods. This ensures UI catches command effects within 1 second.
+**Files Changed**: internal/screens/screen_configs.go - added periodic refresh
+to services, configmaps, secrets, namespaces, statefulsets, daemonsets, jobs,
+cronjobs, nodes.
+
+### Bug 4: Status Messages Hiding Header
+**Problem**: When ErrorMsg displays success/error, it covered the header.
+**Root Cause**: Error message was rendered as part of body, overlaying header.
+**Solution**: Created dedicated StatusBar component that appears above command
+bar (internal/components/statusbar.go). Messages now display in separate row
+without hiding header.
+**Files Changed**:
+- Created internal/components/statusbar.go
+- Updated internal/app/app.go to use statusBar instead of state.ErrorMessage
+- Updated internal/components/layout.go Render() signature
+- Removed ErrorMessage field from AppState (internal/types/types.go)
+**Timeout**: Status messages display for 5 seconds before clearing.
 
 ## Notes
 

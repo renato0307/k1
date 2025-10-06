@@ -14,7 +14,7 @@ func LogsCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Logs for pod/" + resourceName + " - Coming in Phase 4"}
+			return types.InfoMsg("Logs for pod/" + resourceName + " - Coming in Phase 4")
 		}
 	}
 }
@@ -27,7 +27,7 @@ func LogsPreviousCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Previous logs for pod/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Previous logs for pod/" + resourceName + " - Coming soon")
 		}
 	}
 }
@@ -40,7 +40,7 @@ func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Port forward to pod/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Port forward to pod/" + resourceName + " - Coming soon")
 		}
 	}
 }
@@ -53,7 +53,7 @@ func ShellCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Shell for pod/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Shell for pod/" + resourceName + " - Coming soon")
 		}
 	}
 }
@@ -66,7 +66,7 @@ func JumpOwnerCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Jump to owner of pod/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Jump to owner of pod/" + resourceName + " - Coming soon")
 		}
 	}
 }
@@ -83,7 +83,7 @@ func ShowNodeCommand(repo k8s.Repository) ExecuteFunc {
 			nodeName = node
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Show node " + nodeName + " for pod/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Show node " + nodeName + " for pod/" + resourceName + " - Coming soon")
 		}
 	}
 }

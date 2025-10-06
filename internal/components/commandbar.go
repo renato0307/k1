@@ -63,6 +63,7 @@ type CommandBar struct {
 
 	// Pending command (for confirmation/preview states)
 	pendingCommand *commands.Command
+	pendingArgs    string // Args for pending command
 
 	// LLM translation result (for LLM preview state)
 	llmTranslation *commands.MockLLMTranslation
@@ -340,7 +341,14 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		return cb, nil
 
 	case "enter":
-		// Select item from palette
+		// If user has typed a command with args (e.g., "/scale 5"), execute it directly
+		if len(cb.input) > 1 && strings.Contains(cb.input, " ") {
+			// Transition to input mode and handle enter there
+			cb.state = StateInput
+			return cb.handleInputState(msg)
+		}
+
+		// Otherwise, select item from palette
 		if cb.paletteIdx >= 0 && cb.paletteIdx < len(cb.paletteItems) {
 			selected := cb.paletteItems[cb.paletteIdx]
 
@@ -543,10 +551,18 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 		}
 
 		// For other commands, try to find and execute
-		// Parse command (e.g., ":pods" or "/yaml")
+		// Parse command (e.g., ":pods" or "/yaml" or "/scale 5")
 		if len(cb.input) > 1 {
 			prefix := cb.input[:1]
-			cmdName := cb.input[1:]
+			rest := cb.input[1:]
+
+			// Split command name and args by whitespace
+			parts := strings.SplitN(rest, " ", 2)
+			cmdName := parts[0]
+			cmdArgs := ""
+			if len(parts) > 1 {
+				cmdArgs = parts[1]
+			}
 
 			var category commands.CommandCategory
 			switch prefix {
@@ -561,6 +577,7 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 				// Check if needs confirmation
 				if cmd.NeedsConfirmation {
 					cb.pendingCommand = cmd
+					cb.pendingArgs = cmdArgs // Store args for confirmation
 					cb.state = StateConfirmation
 					cb.height = 5
 					return cb, nil
@@ -569,10 +586,10 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 				// Add to history
 				cb.addToHistory(cb.input)
 
-				// Execute command
+				// Execute command with args
 				var execCmd tea.Cmd
 				if cmd.Execute != nil {
-					ctx := cb.buildCommandContext("")
+					ctx := cb.buildCommandContext(cmdArgs)
 					execCmd = cmd.Execute(ctx)
 				}
 
@@ -637,16 +654,17 @@ func (cb *CommandBar) handleConfirmationState(msg tea.KeyMsg) (*CommandBar, tea.
 		cb.input = ""
 		cb.height = 1
 		cb.pendingCommand = nil
+		cb.pendingArgs = ""
 		return cb, nil
 
 	case "enter":
 		// Add to history (cb.input contains the command string)
 		cb.addToHistory(cb.input)
 
-		// Execute pending command
+		// Execute pending command with stored args
 		var cmd tea.Cmd
 		if cb.pendingCommand != nil && cb.pendingCommand.Execute != nil {
-			ctx := cb.buildCommandContext("")
+			ctx := cb.buildCommandContext(cb.pendingArgs)
 			cmd = cb.pendingCommand.Execute(ctx)
 		}
 
@@ -655,6 +673,7 @@ func (cb *CommandBar) handleConfirmationState(msg tea.KeyMsg) (*CommandBar, tea.
 		cb.input = ""
 		cb.height = 1
 		cb.pendingCommand = nil
+		cb.pendingArgs = ""
 		return cb, cmd
 	}
 	return cb, nil
@@ -807,7 +826,11 @@ func (cb *CommandBar) ViewPaletteItems() string {
 	for i := 0; i < maxItems; i++ {
 		cmd := cb.paletteItems[i]
 		prefix := cb.input[:1]
-		mainText := prefix + cmd.Name + " - " + cmd.Description
+		mainText := prefix + cmd.Name
+		if cmd.ArgPattern != "" {
+			mainText += cmd.ArgPattern
+		}
+		mainText += " - " + cmd.Description
 		if len(mainText) > longestMainText {
 			longestMainText = len(mainText)
 		}
@@ -820,7 +843,11 @@ func (cb *CommandBar) ViewPaletteItems() string {
 	for i := 0; i < maxItems; i++ {
 		cmd := cb.paletteItems[i]
 		prefix := cb.input[:1] // Get the : or / prefix
-		mainText := prefix + cmd.Name + " - " + cmd.Description
+		mainText := prefix + cmd.Name
+		if cmd.ArgPattern != "" {
+			mainText += cmd.ArgPattern
+		}
+		mainText += " - " + cmd.Description
 
 		var line string
 		if cmd.Shortcut != "" {

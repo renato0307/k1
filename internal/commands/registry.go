@@ -164,6 +164,8 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Description:   "Scale replicas",
 				Category:      CategoryAction,
 				ResourceTypes: []string{"deployments", "statefulsets"}, // For deployments and statefulsets
+				ArgsType:      &ScaleArgs{},
+				ArgPattern:    " <replicas>",
 				Execute:       ScaleCommand(repo),
 			},
 			{

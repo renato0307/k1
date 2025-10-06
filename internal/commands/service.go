@@ -14,7 +14,7 @@ func EndpointsCommand(repo k8s.Repository) ExecuteFunc {
 			resourceName = name
 		}
 		return func() tea.Msg {
-			return types.ErrorMsg{Error: "Show endpoints for service/" + resourceName + " - Coming soon"}
+			return types.InfoMsg("Show endpoints for service/" + resourceName + " - Coming soon")
 		}
 	}
 }

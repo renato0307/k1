@@ -66,12 +66,11 @@ func (r *ScreenRegistry) All() []Screen {
 
 // AppState holds shared application state
 type AppState struct {
-	CurrentScreen  string
-	LastRefresh    time.Time
-	RefreshTime    time.Duration
-	Width          int
-	Height         int
-	ErrorMessage   string
+	CurrentScreen string
+	LastRefresh   time.Time
+	RefreshTime   time.Duration
+	Width         int
+	Height        int
 }
 
 // Messages
@@ -83,11 +82,38 @@ type RefreshCompleteMsg struct {
 	Duration time.Duration
 }
 
-type ErrorMsg struct {
-	Error string
+// MessageType defines the type of status message
+type MessageType int
+
+const (
+	MessageTypeInfo MessageType = iota
+	MessageTypeSuccess
+	MessageTypeError
+)
+
+type StatusMsg struct {
+	Message string
+	Type    MessageType
 }
 
-type ClearErrorMsg struct{}
+type ClearStatusMsg struct{}
+
+// Helper functions for creating status messages
+
+// InfoMsg creates an info status message
+func InfoMsg(message string) StatusMsg {
+	return StatusMsg{Message: message, Type: MessageTypeInfo}
+}
+
+// SuccessMsg creates a success status message
+func SuccessMsg(message string) StatusMsg {
+	return StatusMsg{Message: message, Type: MessageTypeSuccess}
+}
+
+// ErrorMsg creates an error status message
+func ErrorStatusMsg(message string) StatusMsg {
+	return StatusMsg{Message: message, Type: MessageTypeError}
+}
 
 type FilterUpdateMsg struct {
 	Filter string
