@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/k8s"
-	"github.com/renato0307/k1/internal/types"
+	"github.com/renato0307/k1/internal/messages"
 )
 
 // ScaleArgs defines arguments for scale command
@@ -55,14 +54,14 @@ func ScaleCommand(repo k8s.Repository) ExecuteFunc {
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Scale failed: %v (cmd: %s)", err, cmdStr))
+				return messages.ErrorCmd("Scale failed: %v (cmd: %s)", err, cmdStr)()
 			}
 			// Show success with kubectl output and command
 			msg := fmt.Sprintf("%s (replicas=%d)", strings.TrimSpace(output), args.Replicas)
 			if output == "" {
 				msg = fmt.Sprintf("Scaled %s/%s to %d replicas", ctx.ResourceType, resourceName, args.Replicas)
 			}
-			return types.SuccessMsg(msg)
+			return messages.SuccessCmd("%s", msg)()
 		}
 	}
 }
@@ -94,13 +93,13 @@ func RestartCommand(repo k8s.Repository) ExecuteFunc {
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Restart failed: %v", err))
+				return messages.ErrorCmd("Restart failed: %v", err)()
 			}
 			msg := fmt.Sprintf("Restarted %s/%s", ctx.ResourceType, resourceName)
 			if output != "" {
 				msg = strings.TrimSpace(output)
 			}
-			return types.SuccessMsg(msg)
+			return messages.SuccessCmd("%s", msg)()
 		}
 	}
 }

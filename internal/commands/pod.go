@@ -1,13 +1,12 @@
 package commands
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/k8s"
-	"github.com/renato0307/k1/internal/types"
+	"github.com/renato0307/k1/internal/messages"
 )
 
 // ShellArgs defines arguments for shell command
@@ -34,9 +33,7 @@ func ShellCommand(repo k8s.Repository) ExecuteFunc {
 		// Parse args
 		var args ShellArgs
 		if err := ctx.ParseArgs(&args); err != nil {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg(fmt.Sprintf("Invalid args: %v", err))
-			}
+			return messages.ErrorCmd("Invalid args: %v", err)
 		}
 
 		// Get pod info
@@ -81,9 +78,9 @@ func ShellCommand(repo k8s.Repository) ExecuteFunc {
 		return func() tea.Msg {
 			msg, err := CopyToClipboard(command)
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Failed to copy: %v", err))
+				return messages.ErrorCmd("Failed to copy: %v", err)()
 			}
-			return types.InfoMsg(msg)
+			return messages.InfoCmd("%s", msg)()
 		}
 	}
 }
@@ -94,9 +91,7 @@ func LogsCommand(repo k8s.Repository) ExecuteFunc {
 		// Parse args
 		var args LogsArgs
 		if err := ctx.ParseArgs(&args); err != nil {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg(fmt.Sprintf("Invalid args: %v", err))
-			}
+			return messages.ErrorCmd("Invalid args: %v", err)
 		}
 
 		// Get pod info
@@ -146,9 +141,9 @@ func LogsCommand(repo k8s.Repository) ExecuteFunc {
 		return func() tea.Msg {
 			msg, err := CopyToClipboard(command)
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Failed to copy: %v", err))
+				return messages.ErrorCmd("Failed to copy: %v", err)()
 			}
-			return types.InfoMsg(msg)
+			return messages.InfoCmd("%s", msg)()
 		}
 	}
 }
@@ -160,9 +155,7 @@ func LogsPreviousCommand(repo k8s.Repository) ExecuteFunc {
 		if name, ok := ctx.Selected["name"].(string); ok {
 			resourceName = name
 		}
-		return func() tea.Msg {
-			return types.InfoMsg("Previous logs for pod/" + resourceName + " - Coming soon")
-		}
+		return messages.InfoCmd("Previous logs for pod/%s - Coming soon", resourceName)
 	}
 }
 
@@ -172,9 +165,7 @@ func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
 		// Parse args
 		var args PortForwardArgs
 		if err := ctx.ParseArgs(&args); err != nil {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg(fmt.Sprintf("Invalid args: %v", err))
-			}
+			return messages.ErrorCmd("Invalid args: %v", err)
 		}
 
 		// Get pod info
@@ -211,9 +202,9 @@ func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
 		return func() tea.Msg {
 			msg, err := CopyToClipboard(command)
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Failed to copy: %v", err))
+				return messages.ErrorCmd("Failed to copy: %v", err)()
 			}
-			return types.InfoMsg(msg)
+			return messages.InfoCmd("%s", msg)()
 		}
 	}
 }
@@ -225,9 +216,7 @@ func JumpOwnerCommand(repo k8s.Repository) ExecuteFunc {
 		if name, ok := ctx.Selected["name"].(string); ok {
 			resourceName = name
 		}
-		return func() tea.Msg {
-			return types.InfoMsg("Jump to owner of pod/" + resourceName + " - Coming soon")
-		}
+		return messages.InfoCmd("Jump to owner of pod/%s - Coming soon", resourceName)
 	}
 }
 
@@ -242,8 +231,6 @@ func ShowNodeCommand(repo k8s.Repository) ExecuteFunc {
 		if node, ok := ctx.Selected["node"].(string); ok {
 			nodeName = node
 		}
-		return func() tea.Msg {
-			return types.InfoMsg("Show node " + nodeName + " for pod/" + resourceName + " - Coming soon")
-		}
+		return messages.InfoCmd("Show node %s for pod/%s - Coming soon", nodeName, resourceName)
 	}
 }

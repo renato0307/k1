@@ -9,6 +9,7 @@ import (
 	_ "k8s.io/kubectl/pkg/describe"
 
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/types"
 )
 
@@ -46,17 +47,13 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 		// Get GVR for the resource type
 		gvr, ok := k8s.GetGVRForResourceType(ctx.ResourceType)
 		if !ok {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg("Unknown resource type: " + ctx.ResourceType)
-			}
+			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
 		}
 
 		// Get YAML from repository using kubectl printer
 		yamlContent, err := repo.GetResourceYAML(gvr, namespace, resourceName)
 		if err != nil {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg("Failed to get YAML: " + err.Error())
-			}
+			return messages.ErrorCmd("Failed to get YAML: %v", err)
 		}
 
 		return func() tea.Msg {
@@ -94,17 +91,13 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 		// Get GVR for the resource type
 		gvr, ok := k8s.GetGVRForResourceType(ctx.ResourceType)
 		if !ok {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg("Unknown resource type: " + ctx.ResourceType)
-			}
+			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
 		}
 
 		// Get describe output from repository
 		describeContent, err := repo.DescribeResource(gvr, namespace, resourceName)
 		if err != nil {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg("Failed to describe resource: " + err.Error())
-			}
+			return messages.ErrorCmd("Failed to describe resource: %v", err)
 		}
 
 		return func() tea.Msg {
@@ -153,13 +146,13 @@ func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 			output, err := executor.Execute(args, ExecuteOptions{})
 
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Delete failed: %v", err))
+				return messages.ErrorCmd("Delete failed: %v", err)()
 			}
 			msg := fmt.Sprintf("Deleted %s/%s", ctx.ResourceType, resourceName)
 			if output != "" {
 				msg = strings.TrimSpace(output)
 			}
-			return types.SuccessMsg(msg)
+			return messages.SuccessCmd("%s", msg)()
 		}
 	}
 }

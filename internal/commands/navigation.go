@@ -2,6 +2,7 @@ package commands
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/types"
 )
 
@@ -108,8 +109,6 @@ func NodesCommand() ExecuteFunc {
 func NamespaceFilterCommand() ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Phase 3: Return placeholder message (namespace filtering needs state management)
-		return func() tea.Msg {
-			return types.InfoMsg("Namespace filtering - Coming soon")
-		}
+		return messages.InfoCmd("Namespace filtering - Coming soon")
 	}
 }

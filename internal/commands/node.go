@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/k8s"
-	"github.com/renato0307/k1/internal/types"
+	"github.com/renato0307/k1/internal/messages"
 )
 
 // DrainArgs defines arguments for drain command
@@ -38,13 +37,13 @@ func CordonCommand(repo k8s.Repository) ExecuteFunc {
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Cordon failed: %v", err))
+				return messages.ErrorCmd("Cordon failed: %v", err)()
 			}
 			msg := fmt.Sprintf("Cordoned node/%s", resourceName)
 			if output != "" {
 				msg = strings.TrimSpace(output)
 			}
-			return types.SuccessMsg(msg)
+			return messages.SuccessCmd("%s", msg)()
 		}
 	}
 }
@@ -85,13 +84,13 @@ func DrainCommand(repo k8s.Repository) ExecuteFunc {
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Drain failed: %v", err))
+				return messages.ErrorCmd("Drain failed: %v", err)()
 			}
 			msg := fmt.Sprintf("Drained node/%s", resourceName)
 			if output != "" {
 				msg = strings.TrimSpace(output)
 			}
-			return types.SuccessMsg(msg)
+			return messages.SuccessCmd("%s", msg)()
 		}
 	}
 }

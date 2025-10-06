@@ -1,11 +1,11 @@
 package commands
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/types"
 )
 
@@ -36,7 +36,7 @@ func EndpointsCommand(repo k8s.Repository) ExecuteFunc {
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {
-				return types.ErrorStatusMsg(fmt.Sprintf("Get endpoints failed: %v", err))
+				return messages.ErrorCmd("Get endpoints failed: %v", err)()
 			}
 
 			// Show endpoints in full-screen view
