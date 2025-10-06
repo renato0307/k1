@@ -246,7 +246,8 @@ Deferred to future sprints per DDR-14:
 - [x] Verify compilation successful
 
 ### Phase 3: Standardize Error Handling
-- [ ] Document error patterns in internal/errors/doc.go
+- [x] Document message patterns in internal/messages/doc.go
+- [x] Refactored errors package → messages package (better semantics)
 - [ ] Create error helper functions
 - [ ] Define structured error types
 - [ ] Audit and fix command layer errors

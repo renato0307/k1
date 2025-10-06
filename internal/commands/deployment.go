@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/types"
 )
@@ -21,9 +22,7 @@ func ScaleCommand(repo k8s.Repository) ExecuteFunc {
 		// Parse args
 		var args ScaleArgs
 		if err := ctx.ParseArgs(&args); err != nil {
-			return func() tea.Msg {
-				return types.ErrorStatusMsg(fmt.Sprintf("Invalid args: %v", err))
-			}
+			return messages.ErrorCmd("Invalid args: %v", err)
 		}
 
 		// Get resource info

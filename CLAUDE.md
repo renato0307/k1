@@ -466,6 +466,112 @@ The project has moved beyond prototyping into a structured application:
 12. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
 13. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
 
+## Code Patterns and Conventions
+
+### Constants Organization
+
+**Pattern**: Use per-package constants to avoid circular dependencies.
+
+**DO**:
+```go
+// internal/components/constants.go
+package components
+
+const (
+    MaxPaletteItems = 8
+    FullScreenReservedLines = 3
+)
+```
+
+**DON'T**:
+```go
+// internal/constants/constants.go - AVOID central constants package
+package constants
+
+const MaxPaletteItems = 8  // Creates import cycles
+```
+
+**Rationale**: Central constants package creates circular dependencies when packages need to import each other. Per-package constants keep dependencies clean.
+
+**Existing constant files**:
+- `internal/components/constants.go` - UI constants
+- `internal/k8s/constants.go` - Kubernetes client constants
+- `internal/commands/constants.go` - Command execution constants
+- `internal/screens/constants.go` - Screen configuration constants
+
+### Message Helpers for Commands
+
+**Pattern**: Use message helpers from `internal/messages` for consistent command responses.
+
+**Command layer pattern**:
+```go
+import "github.com/renato0307/k1/internal/messages"
+
+func ScaleCommand(repo k8s.Repository) ExecuteFunc {
+    return func(ctx CommandContext) tea.Cmd {
+        if err := validateArgs(); err != nil {
+            return messages.ErrorCmd("Invalid args: %v", err)
+        }
+
+        // ... execute operation ...
+
+        if err != nil {
+            return messages.ErrorCmd("Scale failed: %v", err)
+        }
+        return messages.SuccessCmd("Scaled %s to %d replicas", name, count)
+    }
+}
+```
+
+**Available helpers**:
+- `messages.ErrorCmd(format, args...)` - Red error message
+- `messages.SuccessCmd(format, args...)` - Green success message
+- `messages.InfoCmd(format, args...)` - Blue info message
+- `messages.WrapError(err, format, args...)` - Wrap errors with context (repository layer)
+
+**Repository layer pattern**:
+```go
+func (r *Repository) GetPods() ([]Pod, error) {
+    pods, err := r.lister.List()
+    if err != nil {
+        return nil, fmt.Errorf("failed to list pods: %w", err)
+    }
+    return pods, nil
+}
+```
+
+See `internal/messages/doc.go` for complete patterns and guidelines.
+
+### Helper Function Philosophy
+
+**Only create helpers that reduce boilerplate**. Avoid unnecessary abstractions.
+
+**Good helpers** (reduce repetitive code):
+- `messages.ErrorCmd()` - Wraps `tea.Cmd` + `types.ErrorStatusMsg` boilerplate
+- `messages.WrapError()` - Makes error wrapping intent explicit
+
+**Bad helpers** (unnecessary aliases):
+- `NewError()` - Just use `fmt.Errorf()` directly (everyone knows it)
+- `StringContains()` - Just use `strings.Contains()` directly
+
+**Rule of thumb**: If the helper is just calling one standard library function, it's probably not worth it.
+
+### Go Idioms
+
+**Use modern Go types**:
+```go
+// DO (Go 1.18+)
+func Format(format string, args ...any) string
+
+// DON'T (outdated)
+func Format(format string, args ...interface{}) string
+```
+
+**Prefer standard library over custom implementations**:
+- Use `strings.ToLower()` not custom `toLower()`
+- Use `fmt.Errorf()` not custom error builders
+- Use `strconv.Itoa()` not custom number formatters
+
 ## Quick Reference
 
 ### Global Keybindings
@@ -573,3 +679,4 @@ Store design decisions in `design/` folder:
 - Keep claude authoring stuff of of generated code or commit messages
 - Keep track of golang patterns or approaches we use
 - Each time we do changes, please review the README.md to ensure we keep it updated
+- don't forget go mod tidy
