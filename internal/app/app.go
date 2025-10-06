@@ -7,6 +7,7 @@ import (
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/components"
+	"github.com/renato0307/k1/internal/components/commandbar"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/screens"
 	"github.com/renato0307/k1/internal/types"
@@ -20,7 +21,7 @@ type Model struct {
 	header         *components.Header
 	layout         *components.Layout
 	statusBar      *components.StatusBar
-	commandBar     *components.CommandBar
+	commandBar     *commandbar.CommandBar
 	fullScreen     *components.FullScreen
 	fullScreenMode bool
 	repo           k8s.Repository
@@ -55,9 +56,9 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	header.SetScreenTitle(initialScreen.Title())
 	header.SetWidth(80)
 
-	commandBar := components.NewCommandBar(repo, theme)
-	commandBar.SetWidth(80)
-	commandBar.SetScreen("pods") // Set initial screen context
+	cmdBar := commandbar.New(repo, theme)
+	cmdBar.SetWidth(80)
+	cmdBar.SetScreen("pods") // Set initial screen context
 
 	statusBar := components.NewStatusBar(theme)
 	statusBar.SetWidth(80)
@@ -65,7 +66,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	layout := components.NewLayout(80, 24, theme)
 
 	// Set initial size for the screen
-	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(commandBar.GetTotalHeight())
+	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(cmdBar.GetTotalHeight())
 	if screenWithSize, ok := initialScreen.(interface{ SetSize(int, int) }); ok {
 		screenWithSize.SetSize(80, initialBodyHeight)
 	}
@@ -81,7 +82,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 		header:        header,
 		layout:        layout,
 		statusBar:     statusBar,
-		commandBar:    commandBar,
+		commandBar:    cmdBar,
 		repo:          repo,
 		theme:         theme,
 	}
@@ -185,7 +186,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Forward to screen only if command bar is hidden or in filter mode
 		// (In palette mode, arrows navigate palette not list)
-		if oldState == 0 || oldState == 1 { // StateHidden or StateFilter
+		if oldState == commandbar.StateHidden || oldState == commandbar.StateFilter {
 			model, screenCmd := m.currentScreen.Update(msg)
 			m.currentScreen = model.(types.Screen)
 			return m, tea.Batch(barCmd, screenCmd)

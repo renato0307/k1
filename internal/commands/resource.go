@@ -156,11 +156,3 @@ func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 		}
 	}
 }
-
-// capitalizeFirst capitalizes the first letter of a string
-func capitalizeFirst(s string) string {
-	if s == "" {
-		return ""
-	}
-	return strings.ToUpper(s[0:1]) + s[1:]
-}
