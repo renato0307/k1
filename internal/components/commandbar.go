@@ -419,6 +419,39 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		}
 		return cb, nil
 
+	case "tab":
+		// Auto-complete selected command and transition to input mode
+		if cb.paletteIdx >= 0 && cb.paletteIdx < len(cb.paletteItems) {
+			selected := cb.paletteItems[cb.paletteIdx]
+			prefix := cb.input[:1] // Get the : or / prefix
+
+			// Special handling for /ai - needs special input mode
+			if selected.Category == commands.CategoryLLMAction && selected.Name == "ai" {
+				cb.state = StateInput
+				cb.input = "/ai "
+				cb.inputType = CommandTypeLLMAction
+				cb.cursorPos = 4
+				cb.height = 1
+				cb.paletteVisible = false
+				cb.paletteItems = []commands.Command{}
+				cb.paletteIdx = 0
+				return cb, nil
+			}
+
+			// Build command string with space for arguments
+			commandStr := prefix + selected.Name + " "
+			cb.input = commandStr
+			cb.cursorPos = len(commandStr)
+
+			// Transition to input mode for argument entry
+			cb.state = StateInput
+			cb.height = 1
+			cb.paletteVisible = false
+			cb.paletteItems = []commands.Command{}
+			cb.paletteIdx = 0
+		}
+		return cb, nil
+
 	case "backspace":
 		// Remove character and filter palette
 		if len(cb.input) > 1 { // Keep prefix (: or /)
@@ -803,8 +836,14 @@ func (cb *CommandBar) viewPalette() string {
 		Width(cb.width).
 		Padding(0, 1)
 
+	hintStyle := lipgloss.NewStyle().
+		Foreground(cb.theme.Dimmed).
+		Italic(true)
+
 	inputDisplay := cb.input + "█"
-	return inputStyle.Render(inputDisplay)
+	hint := hintStyle.Render(" [↑↓: navigate  tab: complete  enter: execute  esc: cancel]")
+
+	return inputStyle.Render(inputDisplay + hint)
 }
 
 // ViewPaletteItems renders the palette items (shown below command bar)
@@ -867,11 +906,12 @@ func (cb *CommandBar) ViewPaletteItems() string {
 
 			if i == cb.paletteIdx {
 				selectedStyle := lipgloss.NewStyle().
-					Foreground(cb.theme.Primary).
+					Foreground(cb.theme.Foreground).
+					Background(cb.theme.Subtle).
 					Width(cb.width).
 					Padding(0, 1).
 					Bold(true)
-				line = selectedStyle.Render("> " + itemContent)
+				line = selectedStyle.Render("▶ " + itemContent)
 			} else {
 				paletteStyle := lipgloss.NewStyle().
 					Width(cb.width).
@@ -882,11 +922,12 @@ func (cb *CommandBar) ViewPaletteItems() string {
 			// No shortcut, simple rendering
 			if i == cb.paletteIdx {
 				selectedStyle := lipgloss.NewStyle().
-					Foreground(cb.theme.Primary).
+					Foreground(cb.theme.Foreground).
+					Background(cb.theme.Subtle).
 					Width(cb.width).
 					Padding(0, 1).
 					Bold(true)
-				line = selectedStyle.Render("> " + mainText)
+				line = selectedStyle.Render("▶ " + mainText)
 			} else {
 				paletteStyle := lipgloss.NewStyle().
 					Width(cb.width).
