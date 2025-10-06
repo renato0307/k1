@@ -6,6 +6,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 k1 💨 - The supersonic Kubernetes TUI. Built with Go and Bubble Tea for blazing-fast cluster management at Mach 1 speed.
 
+## Quality Guidelines and Process
+
+**IMPORTANT**: Read `design/PROCESS-IMPROVEMENTS.md` for comprehensive quality guidelines.
+
+### Quality Gates (Mandatory)
+
+**File Size Limits:**
+- 500 lines: Warning (consider refactoring)
+- 800 lines: STOP - refactoring required before new features
+- 150 lines per function: STOP - decompose before continuing
+
+**Test Coverage Requirements:**
+- New components: 70% minimum
+- Modified components: Cannot decrease coverage
+- Critical paths: 80% minimum
+- Write tests DURING implementation, not after
+
+**Code Duplication:**
+- 3+ repetitions: Extract abstraction/helper function immediately
+
+### Claude Code Commitments
+
+When implementing features, I will:
+1. **Flag quality gate violations** as they occur (not after)
+2. **Suggest refactoring pauses** when components grow too large
+3. **Include quality checks** in every plan (refactoring needs, test coverage targets)
+4. **Perform post-feature reviews** and proactively report findings
+5. **Be honest about technical debt** instead of hiding it for velocity
+
+### After Every Major Feature
+
+I will automatically perform quality check:
+- Check largest file sizes (flag if >500 lines)
+- Run `make test-coverage` and report coverage
+- Identify new duplication introduced
+- Suggest refactoring if needed
+
+**Hold me accountable**: If I don't proactively flag issues, remind me of `design/PROCESS-IMPROVEMENTS.md`.
+
 ## Development Setup
 
 Go version: 1.24.0+
