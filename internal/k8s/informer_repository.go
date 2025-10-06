@@ -43,6 +43,10 @@ type InformerRepository struct {
 	resources      map[ResourceType]ResourceConfig
 	dynamicListers map[schema.GroupVersionResource]cache.GenericLister
 
+	// Kubeconfig and context (for kubectl subprocess commands)
+	kubeconfig  string
+	contextName string
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -149,6 +153,8 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		dynamicFactory:   dynamicFactory,
 		resources:        resourceRegistry,
 		dynamicListers:   dynamicListers,
+		kubeconfig:       kubeconfig,
+		contextName:      contextName,
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -546,6 +552,16 @@ func (r *InformerRepository) Close() {
 	if r.cancel != nil {
 		r.cancel()
 	}
+}
+
+// GetKubeconfig returns the kubeconfig path
+func (r *InformerRepository) GetKubeconfig() string {
+	return r.kubeconfig
+}
+
+// GetContext returns the context name
+func (r *InformerRepository) GetContext() string {
+	return r.contextName
 }
 
 // GetResources returns all resources of the specified type using dynamic informers

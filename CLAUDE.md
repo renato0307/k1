@@ -555,3 +555,4 @@ Store design decisions in `design/` folder:
   - Update plan status at top of file to reflect current phase
 - during this prototype phase, please don't run tests, not needed
 - keep claude authoring stuff of of generated code or commit messages
+- Keep track of golang patterns or approaches we use

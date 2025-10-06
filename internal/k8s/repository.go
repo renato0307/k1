@@ -70,6 +70,10 @@ type Repository interface {
 	GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error)
 	DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error)
 
+	// Kubeconfig and context (for kubectl subprocess commands)
+	GetKubeconfig() string
+	GetContext() string
+
 	Close()
 }
 
@@ -318,6 +322,14 @@ Status:       Running
 
 func (r *DummyRepository) Close() {
 	// No-op for dummy repository
+}
+
+func (r *DummyRepository) GetKubeconfig() string {
+	return ""
+}
+
+func (r *DummyRepository) GetContext() string {
+	return ""
 }
 
 func (r *DummyRepository) GetResources(resourceType ResourceType) ([]interface{}, error) {

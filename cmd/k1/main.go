@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -30,6 +31,13 @@ func main() {
 		// Use dummy repository for development
 		repo = k8s.NewDummyRepository()
 	} else {
+		// Check if kubectl is available (needed for resource commands)
+		if err := checkKubectlAvailable(); err != nil {
+			fmt.Printf("Warning: %v\n", err)
+			fmt.Println("Some commands (delete, scale, etc.) will not work without kubectl.")
+			fmt.Println("Continuing with read-only access...\n")
+		}
+
 		// Connect to Kubernetes cluster
 		fmt.Println("Connecting to Kubernetes cluster...")
 		fmt.Println("Syncing cache...")
@@ -61,4 +69,13 @@ func main() {
 		fmt.Printf("Error running program: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// checkKubectlAvailable checks if kubectl is available in PATH
+func checkKubectlAvailable() error {
+	cmd := exec.Command("kubectl", "version", "--client", "--short")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("kubectl not found in PATH\nInstall: https://kubernetes.io/docs/tasks/tools/")
+	}
+	return nil
 }
