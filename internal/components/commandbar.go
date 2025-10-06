@@ -1249,8 +1249,8 @@ func (cb *CommandBar) transitionToPalette(input string, cmdType CommandType) {
 
 	// Calculate height: 1 (input line) + number of items (max 8)
 	itemCount := len(cb.paletteItems)
-	if itemCount > 8 {
-		itemCount = 8
+	if itemCount > MaxPaletteItems {
+		itemCount = MaxPaletteItems
 	}
 	cb.height = 1 + itemCount
 }

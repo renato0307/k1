@@ -220,7 +220,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.StatusMsg:
 		m.statusBar.SetMessage(msg.Message, msg.Type)
-		return m, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+		return m, tea.Tick(components.StatusBarDisplayDuration, func(t time.Time) tea.Msg {
 			return types.ClearStatusMsg{}
 		})
 

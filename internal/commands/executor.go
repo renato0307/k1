@@ -47,10 +47,10 @@ func (e *KubectlExecutor) Execute(args []string, opts ExecuteOptions) (string, e
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	// Set timeout (default 30s)
+	// Set timeout
 	timeout := opts.Timeout
 	if timeout == 0 {
-		timeout = 30 * time.Second
+		timeout = DefaultKubectlTimeout
 	}
 
 	// Run command with timeout

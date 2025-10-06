@@ -30,7 +30,7 @@ func GetPodsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected pod", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -70,7 +70,7 @@ func GetDeploymentsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected deployment", Shortcut: "d"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -98,7 +98,7 @@ func GetServicesScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected service", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -122,7 +122,7 @@ func GetConfigMapsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected configmap", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -147,7 +147,7 @@ func GetSecretsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected secret", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -170,7 +170,7 @@ func GetNamespacesScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected namespace", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -195,7 +195,7 @@ func GetStatefulSetsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected statefulset", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -223,7 +223,7 @@ func GetDaemonSetsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected daemonset", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -247,7 +247,7 @@ func GetJobsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected job", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -273,7 +273,7 @@ func GetCronJobsScreenConfig() ScreenConfig {
 			{ID: "delete", Name: "Delete", Description: "Delete selected cronjob", Shortcut: "x"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
@@ -304,7 +304,7 @@ func GetNodesScreenConfig() ScreenConfig {
 			{ID: "drain", Name: "Drain", Description: "Drain selected node", Shortcut: "r"},
 		},
 		EnablePeriodicRefresh: true,
-		RefreshInterval:       1 * time.Second,
+		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}

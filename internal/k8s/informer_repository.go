@@ -92,9 +92,9 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		return nil, fmt.Errorf("error creating dynamic client: %w", err)
 	}
 
-	// Create shared informer factories with 30 second resync period
-	factory := informers.NewSharedInformerFactory(clientset, 30*time.Second)
-	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 30*time.Second)
+	// Create shared informer factories with resync period
+	factory := informers.NewSharedInformerFactory(clientset, InformerResyncPeriod)
+	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, InformerResyncPeriod)
 
 	// Create pod informer and lister
 	podInformer := factory.Core().V1().Pods().Informer()

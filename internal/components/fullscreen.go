@@ -61,7 +61,7 @@ func (fs *FullScreen) Update(msg tea.Msg) (*FullScreen, tea.Cmd) {
 		case "down", "j":
 			// Calculate max scroll offset based on content
 			lines := strings.Split(fs.content, "\n")
-			maxOffset := len(lines) - (fs.height - 3) // 3 lines for header + borders
+			maxOffset := len(lines) - (fs.height - FullScreenReservedLines) // 3 lines for header + borders
 			if maxOffset < 0 {
 				maxOffset = 0
 			}
@@ -70,18 +70,18 @@ func (fs *FullScreen) Update(msg tea.Msg) (*FullScreen, tea.Cmd) {
 			}
 			return fs, nil
 		case "pgup":
-			fs.scrollOffset -= fs.height - 3
+			fs.scrollOffset -= fs.height - FullScreenReservedLines
 			if fs.scrollOffset < 0 {
 				fs.scrollOffset = 0
 			}
 			return fs, nil
 		case "pgdown":
 			lines := strings.Split(fs.content, "\n")
-			maxOffset := len(lines) - (fs.height - 3)
+			maxOffset := len(lines) - (fs.height - FullScreenReservedLines)
 			if maxOffset < 0 {
 				maxOffset = 0
 			}
-			fs.scrollOffset += fs.height - 3
+			fs.scrollOffset += fs.height - FullScreenReservedLines
 			if fs.scrollOffset > maxOffset {
 				fs.scrollOffset = maxOffset
 			}
@@ -91,7 +91,7 @@ func (fs *FullScreen) Update(msg tea.Msg) (*FullScreen, tea.Cmd) {
 			return fs, nil
 		case "end", "G":
 			lines := strings.Split(fs.content, "\n")
-			maxOffset := len(lines) - (fs.height - 3)
+			maxOffset := len(lines) - (fs.height - FullScreenReservedLines)
 			if maxOffset < 0 {
 				maxOffset = 0
 			}
@@ -143,7 +143,7 @@ func (fs *FullScreen) View() string {
 
 	// Split content into lines and apply scroll offset
 	lines := strings.Split(displayContent, "\n")
-	visibleHeight := fs.height - 3 // Subtract header, separator, and bottom border
+	visibleHeight := fs.height - FullScreenReservedLines // Subtract header, separator, and bottom border
 
 	var visibleLines []string
 	for i := fs.scrollOffset; i < len(lines) && i < fs.scrollOffset+visibleHeight; i++ {
