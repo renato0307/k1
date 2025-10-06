@@ -48,11 +48,10 @@ type ScreenConfig struct {
 	TrackSelection        bool
 
 	// Optional custom overrides (Level 2 customization)
-	CustomRefresh    func(*ConfigScreen) tea.Cmd
-	CustomFilter     func(*ConfigScreen, string)
-	CustomUpdate     func(*ConfigScreen, tea.Msg) (tea.Model, tea.Cmd)
-	CustomView       func(*ConfigScreen) string
-	CustomOperations map[string]func(*ConfigScreen) tea.Cmd
+	CustomRefresh func(*ConfigScreen) tea.Cmd
+	CustomFilter  func(*ConfigScreen, string)
+	CustomUpdate  func(*ConfigScreen, tea.Msg) (tea.Model, tea.Cmd)
+	CustomView    func(*ConfigScreen) string
 }
 
 // ConfigScreen is a generic screen implementation driven by ScreenConfig
@@ -374,12 +373,8 @@ func getFieldValue(obj interface{}, fieldName string) interface{} {
 // makeOperationHandler creates an Execute function for an operation
 func (s *ConfigScreen) makeOperationHandler(opCfg OperationConfig) func() tea.Cmd {
 	return func() tea.Cmd {
-		// Check for custom operation handler
-		if customHandler, ok := s.config.CustomOperations[opCfg.ID]; ok {
-			return customHandler(s)
-		}
-
 		// Default: no-op
+		// Custom operation handlers can be added when needed
 		return nil
 	}
 }

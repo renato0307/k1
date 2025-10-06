@@ -26,7 +26,6 @@ type InputField struct {
 	Default     interface{}    // Default value from "default" tag
 	Placeholder string         // Placeholder text
 	Validation  string         // Validation rules from "validate" tag
-	Options     []string       // For Select type only
 }
 
 // GenerateInputFields reads struct tags and creates InputField slice
