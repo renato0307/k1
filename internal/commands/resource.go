@@ -111,7 +111,7 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // DeleteCommand returns execute function for deleting a resource
-func DeleteCommand(repo k8s.Repository) ExecuteFunc {
+func DeleteCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Get resource info
 		resourceName := "unknown"
@@ -142,7 +142,7 @@ func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
-			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
+			executor := NewKubectlExecutor(provider.GetKubeconfig(), provider.GetContext())
 			output, err := executor.Execute(args, ExecuteOptions{})
 
 			if err != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 // EndpointsCommand returns execute function for showing service endpoints
-func EndpointsCommand(repo k8s.Repository) ExecuteFunc {
+func EndpointsCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		namespace := "default"
@@ -32,7 +32,7 @@ func EndpointsCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
-			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
+			executor := NewKubectlExecutor(provider.GetKubeconfig(), provider.GetContext())
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {

@@ -28,7 +28,7 @@ type PortForwardArgs struct {
 }
 
 // ShellCommand returns execute function for opening shell in pod (clipboard mode)
-func ShellCommand(repo k8s.Repository) ExecuteFunc {
+func ShellCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args
 		var args ShellArgs
@@ -60,13 +60,13 @@ func ShellCommand(repo k8s.Repository) ExecuteFunc {
 		}
 
 		// Add kubeconfig/context if set
-		if repo.GetKubeconfig() != "" {
+		if provider.GetKubeconfig() != "" {
 			kubectlCmd.WriteString(" --kubeconfig ")
-			kubectlCmd.WriteString(repo.GetKubeconfig())
+			kubectlCmd.WriteString(provider.GetKubeconfig())
 		}
-		if repo.GetContext() != "" {
+		if provider.GetContext() != "" {
 			kubectlCmd.WriteString(" --context ")
-			kubectlCmd.WriteString(repo.GetContext())
+			kubectlCmd.WriteString(provider.GetContext())
 		}
 
 		// Add shell
@@ -86,7 +86,7 @@ func ShellCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // LogsCommand returns execute function for viewing pod logs (clipboard mode)
-func LogsCommand(repo k8s.Repository) ExecuteFunc {
+func LogsCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args
 		var args LogsArgs
@@ -127,13 +127,13 @@ func LogsCommand(repo k8s.Repository) ExecuteFunc {
 		}
 
 		// Add kubeconfig/context if set
-		if repo.GetKubeconfig() != "" {
+		if provider.GetKubeconfig() != "" {
 			kubectlCmd.WriteString(" --kubeconfig ")
-			kubectlCmd.WriteString(repo.GetKubeconfig())
+			kubectlCmd.WriteString(provider.GetKubeconfig())
 		}
-		if repo.GetContext() != "" {
+		if provider.GetContext() != "" {
 			kubectlCmd.WriteString(" --context ")
-			kubectlCmd.WriteString(repo.GetContext())
+			kubectlCmd.WriteString(provider.GetContext())
 		}
 
 		command := kubectlCmd.String()
@@ -149,7 +149,7 @@ func LogsCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // LogsPreviousCommand returns execute function for viewing previous pod logs
-func LogsPreviousCommand(repo k8s.Repository) ExecuteFunc {
+func LogsPreviousCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		if name, ok := ctx.Selected["name"].(string); ok {
@@ -160,7 +160,7 @@ func LogsPreviousCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // PortForwardCommand returns execute function for port forwarding to pod (clipboard mode)
-func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
+func PortForwardCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args
 		var args PortForwardArgs
@@ -188,13 +188,13 @@ func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
 		kubectlCmd.WriteString(args.Ports)
 
 		// Add kubeconfig/context if set
-		if repo.GetKubeconfig() != "" {
+		if provider.GetKubeconfig() != "" {
 			kubectlCmd.WriteString(" --kubeconfig ")
-			kubectlCmd.WriteString(repo.GetKubeconfig())
+			kubectlCmd.WriteString(provider.GetKubeconfig())
 		}
-		if repo.GetContext() != "" {
+		if provider.GetContext() != "" {
 			kubectlCmd.WriteString(" --context ")
-			kubectlCmd.WriteString(repo.GetContext())
+			kubectlCmd.WriteString(provider.GetContext())
 		}
 
 		command := kubectlCmd.String()
@@ -210,7 +210,7 @@ func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // JumpOwnerCommand returns execute function for jumping to owner resource
-func JumpOwnerCommand(repo k8s.Repository) ExecuteFunc {
+func JumpOwnerCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		if name, ok := ctx.Selected["name"].(string); ok {
@@ -221,7 +221,7 @@ func JumpOwnerCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // ShowNodeCommand returns execute function for showing node details
-func ShowNodeCommand(repo k8s.Repository) ExecuteFunc {
+func ShowNodeCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		nodeName := "unknown"

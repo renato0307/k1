@@ -67,6 +67,14 @@ type ResourceConfig struct {
 // to avoid redundant field extraction in every transform function
 type TransformFunc func(*unstructured.Unstructured, commonFields) (any, error)
 
+// KubeconfigProvider provides minimal interface for kubectl-based commands
+// Commands that execute kubectl as a subprocess only need kubeconfig and context,
+// not the full Repository interface. This reduces coupling and improves testability.
+type KubeconfigProvider interface {
+	GetKubeconfig() string
+	GetContext() string
+}
+
 // Repository provides access to Kubernetes resources
 type Repository interface {
 	// Generic resource access (config-driven)

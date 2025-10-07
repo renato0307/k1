@@ -18,7 +18,7 @@ type DrainArgs struct {
 }
 
 // CordonCommand returns execute function for cordoning nodes
-func CordonCommand(repo k8s.Repository) ExecuteFunc {
+func CordonCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		if name, ok := ctx.Selected["name"].(string); ok {
@@ -33,7 +33,7 @@ func CordonCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
-			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
+			executor := NewKubectlExecutor(provider.GetKubeconfig(), provider.GetContext())
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {
@@ -49,7 +49,7 @@ func CordonCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // DrainCommand returns execute function for draining nodes
-func DrainCommand(repo k8s.Repository) ExecuteFunc {
+func DrainCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args (with optional inline args)
 		var args DrainArgs
@@ -80,7 +80,7 @@ func DrainCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
-			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
+			executor := NewKubectlExecutor(provider.GetKubeconfig(), provider.GetContext())
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
 			if err != nil {

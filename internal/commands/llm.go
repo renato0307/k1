@@ -8,7 +8,7 @@ import (
 
 // LLMDeleteFailingPodsCommand returns execute function for LLM example command.
 // TODO: Implement when DDR-12 (Local LLM Architecture) is complete.
-func LLMDeleteFailingPodsCommand(repo k8s.Repository) ExecuteFunc {
+func LLMDeleteFailingPodsCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented (see DDR-12)")
 	}
@@ -16,7 +16,7 @@ func LLMDeleteFailingPodsCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMScaleNginxCommand returns execute function for LLM example command.
 // TODO: Implement when DDR-12 (Local LLM Architecture) is complete.
-func LLMScaleNginxCommand(repo k8s.Repository) ExecuteFunc {
+func LLMScaleNginxCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented (see DDR-12)")
 	}
@@ -24,7 +24,7 @@ func LLMScaleNginxCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMGetPodLogsCommand returns execute function for LLM example command.
 // TODO: Implement when DDR-12 (Local LLM Architecture) is complete.
-func LLMGetPodLogsCommand(repo k8s.Repository) ExecuteFunc {
+func LLMGetPodLogsCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented (see DDR-12)")
 	}
@@ -32,7 +32,7 @@ func LLMGetPodLogsCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMRestartDeploymentCommand returns execute function for LLM example command.
 // TODO: Implement when DDR-12 (Local LLM Architecture) is complete.
-func LLMRestartDeploymentCommand(repo k8s.Repository) ExecuteFunc {
+func LLMRestartDeploymentCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented (see DDR-12)")
 	}
@@ -40,7 +40,7 @@ func LLMRestartDeploymentCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMShowPodEventsCommand returns execute function for LLM example command.
 // TODO: Implement when DDR-12 (Local LLM Architecture) is complete.
-func LLMShowPodEventsCommand(repo k8s.Repository) ExecuteFunc {
+func LLMShowPodEventsCommand(provider k8s.KubeconfigProvider) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented (see DDR-12)")
 	}
