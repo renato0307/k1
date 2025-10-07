@@ -36,6 +36,7 @@ type InformerRepository struct {
 	podLister        v1listers.PodLister
 	deploymentLister appsv1listers.DeploymentLister
 	serviceLister    v1listers.ServiceLister
+	replicaSetLister appsv1listers.ReplicaSetLister
 
 	// Dynamic client and informers (config-driven approach)
 	dynamicClient  dynamic.Interface
@@ -108,6 +109,10 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	serviceInformer := factory.Core().V1().Services().Informer()
 	serviceLister := factory.Core().V1().Services().Lister()
 
+	// Create replicaset informer and lister (needed for deployment → pods filtering)
+	replicaSetInformer := factory.Apps().V1().ReplicaSets().Informer()
+	replicaSetLister := factory.Apps().V1().ReplicaSets().Lister()
+
 	// Initialize resource registry
 	resourceRegistry := getResourceRegistry()
 
@@ -136,11 +141,12 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	// Track which informers synced successfully
 	syncedInformers := make(map[schema.GroupVersionResource]bool)
 
-	// Try typed informers first (pods, deployments, services)
+	// Try typed informers first (pods, deployments, services, replicasets)
 	typedSynced := cache.WaitForCacheSync(syncCtx.Done(),
 		podInformer.HasSynced,
 		deploymentInformer.HasSynced,
 		serviceInformer.HasSynced,
+		replicaSetInformer.HasSynced,
 	)
 	if !typedSynced {
 		fmt.Fprintf(os.Stderr, "Warning: Some core resources (pods/deployments/services) failed to sync - may have permission issues\n")
@@ -172,6 +178,7 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		podLister:        podLister,
 		deploymentLister: deploymentLister,
 		serviceLister:    serviceLister,
+		replicaSetLister: replicaSetLister,
 		dynamicClient:    dynamicClient,
 		dynamicFactory:   dynamicFactory,
 		resources:        resourceRegistry,
@@ -348,6 +355,143 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 	sortByCreationTime(services, func(s Service) time.Time { return s.CreatedAt }, func(s Service) string { return s.Name })
 
 	return services, nil
+}
+
+// GetPodsForDeployment returns pods owned by a specific deployment
+func (r *InformerRepository) GetPodsForDeployment(namespace, name string) ([]Pod, error) {
+	// Get all pods
+	allPods, err := r.GetPods()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get deployment to find its UID
+	deployment, err := r.deploymentLister.Deployments(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment: %w", err)
+	}
+
+	// Get ReplicaSets owned by this deployment
+	replicaSetUIDs := make(map[string]bool)
+	allReplicaSets, err := r.replicaSetLister.ReplicaSets(namespace).List(labels.Everything())
+	if err == nil {
+		for _, rs := range allReplicaSets {
+			for _, owner := range rs.OwnerReferences {
+				if owner.UID == deployment.UID {
+					replicaSetUIDs[string(rs.UID)] = true
+					break
+				}
+			}
+		}
+	}
+
+	// Filter pods: check if pod is owned by any ReplicaSet owned by the deployment
+	filteredPods := make([]Pod, 0)
+	for _, pod := range allPods {
+		if pod.Namespace != namespace {
+			continue
+		}
+
+		// Get the actual pod object to check owner references
+		podObj, err := r.podLister.Pods(namespace).Get(pod.Name)
+		if err != nil {
+			continue
+		}
+
+		// Check if pod is owned by any of the ReplicaSets
+		for _, owner := range podObj.OwnerReferences {
+			if replicaSetUIDs[string(owner.UID)] {
+				filteredPods = append(filteredPods, pod)
+				break
+			}
+		}
+	}
+
+	return filteredPods, nil
+}
+
+// GetPodsOnNode returns pods running on a specific node
+func (r *InformerRepository) GetPodsOnNode(nodeName string) ([]Pod, error) {
+	// Get all pods
+	allPods, err := r.GetPods()
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter pods by node name
+	filteredPods := make([]Pod, 0)
+	for _, pod := range allPods {
+		if pod.Node == nodeName {
+			filteredPods = append(filteredPods, pod)
+		}
+	}
+
+	return filteredPods, nil
+}
+
+// GetPodsForService returns pods matching a service's selector
+func (r *InformerRepository) GetPodsForService(namespace, name string) ([]Pod, error) {
+	// Get service to find its selector
+	service, err := r.serviceLister.Services(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service: %w", err)
+	}
+
+	// If service has no selector, return empty list
+	if len(service.Spec.Selector) == 0 {
+		return []Pod{}, nil
+	}
+
+	// Convert service selector to label selector
+	selector := labels.SelectorFromSet(service.Spec.Selector)
+
+	// List pods in the same namespace matching the selector
+	podList, err := r.podLister.Pods(namespace).List(selector)
+	if err != nil {
+		return nil, fmt.Errorf("error listing pods: %w", err)
+	}
+
+	// Convert to our Pod type
+	pods := make([]Pod, 0, len(podList))
+	now := time.Now()
+
+	for _, pod := range podList {
+		// Calculate age
+		age := now.Sub(pod.CreationTimestamp.Time)
+
+		// Calculate ready containers
+		readyContainers := 0
+		totalContainers := len(pod.Status.ContainerStatuses)
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Ready {
+				readyContainers++
+			}
+		}
+		readyStatus := fmt.Sprintf("%d/%d", readyContainers, totalContainers)
+
+		// Calculate total restarts
+		totalRestarts := int32(0)
+		for _, cs := range pod.Status.ContainerStatuses {
+			totalRestarts += cs.RestartCount
+		}
+
+		pods = append(pods, Pod{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			Ready:     readyStatus,
+			Status:    string(pod.Status.Phase),
+			Restarts:  totalRestarts,
+			Age:       age,
+			CreatedAt: pod.CreationTimestamp.Time,
+			Node:      pod.Spec.NodeName,
+			IP:        pod.Status.PodIP,
+		})
+	}
+
+	// Sort by creation time (newest first), then by name for stable sort
+	sortByCreationTime(pods, func(p Pod) time.Time { return p.CreatedAt }, func(p Pod) string { return p.Name })
+
+	return pods, nil
 }
 
 // GetResourceYAML returns YAML representation of a resource using kubectl YAMLPrinter

@@ -205,11 +205,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentScreen = screen
 			m.state.CurrentScreen = msg.ScreenID
 
+			// Apply FilterContext (or clear it if nil)
+			if configScreen, ok := screen.(*screens.ConfigScreen); ok {
+				configScreen.ApplyFilterContext(msg.FilterContext)
+			}
+
 			// Update command bar with current screen context for command filtering
 			m.commandBar.SetScreen(msg.ScreenID)
 
 			// Update header with screen title
 			m.header.SetScreenTitle(screen.Title())
+
+			// Update header with filter text if FilterContext is present
+			if msg.FilterContext != nil {
+				m.header.SetFilterText(msg.FilterContext.Description())
+			} else {
+				m.header.SetFilterText("")
+			}
 
 			bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
 			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {

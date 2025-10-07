@@ -68,6 +68,9 @@ type ConfigScreen struct {
 
 	// For selection tracking (if enabled)
 	selectedKey string
+
+	// For contextual navigation filtering
+	filterContext *types.FilterContext
 }
 
 // NewConfigScreen creates a new config-driven screen
@@ -163,6 +166,13 @@ func (s *ConfigScreen) DefaultUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
+		// Intercept Enter for contextual navigation
+		if msg.Type == tea.KeyEnter {
+			if cmd := s.handleEnterKey(); cmd != nil {
+				return s, cmd
+			}
+		}
+
 		var cmd tea.Cmd
 		s.table, cmd = s.table.Update(msg)
 		if s.config.TrackSelection {
@@ -184,6 +194,7 @@ func (s *ConfigScreen) View() string {
 	if s.config.CustomView != nil {
 		return s.config.CustomView(s)
 	}
+
 	return s.table.View()
 }
 
@@ -237,7 +248,16 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
 
-		items, err := s.repo.GetResources(s.config.ResourceType)
+		var items []interface{}
+		var err error
+
+		// Use filtered repository methods if FilterContext is set
+		if s.filterContext != nil {
+			items, err = s.refreshWithFilterContext()
+		} else {
+			items, err = s.repo.GetResources(s.config.ResourceType)
+		}
+
 		if err != nil {
 			return types.ErrorStatusMsg(fmt.Sprintf("Failed to fetch %s: %v", s.config.Title, err))
 		}
@@ -247,6 +267,50 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 
 		return types.RefreshCompleteMsg{Duration: time.Since(start)}
 	}
+}
+
+// refreshWithFilterContext fetches resources using filtered repository methods
+func (s *ConfigScreen) refreshWithFilterContext() ([]interface{}, error) {
+	// Only pods screen supports filtering for now
+	if s.config.ResourceType != k8s.ResourceTypePod {
+		return s.repo.GetResources(s.config.ResourceType)
+	}
+
+	var pods []k8s.Pod
+	var err error
+
+	switch s.filterContext.Field {
+	case "owner":
+		// Deployment → Pods
+		namespace := s.filterContext.Metadata["namespace"]
+		pods, err = s.repo.GetPodsForDeployment(namespace, s.filterContext.Value)
+	case "node":
+		// Node → Pods
+		pods, err = s.repo.GetPodsOnNode(s.filterContext.Value)
+	case "selector":
+		// Service → Pods
+		namespace := s.filterContext.Metadata["namespace"]
+		pods, err = s.repo.GetPodsForService(namespace, s.filterContext.Value)
+	default:
+		return s.repo.GetResources(s.config.ResourceType)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []Pod to []interface{}
+	items := make([]interface{}, len(pods))
+	for i, pod := range pods {
+		items[i] = pod
+	}
+
+	return items, nil
+}
+
+// ApplyFilterContext sets the filter context for this screen
+func (s *ConfigScreen) ApplyFilterContext(ctx *types.FilterContext) {
+	s.filterContext = ctx
 }
 
 // SetFilter applies a filter to the resource list
@@ -325,6 +389,15 @@ func (s *ConfigScreen) updateTable() {
 	}
 
 	s.table.SetRows(rows)
+
+	// Ensure cursor is at a valid position
+	// If we have rows and cursor is out of bounds, move to first row
+	if len(rows) > 0 {
+		cursor := s.table.Cursor()
+		if cursor < 0 || cursor >= len(rows) {
+			s.table.SetCursor(0)
+		}
+	}
 }
 
 // GetSelectedResource returns the currently selected resource as a map
@@ -351,6 +424,103 @@ func (s *ConfigScreen) GetSelectedResource() map[string]interface{} {
 	}
 
 	return result
+}
+
+// handleEnterKey handles contextual navigation when Enter is pressed
+func (s *ConfigScreen) handleEnterKey() tea.Cmd {
+	// Only handle contextual navigation for certain screen types
+	switch s.config.ID {
+	case "deployments":
+		return s.navigateToPodsForDeployment()
+	case "nodes":
+		return s.navigateToPodsForNode()
+	case "services":
+		return s.navigateToPodsForService()
+	default:
+		return nil
+	}
+}
+
+// navigateToPodsForDeployment creates navigation command for Deployment → Pods
+func (s *ConfigScreen) navigateToPodsForDeployment() tea.Cmd {
+	resource := s.GetSelectedResource()
+	if resource == nil {
+		return nil
+	}
+
+	namespace, _ := resource["namespace"].(string)
+	name, _ := resource["name"].(string)
+	if namespace == "" || name == "" {
+		return nil
+	}
+
+	return func() tea.Msg {
+		return types.ScreenSwitchMsg{
+			ScreenID: "pods",
+			FilterContext: &types.FilterContext{
+				Field: "owner",
+				Value: name,
+				Metadata: map[string]string{
+					"namespace": namespace,
+					"kind":      "Deployment",
+				},
+			},
+		}
+	}
+}
+
+// navigateToPodsForNode creates navigation command for Node → Pods
+func (s *ConfigScreen) navigateToPodsForNode() tea.Cmd {
+	resource := s.GetSelectedResource()
+	if resource == nil {
+		return nil
+	}
+
+	name, _ := resource["name"].(string)
+	if name == "" {
+		return nil
+	}
+
+	return func() tea.Msg {
+		return types.ScreenSwitchMsg{
+			ScreenID: "pods",
+			FilterContext: &types.FilterContext{
+				Field: "node",
+				Value: name,
+				Metadata: map[string]string{
+					"kind": "Node",
+				},
+			},
+		}
+	}
+}
+
+// navigateToPodsForService creates navigation command for Service → Pods
+func (s *ConfigScreen) navigateToPodsForService() tea.Cmd {
+	resource := s.GetSelectedResource()
+	if resource == nil {
+		return nil
+	}
+
+	namespace, _ := resource["namespace"].(string)
+	name, _ := resource["name"].(string)
+	if namespace == "" || name == "" {
+		return nil
+	}
+
+	return func() tea.Msg {
+		return types.ScreenSwitchMsg{
+			ScreenID: "pods",
+			FilterContext: &types.FilterContext{
+				Field: "selector",
+				Value: name,
+				Metadata: map[string]string{
+					"namespace": namespace,
+					"kind":      "Service",
+				},
+			},
+		}
+	}
 }
 
 // Helper functions

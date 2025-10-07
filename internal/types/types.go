@@ -73,9 +73,36 @@ type AppState struct {
 	Height        int
 }
 
+// FilterContext defines filtering to apply on screen switch
+type FilterContext struct {
+	Field    string            // "owner", "node", "selector"
+	Value    string            // Resource name (deployment, node, service)
+	Metadata map[string]string // namespace, kind, etc.
+}
+
+// Description returns a human-readable description of the filter
+func (f *FilterContext) Description() string {
+	if f == nil {
+		return ""
+	}
+
+	kind := f.Metadata["kind"]
+	switch f.Field {
+	case "owner":
+		return "filtered by " + kind + ": " + f.Value
+	case "node":
+		return "filtered by " + kind + ": " + f.Value
+	case "selector":
+		return "filtered by " + kind + ": " + f.Value
+	default:
+		return "filtered by " + f.Value
+	}
+}
+
 // Messages
 type ScreenSwitchMsg struct {
-	ScreenID string
+	ScreenID      string
+	FilterContext *FilterContext // Optional filter
 }
 
 type RefreshCompleteMsg struct {
