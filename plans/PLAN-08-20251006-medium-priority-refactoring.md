@@ -1,6 +1,6 @@
 # PLAN-08: Medium Priority Code Quality Improvements
 
-**Status**: Phase 1 Complete, Phase 2 In Progress
+**Status**: Phase 1 Complete, Phase 2 Complete, Phase 4 Complete (Phase 3 deferred)
 **Created**: 2025-10-06
 **DDR Reference**: DDR-14 (Medium Priority items 6-8, partial 9)
 **Branch**: `refactor/medium-priority-improvements`
@@ -37,7 +37,7 @@ maintainability improvements without major architectural changes.
 
 **Success criteria**: Reduced LoC by ~500, zero functional regressions
 
-### Phase 2: Resource Type Safety (~1-2 days)
+### Phase 2: Resource Type Safety (~1-2 days) ✅ COMPLETE
 
 **Create domain types**:
 ```go
@@ -75,9 +75,11 @@ const (
 
 **Success criteria**: `make test-coverage` shows 50%+ overall, commands 70%+
 
-### Phase 4: Config Package Foundations (~1 day)
+### Phase 4: Config Package Foundations (~1 day) ✅ COMPLETE
 
-**Create config package with defaults**:
+**Note**: Using per-package constants pattern (CLAUDE.md) instead of central config.
+
+**Completed work**:
 ```go
 package config
 
@@ -132,25 +134,26 @@ edge cases if needed
 - [x] Document patterns in CLAUDE.md
 
 ### Phase 2: Resource Type Safety
-- [ ] Define `ResourceType` string type with 11 constants
-- [ ] Create `ResourceInfo` struct with domain types
-- [ ] Add `GetResourceInfo()` helper to CommandContext
-- [ ] Migrate commands to use ResourceInfo (8 command files)
-- [ ] Update CommandContext tests
+- [x] Define `ResourceType` string type with 11 constants
+- [x] Create `ResourceInfo` struct with domain types
+- [x] Add `GetResourceInfo()` helper to CommandContext
+- [x] Migrate commands to use ResourceInfo (8 command files)
+- [x] Update CommandContext tests
+- [x] Modernize min/max patterns (Go 1.21+)
 
-### Phase 3: Add Missing Tests
+### Phase 3: Add Missing Tests (DEFERRED)
 - [ ] Write command execution tests (pod, deployment, node, service)
 - [ ] Write clipboard operation tests (shell, logs, port-forward)
 - [ ] Run `make test-coverage` and verify 50%+ overall, 70%+ commands
 - [ ] Fix any coverage gaps in critical paths
 
 ### Phase 4: Config Package Foundations
-- [ ] Create `internal/config/defaults.go` with all constants
-- [ ] Migrate commandbar magic numbers (MaxPaletteItems, etc.)
-- [ ] Migrate fullscreen magic numbers (ReservedLines)
-- [ ] Migrate executor magic numbers (DefaultTimeout, GracePeriod)
-- [ ] Migrate repository magic numbers (ResyncPeriod)
-- [ ] Run full test suite and verify zero regressions
+- [x] Remove duplicate MaxPaletteItems constant from commandbar/constants.go
+- [x] Extract InformerSyncTimeout (10s) to k8s/constants.go
+- [x] Extract InformerIndividualSyncTimeout (5s) to k8s/constants.go
+- [x] Update all references to use constants from parent package
+- [x] Run full test suite and verify zero regressions
+- [x] Verified per-package constants pattern (no central config needed)
 
 ## Notes
 

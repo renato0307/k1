@@ -130,8 +130,7 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 
 	// Wait for caches to sync with timeout (graceful handling of RBAC errors)
 	// Try to sync each informer individually, continue on failures
-	syncTimeout := 10 * time.Second
-	syncCtx, syncCancel := context.WithTimeout(ctx, syncTimeout)
+	syncCtx, syncCancel := context.WithTimeout(ctx, InformerSyncTimeout)
 	defer syncCancel()
 
 	// Track which informers synced successfully
@@ -149,7 +148,7 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 
 	// Try each dynamic informer individually
 	for gvr, informer := range dynamicInformers {
-		informerCtx, informerCancel := context.WithTimeout(ctx, 5*time.Second)
+		informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
 		if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
 			syncedInformers[gvr] = true
 		} else {
