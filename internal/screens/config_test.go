@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/k8s/dummy"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func TestNewConfigScreen(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name"},
 	}
 
-	repo := k8s.NewDummyRepository()
+	repo := dummy.NewDataRepository()
 	theme := ui.GetTheme("charm")
 
 	screen := NewConfigScreen(cfg, repo, theme)
@@ -50,7 +51,7 @@ func TestConfigScreen_Refresh(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name", "Status"},
 	}
 
-	repo := k8s.NewDummyRepository()
+	repo := dummy.NewDataRepository()
 	theme := ui.GetTheme("charm")
 	screen := NewConfigScreen(cfg, repo, theme)
 
@@ -84,7 +85,7 @@ func TestConfigScreen_SetFilter(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name", "Status"},
 	}
 
-	repo := k8s.NewDummyRepository()
+	repo := dummy.NewDataRepository()
 	theme := ui.GetTheme("charm")
 	screen := NewConfigScreen(cfg, repo, theme)
 
@@ -117,7 +118,7 @@ func TestConfigScreen_SetFilter_Negation(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name"},
 	}
 
-	repo := k8s.NewDummyRepository()
+	repo := dummy.NewDataRepository()
 	theme := ui.GetTheme("charm")
 	screen := NewConfigScreen(cfg, repo, theme)
 
@@ -154,7 +155,7 @@ func TestConfigScreen_GetSelectedResource(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name"},
 	}
 
-	repo := k8s.NewDummyRepository()
+	repo := dummy.NewDataRepository()
 	theme := ui.GetTheme("charm")
 	screen := NewConfigScreen(cfg, repo, theme)
 
@@ -210,7 +211,7 @@ func TestConfigScreen_Operations(t *testing.T) {
 		},
 	}
 
-	repo := k8s.NewDummyRepository()
+	repo := dummy.NewDataRepository()
 	theme := ui.GetTheme("charm")
 	screen := NewConfigScreen(cfg, repo, theme)
 
@@ -235,7 +236,7 @@ func TestConfigScreen_Init(t *testing.T) {
 		SearchFields: []string{"Name"},
 	}
 
-	screen := NewConfigScreen(cfg, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+	screen := NewConfigScreen(cfg, dummy.NewDataRepository(), ui.GetTheme("charm"))
 
 	cmd := screen.Init()
 	assert.NotNil(t, cmd, "Init should return a command")
@@ -250,7 +251,7 @@ func TestConfigScreen_SetSize(t *testing.T) {
 		SearchFields: []string{"Name"},
 	}
 
-	screen := NewConfigScreen(cfg, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+	screen := NewConfigScreen(cfg, dummy.NewDataRepository(), ui.GetTheme("charm"))
 
 	screen.SetSize(100, 50)
 	assert.Equal(t, 100, screen.width)
@@ -269,7 +270,7 @@ func TestConfigScreen_View(t *testing.T) {
 		SearchFields: []string{"Name"},
 	}
 
-	screen := NewConfigScreen(cfg, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+	screen := NewConfigScreen(cfg, dummy.NewDataRepository(), ui.GetTheme("charm"))
 	screen.SetSize(80, 24)
 
 	// Perform a refresh to populate data

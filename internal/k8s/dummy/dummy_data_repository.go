@@ -1,20 +1,20 @@
-package k8s
+package dummy
 
 import (
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"github.com/renato0307/k1/internal/k8s"
 )
 
-// DummyRepository provides fake data for prototyping
-type DummyRepository struct{}
+// DataRepository provides fake data for prototyping
+type DataRepository struct{}
 
-func NewDummyRepository() *DummyRepository {
-	return &DummyRepository{}
+func NewDataRepository() *DataRepository {
+	return &DataRepository{}
 }
 
-func (r *DummyRepository) GetPods() ([]Pod, error) {
-	return []Pod{
+func (r *DataRepository) GetPods() ([]k8s.Pod, error) {
+	return []k8s.Pod{
 		{
 			Namespace: "default",
 			Name:      "nginx-deployment-7d64f8d9c8-abc12",
@@ -58,8 +58,8 @@ func (r *DummyRepository) GetPods() ([]Pod, error) {
 	}, nil
 }
 
-func (r *DummyRepository) GetDeployments() ([]Deployment, error) {
-	return []Deployment{
+func (r *DataRepository) GetDeployments() ([]k8s.Deployment, error) {
+	return []k8s.Deployment{
 		{
 			Namespace: "default",
 			Name:      "nginx-deployment",
@@ -87,8 +87,8 @@ func (r *DummyRepository) GetDeployments() ([]Deployment, error) {
 	}, nil
 }
 
-func (r *DummyRepository) GetServices() ([]Service, error) {
-	return []Service{
+func (r *DataRepository) GetServices() ([]k8s.Service, error) {
+	return []k8s.Service{
 		{
 			Namespace:  "default",
 			Name:       "kubernetes",
@@ -119,40 +119,9 @@ func (r *DummyRepository) GetServices() ([]Service, error) {
 	}, nil
 }
 
-func (r *DummyRepository) GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
-	// Return dummy YAML for development
-	return `apiVersion: v1
-kind: Pod
-metadata:
-  name: ` + name + `
-  namespace: ` + namespace + `
-status:
-  phase: Running`, nil
-}
-
-func (r *DummyRepository) DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
-	// Return dummy describe output for development
-	return `Name:         ` + name + `
-Namespace:    ` + namespace + `
-Status:       Running
-(Dummy data - connect to real cluster for actual describe output)`, nil
-}
-
-func (r *DummyRepository) Close() {
-	// No-op for dummy repository
-}
-
-func (r *DummyRepository) GetKubeconfig() string {
-	return ""
-}
-
-func (r *DummyRepository) GetContext() string {
-	return ""
-}
-
-func (r *DummyRepository) GetResources(resourceType ResourceType) ([]any, error) {
+func (r *DataRepository) GetResources(resourceType k8s.ResourceType) ([]any, error) {
 	switch resourceType {
-	case ResourceTypePod:
+	case k8s.ResourceTypePod:
 		pods, err := r.GetPods()
 		if err != nil {
 			return nil, err
@@ -162,7 +131,7 @@ func (r *DummyRepository) GetResources(resourceType ResourceType) ([]any, error)
 			result[i] = p
 		}
 		return result, nil
-	case ResourceTypeDeployment:
+	case k8s.ResourceTypeDeployment:
 		deployments, err := r.GetDeployments()
 		if err != nil {
 			return nil, err
@@ -172,7 +141,7 @@ func (r *DummyRepository) GetResources(resourceType ResourceType) ([]any, error)
 			result[i] = d
 		}
 		return result, nil
-	case ResourceTypeService:
+	case k8s.ResourceTypeService:
 		services, err := r.GetServices()
 		if err != nil {
 			return nil, err

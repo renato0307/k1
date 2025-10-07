@@ -23,7 +23,7 @@ func isClusterScoped(resourceType k8s.ResourceType) bool {
 }
 
 // YamlCommand returns execute function for viewing resource YAML
-func YamlCommand(repo k8s.Repository) ExecuteFunc {
+func YamlCommand(formatter k8s.ResourceFormatter) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		namespace := ""
@@ -50,8 +50,8 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
 		}
 
-		// Get YAML from repository using kubectl printer
-		yamlContent, err := repo.GetResourceYAML(gvr, namespace, resourceName)
+		// Get YAML from formatter using kubectl printer
+		yamlContent, err := formatter.GetResourceYAML(gvr, namespace, resourceName)
 		if err != nil {
 			return messages.ErrorCmd("Failed to get YAML: %v", err)
 		}
@@ -67,7 +67,7 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // DescribeCommand returns execute function for viewing kubectl describe output
-func DescribeCommand(repo k8s.Repository) ExecuteFunc {
+func DescribeCommand(formatter k8s.ResourceFormatter) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		namespace := ""
@@ -94,8 +94,8 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
 		}
 
-		// Get describe output from repository
-		describeContent, err := repo.DescribeResource(gvr, namespace, resourceName)
+		// Get describe output from formatter
+		describeContent, err := formatter.DescribeResource(gvr, namespace, resourceName)
 		if err != nil {
 			return messages.ErrorCmd("Failed to describe resource: %v", err)
 		}

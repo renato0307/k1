@@ -7,11 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/k8s/dummy"
 )
 
 func TestNewRegistry(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	formatter := dummy.NewFormatter()
+	provider := dummy.NewManager()
+	registry := NewRegistry(formatter, provider)
 
 	require.NotNil(t, registry)
 	assert.NotEmpty(t, registry.commands)
@@ -32,8 +34,9 @@ func TestNewRegistry(t *testing.T) {
 }
 
 func TestRegistry_GetByCategory(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	formatter := dummy.NewFormatter()
+	provider := dummy.NewManager()
+	registry := NewRegistry(formatter, provider)
 
 	tests := []struct {
 		name     string
@@ -83,8 +86,9 @@ func TestRegistry_GetByCategory(t *testing.T) {
 }
 
 func TestRegistry_Filter(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	formatter := dummy.NewFormatter()
+	provider := dummy.NewManager()
+	registry := NewRegistry(formatter, provider)
 
 	tests := []struct {
 		name     string
@@ -141,8 +145,9 @@ func TestRegistry_Filter(t *testing.T) {
 }
 
 func TestRegistry_FilterByResourceType(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	formatter := dummy.NewFormatter()
+	provider := dummy.NewManager()
+	registry := NewRegistry(formatter, provider)
 
 	allActions := registry.GetByCategory(CategoryAction)
 
@@ -194,8 +199,9 @@ func TestRegistry_FilterByResourceType(t *testing.T) {
 }
 
 func TestRegistry_Get(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	formatter := dummy.NewFormatter()
+	provider := dummy.NewManager()
+	registry := NewRegistry(formatter, provider)
 
 	tests := []struct {
 		name     string

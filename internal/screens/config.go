@@ -57,7 +57,7 @@ type ScreenConfig struct {
 // ConfigScreen is a generic screen implementation driven by ScreenConfig
 type ConfigScreen struct {
 	config   ScreenConfig
-	repo     k8s.Repository
+	data     k8s.DataProvider
 	table    table.Model
 	items    []interface{}
 	filtered []interface{}
@@ -71,7 +71,7 @@ type ConfigScreen struct {
 }
 
 // NewConfigScreen creates a new config-driven screen
-func NewConfigScreen(cfg ScreenConfig, repo k8s.Repository, theme *ui.Theme) *ConfigScreen {
+func NewConfigScreen(cfg ScreenConfig, data k8s.DataProvider, theme *ui.Theme) *ConfigScreen {
 	// Build table columns from config
 	columns := make([]table.Column, len(cfg.Columns))
 	for i, col := range cfg.Columns {
@@ -90,7 +90,7 @@ func NewConfigScreen(cfg ScreenConfig, repo k8s.Repository, theme *ui.Theme) *Co
 
 	return &ConfigScreen{
 		config: cfg,
-		repo:   repo,
+		data:   data,
 		table:  t,
 		theme:  theme,
 	}
@@ -237,7 +237,7 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
 
-		items, err := s.repo.GetResources(s.config.ResourceType)
+		items, err := s.data.GetResources(s.config.ResourceType)
 		if err != nil {
 			return types.ErrorStatusMsg(fmt.Sprintf("Failed to fetch %s: %v", s.config.Title, err))
 		}

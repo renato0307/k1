@@ -30,30 +30,37 @@ type Model struct {
 	commandBar     *commandbar.CommandBar
 	fullScreen     *components.FullScreen
 	fullScreenMode bool
-	repo           k8s.Repository
+	data           k8s.DataProvider
+	formatter      k8s.ResourceFormatter
+	provider       k8s.KubeconfigProvider
 	theme          *ui.Theme
 }
 
-func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
+func NewModel(
+	data k8s.DataProvider,
+	formatter k8s.ResourceFormatter,
+	provider k8s.KubeconfigProvider,
+	theme *ui.Theme,
+) Model {
 	registry := types.NewScreenRegistry()
 
 	// Register all screens using config-driven approach
 	// Tier 1: Critical (Pods)
-	registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(), data, theme))
 
 	// Tier 2: Common resources
-	registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), data, theme))
 
 	// Tier 3: Less common resources
-	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetDaemonSetsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetJobsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetDaemonSetsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetJobsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), data, theme))
 
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")
@@ -62,7 +69,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	header.SetScreenTitle(initialScreen.Title())
 	header.SetWidth(80)
 
-	cmdBar := commandbar.New(repo, theme)
+	cmdBar := commandbar.New(formatter, provider, theme)
 	cmdBar.SetWidth(80)
 	cmdBar.SetScreen("pods") // Set initial screen context
 
@@ -89,7 +96,9 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 		layout:        layout,
 		statusBar:     statusBar,
 		commandBar:    cmdBar,
-		repo:          repo,
+		data:          data,
+		formatter:     formatter,
+		provider:      provider,
 		theme:         theme,
 	}
 }

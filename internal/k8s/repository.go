@@ -67,32 +67,30 @@ type ResourceConfig struct {
 // to avoid redundant field extraction in every transform function
 type TransformFunc func(*unstructured.Unstructured, commonFields) (any, error)
 
+// DataProvider provides access to Kubernetes resource lists
+type DataProvider interface {
+	GetPods() ([]Pod, error)
+	GetDeployments() ([]Deployment, error)
+	GetServices() ([]Service, error)
+	GetResources(resourceType ResourceType) ([]any, error)
+}
+
+// ResourceFormatter provides resource output formatting
+type ResourceFormatter interface {
+	GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error)
+	DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error)
+}
+
 // KubeconfigProvider provides minimal interface for kubectl-based commands
-// Commands that execute kubectl as a subprocess only need kubeconfig and context,
-// not the full Repository interface. This reduces coupling and improves testability.
+// Commands that execute kubectl as a subprocess only need kubeconfig and context.
+// This reduces coupling and improves testability.
 type KubeconfigProvider interface {
 	GetKubeconfig() string
 	GetContext() string
 }
 
-// Repository provides access to Kubernetes resources
-type Repository interface {
-	// Generic resource access (config-driven)
-	GetResources(resourceType ResourceType) ([]any, error)
-
-	// Typed convenience methods (preserved for compatibility)
-	GetPods() ([]Pod, error)
-	GetDeployments() ([]Deployment, error)
-	GetServices() ([]Service, error)
-
-	// Resource detail commands (using kubectl libraries)
-	GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error)
-	DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error)
-
-	// Kubeconfig and context (for kubectl subprocess commands)
-	GetKubeconfig() string
-	GetContext() string
-
+// Lifecycle provides resource lifecycle management
+type Lifecycle interface {
 	Close()
 }
 

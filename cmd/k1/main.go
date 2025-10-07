@@ -11,6 +11,7 @@ import (
 
 	"github.com/renato0307/k1/internal/app"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/k8s/dummy"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -32,19 +33,25 @@ func main() {
 	// Load theme
 	theme := ui.GetTheme(*themeFlag)
 
-	// Initialize repository
-	var repo k8s.Repository
+	// Initialize components
+	var provider k8s.KubeconfigProvider
+	var dataRepo k8s.DataProvider
+	var formatter k8s.ResourceFormatter
 
 	if *dummyFlag {
-		// Use dummy repository for development
-		repo = k8s.NewDummyRepository()
+		// Use dummy components
+		dummyManager := dummy.NewManager()
+		dataRepo = dummy.NewDataRepository()
+		formatter = dummy.NewFormatter()
+		provider = dummyManager
+		fmt.Println("Running in dummy mode (no cluster connection)")
 	} else {
 		// Check if kubectl is available (needed for resource commands)
 		if err := checkKubectlAvailable(); err != nil {
 			fmt.Printf("Warning: %v\n", err)
 			fmt.Println("Some commands (delete, scale, etc.) will not work without kubectl.")
 			fmt.Println("Continuing with read-only access...")
-		fmt.Println()
+			fmt.Println()
 		}
 
 		// Connect to Kubernetes cluster
@@ -52,20 +59,24 @@ func main() {
 		fmt.Println("Syncing cache...")
 
 		var err error
-		repo, err = k8s.NewInformerRepository(*kubeconfigFlag, *contextFlag)
+		manager, err := k8s.NewInformerManager(*kubeconfigFlag, *contextFlag)
 		if err != nil {
 			fmt.Printf("Error initializing Kubernetes connection: %v\n", err)
 			os.Exit(1)
 		}
 
+		dataRepo = k8s.NewDataRepository(manager)
+		formatter = k8s.NewResourceFormatter(manager)
+		provider = manager
+
+		// Ensure cleanup on exit
+		defer manager.Close()
+
 		fmt.Println("Cache synced! Starting UI...")
 	}
 
-	// Ensure cleanup on exit
-	defer repo.Close()
-
-	// Create the app model with theme
-	model := app.NewModel(repo, theme)
+	// Create the app model with components
+	model := app.NewModel(dataRepo, formatter, provider, theme)
 
 	// Start the Bubble Tea program
 	p := tea.NewProgram(

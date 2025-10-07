@@ -34,8 +34,8 @@ type CommandBar struct {
 }
 
 // New creates a new command bar coordinator.
-func New(repo k8s.Repository, theme *ui.Theme) *CommandBar {
-	registry := commands.NewRegistry(repo)
+func New(formatter k8s.ResourceFormatter, provider k8s.KubeconfigProvider, theme *ui.Theme) *CommandBar {
+	registry := commands.NewRegistry(formatter, provider)
 
 	return &CommandBar{
 		state:     StateHidden,
