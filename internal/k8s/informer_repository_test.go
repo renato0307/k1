@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -1251,4 +1252,287 @@ func TestInformerRepository_formatEventAge(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestInformerRepository_GetPodsForDeployment(t *testing.T) {
+	t.Skip("Skipping: requires full cluster with deployment controller - envtest doesn't run controllers")
+	ns := createTestNamespace(t)
+
+	// Create deployment
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: ns,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+				},
+			},
+		},
+	}
+	createdDeployment, err := testClient.AppsV1().Deployments(ns).Create(context.Background(), deployment, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Create ReplicaSet owned by deployment
+	rs := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-rs",
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Name:       createdDeployment.Name,
+					UID:        createdDeployment.UID,
+				},
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+				},
+			},
+		},
+	}
+	createdRS, err := testClient.AppsV1().ReplicaSets(ns).Create(context.Background(), rs, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Create pods owned by ReplicaSet
+	for i := 1; i <= 2; i++ {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("test-pod-%d", i),
+				Namespace: ns,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: "apps/v1",
+						Kind:       "ReplicaSet",
+						Name:       createdRS.Name,
+						UID:        createdRS.UID,
+					},
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+				NodeName:   "test-node",
+			},
+		}
+		createdPod, err := testClient.CoreV1().Pods(ns).Create(context.Background(), pod, metav1.CreateOptions{})
+		require.NoError(t, err)
+
+		createdPod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{Name: "nginx", Ready: true, RestartCount: 0},
+			},
+		}
+		_, err = testClient.CoreV1().Pods(ns).UpdateStatus(context.Background(), createdPod, metav1.UpdateOptions{})
+		require.NoError(t, err)
+	}
+
+	// Create unrelated pod
+	unrelatedPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "unrelated-pod",
+			Namespace: ns,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+		},
+	}
+	_, err = testClient.CoreV1().Pods(ns).Create(context.Background(), unrelatedPod, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	// Wait longer for deployment → replicaset → pods chain to sync
+	time.Sleep(2 * time.Second)
+
+	// Get pods for deployment
+	pods, err := repo.GetPodsForDeployment(ns, "test-deployment")
+	require.NoError(t, err)
+	require.Len(t, pods, 2, "should return 2 pods owned by deployment")
+
+	// Verify pod names
+	podNames := []string{pods[0].Name, pods[1].Name}
+	assert.Contains(t, podNames, "test-pod-1")
+	assert.Contains(t, podNames, "test-pod-2")
+	assert.NotContains(t, podNames, "unrelated-pod")
+}
+
+func TestInformerRepository_GetPodsOnNode(t *testing.T) {
+	ns := createTestNamespace(t)
+
+	// Create pods on different nodes
+	node1Pods := []string{"pod-on-node1-a", "pod-on-node1-b"}
+	node2Pods := []string{"pod-on-node2-a"}
+
+	for _, podName := range node1Pods {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: ns,
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+				NodeName:   "node-1",
+			},
+		}
+		createdPod, err := testClient.CoreV1().Pods(ns).Create(context.Background(), pod, metav1.CreateOptions{})
+		require.NoError(t, err)
+
+		createdPod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{Name: "nginx", Ready: true, RestartCount: 0},
+			},
+		}
+		_, err = testClient.CoreV1().Pods(ns).UpdateStatus(context.Background(), createdPod, metav1.UpdateOptions{})
+		require.NoError(t, err)
+	}
+
+	for _, podName := range node2Pods {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: ns,
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+				NodeName:   "node-2",
+			},
+		}
+		_, err := testClient.CoreV1().Pods(ns).Create(context.Background(), pod, metav1.CreateOptions{})
+		require.NoError(t, err)
+	}
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	time.Sleep(1 * time.Second)
+
+	// Get pods on node-1
+	pods, err := repo.GetPodsOnNode("node-1")
+	require.NoError(t, err)
+	assert.Len(t, pods, 2, "should return 2 pods on node-1")
+
+	// Verify pod names
+	podNames := []string{pods[0].Name, pods[1].Name}
+	assert.Contains(t, podNames, "pod-on-node1-a")
+	assert.Contains(t, podNames, "pod-on-node1-b")
+	assert.NotContains(t, podNames, "pod-on-node2-a")
+
+	// Get pods on node-2
+	pods, err = repo.GetPodsOnNode("node-2")
+	require.NoError(t, err)
+	assert.Len(t, pods, 1, "should return 1 pod on node-2")
+	assert.Equal(t, "pod-on-node2-a", pods[0].Name)
+
+	// Get pods on non-existent node
+	pods, err = repo.GetPodsOnNode("non-existent-node")
+	require.NoError(t, err)
+	assert.Empty(t, pods, "should return empty list for non-existent node")
+}
+
+func TestInformerRepository_GetPodsForService(t *testing.T) {
+	ns := createTestNamespace(t)
+
+	// Create service with selector
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-service",
+			Namespace: ns,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{
+				"app":  "test",
+				"tier": "frontend",
+			},
+			Ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+			},
+		},
+	}
+	_, err := testClient.CoreV1().Services(ns).Create(context.Background(), service, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Create pods with matching labels
+	matchingPods := []string{"matching-pod-1", "matching-pod-2"}
+	for _, podName := range matchingPods {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: ns,
+				Labels: map[string]string{
+					"app":  "test",
+					"tier": "frontend",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+			},
+		}
+		createdPod, err := testClient.CoreV1().Pods(ns).Create(context.Background(), pod, metav1.CreateOptions{})
+		require.NoError(t, err)
+
+		createdPod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{Name: "nginx", Ready: true, RestartCount: 0},
+			},
+		}
+		_, err = testClient.CoreV1().Pods(ns).UpdateStatus(context.Background(), createdPod, metav1.UpdateOptions{})
+		require.NoError(t, err)
+	}
+
+	// Create pod with non-matching labels
+	nonMatchingPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "non-matching-pod",
+			Namespace: ns,
+			Labels: map[string]string{
+				"app": "other",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "nginx", Image: "nginx:latest"}},
+		},
+	}
+	_, err = testClient.CoreV1().Pods(ns).Create(context.Background(), nonMatchingPod, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	repo := createTestRepository(t, ns)
+	defer repo.Close()
+	time.Sleep(1 * time.Second)
+
+	// Get pods for service
+	pods, err := repo.GetPodsForService(ns, "test-service")
+	require.NoError(t, err)
+	assert.Len(t, pods, 2, "should return 2 pods matching service selector")
+
+	// Verify pod names
+	podNames := []string{pods[0].Name, pods[1].Name}
+	assert.Contains(t, podNames, "matching-pod-1")
+	assert.Contains(t, podNames, "matching-pod-2")
+	assert.NotContains(t, podNames, "non-matching-pod")
+}
+
+// Helper function for int32 pointer
+func int32Ptr(i int32) *int32 {
+	return &i
 }
