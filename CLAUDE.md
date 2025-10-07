@@ -301,6 +301,7 @@ The project has moved beyond prototyping into a structured application:
    - User will verify functionality works as expected
    - Only create commits AFTER user confirms testing is complete
    - If user finds issues during testing, fix them before committing
+   - **CRITICAL**: Do NOT add "🤖 Generated with Claude Code" or "Co-Authored-By: Claude" signatures to commits
    - Example workflow:
      ```bash
      # After implementation:
@@ -309,6 +310,7 @@ The project has moved beyond prototyping into a structured application:
      # WAIT for user to test
      # User confirms: "tests passed, commit it"
      git commit -m "feat: your commit message"
+     # NO signatures at the end!
      ```
 
 3. **Prefer Makefile**: Always use Makefile targets when available (e.g., `make test`, `make build`, `make run`)
