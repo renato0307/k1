@@ -249,9 +249,9 @@ The project has moved beyond prototyping into a structured application:
 - **design/DDR-06.md**: Describe and YAML commands implementation (on-demand events)
 - **design/DDR-07.md**: Scalable multi-resource architecture with config-driven design
 - **design/DDR-08.md**: Pragmatic command implementation strategy (kubectl subprocess vs pure Go)
-- **plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
-- **plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
-- **plans/PLAN-05.md**: YAML and Describe commands implementation (Complete)
+- **thoughts/shared/plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
+- **thoughts/shared/plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
+- **thoughts/shared/plans/PLAN-05.md**: YAML and Describe commands implementation (Complete)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
@@ -613,30 +613,12 @@ Store design decisions in `design/` folder:
 
 ## Implementation plan documents
 
-- Store implementation plans in `plans/` folder
-- Implementation plans should be named `PLAN-XX-YYYYMMDD-<short-description>.md`
+- Store implementation plans in `thoughts/shared/plans/` folder
+- Use `/create_plan_generic` slash command to create plans (see `.claude/commands/create_plan_generic.md` for instructions)
 - Plans should be **high-level and strategic**, not detailed step-by-step instructions
-- Focus on:
-  - Overall goals and outcomes
-  - Major phases or milestones (3-7 key steps maximum)
-  - Critical architectural/design decisions
-  - Key risks or considerations
-  - Success criteria
-  - TODO list with phase-level checkboxes for progress tracking (ALWAYS INCLUDE A TODO LIST)
-- Avoid:
-  - Line-by-line code changes
-  - Exhaustive file-by-file checklists
-  - Over-specifying implementation details
-  - Micro-tasks that restrict adaptation
-- Plans should be reviewable in 2-3 minutes
-- Leave room for discovery and adaptation during implementation
 - **Progress Tracking**:
   - Update the plan's TODO section after completing significant work (phase completion, major features)
   - Mark items as complete `[x]` when done
   - Add new items discovered during implementation
   - DO NOT use TodoWrite tool - track progress directly in the plan markdown file
   - Update plan status at top of file to reflect current phase
-- Keep claude authoring stuff of of generated code or commit messages
-- Keep track of golang patterns or approaches we use
-- Each time we do changes, please review the README.md to ensure we keep it updated
-- don't forget go mod tidy
