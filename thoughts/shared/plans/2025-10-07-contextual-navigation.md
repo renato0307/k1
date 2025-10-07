@@ -451,24 +451,45 @@ Add cases for remaining screen types in handleEnterKey().
 - Research document: `thoughts/shared/research/2025-10-07-contextual-navigation.md`
 - Ticket: `thoughts/tickets/issue_1.md`
 - Relevant code:
-  - Message types: `internal/types/types.go:77-79`
+  - Message types: `internal/types/types.go:77-100`
   - ConfigScreen: `internal/screens/config.go:165-171`
   - Repository: `internal/k8s/repository.go:71-89`
   - Informers: `internal/k8s/informer_repository.go:54-184`
 
+## Implementation Learnings
+
+**Method Encapsulation** (added to CLAUDE.md):
+- Moved `getFilterContextDescription()` to `FilterContext.Description()` method
+- Functions operating on a type's data should be methods of that type
+- Provides better API ergonomics and discoverability
+
+**Dead Code Cleanup**:
+- FilterBanner theme style was added but became unused when filter moved to header
+- Important to clean up dead code when implementation approach changes
+- Removed FilterBanner from Theme struct and all 8 theme implementations
+
+**Testing Mindset**:
+- Initially deferred Enter key tests as "too complex"
+- User questioned this - tests turned out to be straightforward
+- Lesson: Don't assume complexity - actually assess it before deferring work
+
 ## TODO List
 
-### Phase 1: MVP - Core Contextual Navigation
-- [ ] Extend message types with FilterContext
-- [ ] Add filtered repository methods (3 methods: deployment, node, service)
-- [ ] Implement filtered queries with post-query filtering
-- [ ] Intercept Enter key in ConfigScreen
-- [ ] Add handleEnterKey() with 3 relationship cases
-- [ ] Store and apply FilterContext in ConfigScreen
-- [ ] Add visual filter indicator to View()
-- [ ] Write unit tests for repository methods (envtest)
-- [ ] Write unit tests for Enter key handling
-- [ ] Manual testing: verify 3 navigation flows work correctly
+### Phase 1: MVP - Core Contextual Navigation ✅ COMPLETE
+- [x] Extend message types with FilterContext
+- [x] Add filtered repository methods (3 methods: deployment, node, service)
+- [x] Implement filtered queries with post-query filtering
+- [x] Intercept Enter key in ConfigScreen
+- [x] Add handleEnterKey() with 3 relationship cases
+- [x] Store and apply FilterContext in ConfigScreen
+- [x] Add visual filter indicator in header (moved from separate line for space efficiency)
+- [x] Write unit tests for repository methods (envtest) - 2/3 pass, 1 skipped (needs real cluster)
+- [x] Fix ReplicaSet informer (was missing, causing empty filtered results)
+- [x] Fix layout issues (header disappearing, sticky filter, cursor selection)
+- [x] Refactor hardcoded filter style to theme system (FilterBanner style)
+- [x] Manual testing: verify 3 navigation flows work correctly ✅
+- [x] Write unit tests for Enter key handling (4 test functions, all passing)
+- [x] Refactor getFilterContextDescription to FilterContext.Description() method
 
 ### Phase 2: Navigation History
 - [ ] Add NavigationState and history stack to app Model
@@ -495,6 +516,7 @@ Add cases for remaining screen types in handleEnterKey().
 - [ ] Implement CronJob→Job multi-level navigation
 - [ ] Write tests for all new relationships
 - [ ] Manual testing: verify all 11 resource types
+- [ ] Refactor screen IDs to use constants instead of string literals
 
 ### Documentation & Polish
 - [ ] Update README.md with contextual navigation feature

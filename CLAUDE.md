@@ -431,6 +431,51 @@ func Format(format string, args ...interface{}) string
 - Use `fmt.Errorf()` not custom error builders
 - Use `strconv.Itoa()` not custom number formatters
 
+### Method Encapsulation
+
+**Pattern**: Functions that operate on a type's data should be methods of that type.
+
+**Example from FilterContext**:
+```go
+// BEFORE (package-level function):
+func getFilterContextDescription(ctx *FilterContext) string {
+    if ctx == nil {
+        return ""
+    }
+    kind := ctx.Metadata["kind"]
+    return "filtered by " + kind + ": " + ctx.Value
+}
+
+// Usage: filterText := getFilterContextDescription(msg.FilterContext)
+
+// AFTER (method on type):
+func (f *FilterContext) Description() string {
+    if f == nil {
+        return ""
+    }
+    kind := f.Metadata["kind"]
+    return "filtered by " + kind + ": " + f.Value
+}
+
+// Usage: filterText := msg.FilterContext.Description()
+```
+
+**Benefits**:
+- More intuitive API (`ctx.Description()` vs `getFilterContextDescription(ctx)`)
+- Better discoverability (shows up in IDE autocomplete for the type)
+- Clearer ownership (the type owns its behavior)
+- More reusable (can be called from any package that imports the type)
+
+**When to use**:
+- Function operates primarily on the type's data
+- Function doesn't need to operate on multiple types
+- Function is a natural behavior of the type
+
+**When NOT to use**:
+- Function operates on multiple types equally
+- Function is a factory/constructor (use `New` prefix instead)
+- Function has side effects beyond the type
+
 ### Performance Optimization Patterns
 
 **Extract common operations to the caller, not the callee**:
