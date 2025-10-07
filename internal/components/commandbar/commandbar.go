@@ -352,7 +352,7 @@ func (cb *CommandBar) handlePaletteEnter() (*CommandBar, tea.Cmd) {
 	// Execute command
 	var cmd tea.Cmd
 	if selected.Execute != nil {
-		ctx := cb.executor.BuildContext(cb.screenID, cb.selectedResource, "")
+		ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "")
 		cmd = selected.Execute(ctx)
 	}
 
@@ -508,7 +508,7 @@ func (cb *CommandBar) handleInputEnter() (*CommandBar, tea.Cmd) {
 		category = commands.CategoryAction
 	}
 
-	ctx := cb.executor.BuildContext(cb.screenID, cb.selectedResource, args)
+	ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, args)
 	cmd, needsConfirm := cb.executor.Execute(cmdName, category, ctx)
 
 	if needsConfirm {
@@ -549,7 +549,7 @@ func (cb *CommandBar) handleConfirmationState(msg tea.KeyMsg) (*CommandBar, tea.
 		cb.history.Add(cb.input.Get())
 
 		// Execute pending command
-		ctx := cb.executor.BuildContext(cb.screenID, cb.selectedResource, "")
+		ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "")
 		cmd := cb.executor.ExecutePending(ctx)
 
 		// Return to hidden
@@ -688,7 +688,7 @@ func (cb *CommandBar) ViewPaletteItems() string {
 
 // ExecuteCommand executes a command by name and category.
 func (cb *CommandBar) ExecuteCommand(name string, category commands.CommandCategory) (*CommandBar, tea.Cmd) {
-	ctx := cb.executor.BuildContext(cb.screenID, cb.selectedResource, "")
+	ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "")
 	cmd, needsConfirm := cb.executor.Execute(name, category, ctx)
 
 	if needsConfirm {

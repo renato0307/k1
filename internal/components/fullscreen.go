@@ -16,6 +16,10 @@ const (
 	FullScreenYAML FullScreenViewType = iota
 	FullScreenDescribe
 	FullScreenLogs
+
+	// FullScreenReservedLines is the number of lines reserved for UI chrome
+	// (header, command bar, borders) when showing full-screen views.
+	FullScreenReservedLines = 3
 )
 
 // FullScreen component displays content in full-screen mode

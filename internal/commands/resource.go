@@ -14,10 +14,10 @@ import (
 )
 
 // isClusterScoped returns true if the resource type is cluster-scoped (not namespaced)
-func isClusterScoped(resourceType string) bool {
-	clusterScopedResources := map[string]bool{
-		"nodes":      true,
-		"namespaces": true,
+func isClusterScoped(resourceType k8s.ResourceType) bool {
+	clusterScopedResources := map[k8s.ResourceType]bool{
+		k8s.ResourceTypeNode:      true,
+		k8s.ResourceTypeNamespace: true,
 	}
 	return clusterScopedResources[resourceType]
 }
@@ -131,7 +131,7 @@ func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 		// Build kubectl delete command
 		args := []string{
 			"delete",
-			ctx.ResourceType,
+			string(ctx.ResourceType),
 			resourceName,
 		}
 

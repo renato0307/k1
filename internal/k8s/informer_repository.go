@@ -130,8 +130,7 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 
 	// Wait for caches to sync with timeout (graceful handling of RBAC errors)
 	// Try to sync each informer individually, continue on failures
-	syncTimeout := 10 * time.Second
-	syncCtx, syncCancel := context.WithTimeout(ctx, syncTimeout)
+	syncCtx, syncCancel := context.WithTimeout(ctx, InformerSyncTimeout)
 	defer syncCancel()
 
 	// Track which informers synced successfully
@@ -149,7 +148,7 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 
 	// Try each dynamic informer individually
 	for gvr, informer := range dynamicInformers {
-		informerCtx, informerCancel := context.WithTimeout(ctx, 5*time.Second)
+		informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
 		if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
 			syncedInformers[gvr] = true
 		} else {
@@ -235,12 +234,7 @@ func (r *InformerRepository) GetPods() ([]Pod, error) {
 	}
 
 	// Sort by creation time (newest first), then by name for stable sort
-	sort.Slice(pods, func(i, j int) bool {
-		if !pods[i].CreatedAt.Equal(pods[j].CreatedAt) {
-			return pods[i].CreatedAt.After(pods[j].CreatedAt) // Newer first
-		}
-		return pods[i].Name < pods[j].Name
-	})
+	sortByCreationTime(pods, func(p Pod) time.Time { return p.CreatedAt }, func(p Pod) string { return p.Name })
 
 	return pods, nil
 }
@@ -286,12 +280,7 @@ func (r *InformerRepository) GetDeployments() ([]Deployment, error) {
 	}
 
 	// Sort by creation time (newest first), then by name for stable sort
-	sort.Slice(deployments, func(i, j int) bool {
-		if !deployments[i].CreatedAt.Equal(deployments[j].CreatedAt) {
-			return deployments[i].CreatedAt.After(deployments[j].CreatedAt) // Newer first
-		}
-		return deployments[i].Name < deployments[j].Name
-	})
+	sortByCreationTime(deployments, func(d Deployment) time.Time { return d.CreatedAt }, func(d Deployment) string { return d.Name })
 
 	return deployments, nil
 }
@@ -356,12 +345,7 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 	}
 
 	// Sort by creation time (newest first), then by name for stable sort
-	sort.Slice(services, func(i, j int) bool {
-		if !services[i].CreatedAt.Equal(services[j].CreatedAt) {
-			return services[i].CreatedAt.After(services[j].CreatedAt) // Newer first
-		}
-		return services[i].Name < services[j].Name
-	})
+	sortByCreationTime(services, func(s Service) time.Time { return s.CreatedAt }, func(s Service) string { return s.Name })
 
 	return services, nil
 }
@@ -374,7 +358,7 @@ func (r *InformerRepository) GetResourceYAML(gvr schema.GroupVersionResource, na
 		return "", fmt.Errorf("informer not initialized for resource %s", gvr)
 	}
 
-	var runtimeObj interface{}
+	var runtimeObj any
 	var err error
 
 	// Handle namespaced vs cluster-scoped resources
@@ -416,7 +400,7 @@ func (r *InformerRepository) DescribeResource(gvr schema.GroupVersionResource, n
 		return "", fmt.Errorf("informer not initialized for resource %s", gvr)
 	}
 
-	var runtimeObj interface{}
+	var runtimeObj any
 	var err error
 
 	// Handle namespaced vs cluster-scoped resources
@@ -592,7 +576,7 @@ func (r *InformerRepository) GetContext() string {
 }
 
 // GetResources returns all resources of the specified type using dynamic informers
-func (r *InformerRepository) GetResources(resourceType ResourceType) ([]interface{}, error) {
+func (r *InformerRepository) GetResources(resourceType ResourceType) ([]any, error) {
 	// Get resource config
 	config, ok := r.resources[resourceType]
 	if !ok {
@@ -612,14 +596,17 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]interfac
 	}
 
 	// Transform unstructured objects to typed structs
-	results := make([]interface{}, 0, len(objList))
+	results := make([]any, 0, len(objList))
 	for _, obj := range objList {
 		unstr, ok := obj.(*unstructured.Unstructured)
 		if !ok {
 			continue
 		}
 
-		transformed, err := config.Transform(unstr)
+		// Extract common fields once per resource (optimization)
+		common := extractCommonFields(unstr)
+
+		transformed, err := config.Transform(unstr, common)
 		if err != nil {
 			// Log error but continue (partial results better than nothing)
 			continue
@@ -634,7 +621,7 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]interfac
 }
 
 // sortByAge sorts resources by CreatedAt field if present (newest first)
-func sortByAge(items []interface{}) {
+func sortByAge(items []any) {
 	sort.Slice(items, func(i, j int) bool {
 		// Try to extract CreatedAt from both items
 		createdI := extractCreatedAt(items[i])
@@ -651,8 +638,27 @@ func sortByAge(items []interface{}) {
 	})
 }
 
-// extractCreatedAt tries to extract CreatedAt field from an interface{}
-func extractCreatedAt(item interface{}) time.Time {
+// sortByCreationTime is a generic helper for sorting typed slices by CreatedAt (newest first)
+type resourceWithTimestamp interface {
+	Pod | Deployment | Service | ConfigMap | Secret | Namespace | StatefulSet | DaemonSet | Job | CronJob | Node
+}
+
+func sortByCreationTime[T resourceWithTimestamp](items []T, getCreatedAt func(T) time.Time, getName func(T) string) {
+	sort.Slice(items, func(i, j int) bool {
+		createdI := getCreatedAt(items[i])
+		createdJ := getCreatedAt(items[j])
+
+		if !createdI.Equal(createdJ) {
+			return createdI.After(createdJ) // Newer first
+		}
+
+		// Fall back to name comparison for stable sort
+		return getName(items[i]) < getName(items[j])
+	})
+}
+
+// extractCreatedAt tries to extract CreatedAt field from any
+func extractCreatedAt(item any) time.Time {
 	switch v := item.(type) {
 	case Pod:
 		return v.CreatedAt
@@ -681,8 +687,8 @@ func extractCreatedAt(item interface{}) time.Time {
 	}
 }
 
-// extractAge tries to extract Age field from an interface{}
-func extractAge(item interface{}) time.Duration {
+// extractAge tries to extract Age field from any
+func extractAge(item any) time.Duration {
 	switch v := item.(type) {
 	case Pod:
 		return v.Age
@@ -711,8 +717,8 @@ func extractAge(item interface{}) time.Duration {
 	}
 }
 
-// extractName tries to extract Name field from an interface{}
-func extractName(item interface{}) string {
+// extractName tries to extract Name field from any
+func extractName(item any) string {
 	switch v := item.(type) {
 	case Pod:
 		return v.Name

@@ -14,6 +14,12 @@ import (
 	"github.com/renato0307/k1/internal/ui"
 )
 
+const (
+	// StatusBarDisplayDuration is how long status messages (success, error,
+	// info) are displayed before automatically clearing.
+	StatusBarDisplayDuration = 5 * time.Second
+)
+
 type Model struct {
 	state          types.AppState
 	registry       *types.ScreenRegistry
@@ -221,7 +227,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.StatusMsg:
 		m.statusBar.SetMessage(msg.Message, msg.Type)
-		return m, tea.Tick(components.StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+		return m, tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
 			return types.ClearStatusMsg{}
 		})
 

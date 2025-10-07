@@ -26,7 +26,8 @@ func TestTransformConfigMap(t *testing.T) {
 		},
 	}
 
-	result, err := transformConfigMap(u)
+	common := extractCommonFields(u)
+	result, err := transformConfigMap(u, common)
 	require.NoError(t, err)
 
 	cm, ok := result.(ConfigMap)
@@ -53,7 +54,8 @@ func TestTransformSecret(t *testing.T) {
 		},
 	}
 
-	result, err := transformSecret(u)
+	common := extractCommonFields(u)
+	result, err := transformSecret(u, common)
 	require.NoError(t, err)
 
 	secret, ok := result.(Secret)
@@ -302,7 +304,8 @@ func TestTransformService(t *testing.T) {
 				},
 			}
 
-			result, err := transformService(u)
+			common := extractCommonFields(u)
+			result, err := transformService(u, common)
 			require.NoError(t, err)
 
 			svc, ok := result.(Service)
@@ -331,7 +334,8 @@ func TestTransformNamespace(t *testing.T) {
 		},
 	}
 
-	result, err := transformNamespace(u)
+	common := extractCommonFields(u)
+	result, err := transformNamespace(u, common)
 	require.NoError(t, err)
 
 	ns, ok := result.(Namespace)
@@ -358,7 +362,8 @@ func TestTransformStatefulSet(t *testing.T) {
 		},
 	}
 
-	result, err := transformStatefulSet(u)
+	common := extractCommonFields(u)
+	result, err := transformStatefulSet(u, common)
 	require.NoError(t, err)
 
 	sts, ok := result.(StatefulSet)
@@ -387,7 +392,8 @@ func TestTransformDaemonSet(t *testing.T) {
 		},
 	}
 
-	result, err := transformDaemonSet(u)
+	common := extractCommonFields(u)
+	result, err := transformDaemonSet(u, common)
 	require.NoError(t, err)
 
 	ds, ok := result.(DaemonSet)
@@ -472,7 +478,8 @@ func TestTransformJob(t *testing.T) {
 				},
 			}
 
-			result, err := transformJob(u)
+			common := extractCommonFields(u)
+			result, err := transformJob(u, common)
 			require.NoError(t, err)
 
 			job, ok := result.(Job)
@@ -571,7 +578,8 @@ func TestTransformCronJob(t *testing.T) {
 				},
 			}
 
-			result, err := transformCronJob(u)
+			common := extractCommonFields(u)
+			result, err := transformCronJob(u, common)
 			require.NoError(t, err)
 
 			cron, ok := result.(CronJob)
@@ -715,7 +723,8 @@ func TestTransformNode(t *testing.T) {
 				},
 			}
 
-			result, err := transformNode(u)
+			common := extractCommonFields(u)
+			result, err := transformNode(u, common)
 			require.NoError(t, err)
 
 			node, ok := result.(Node)

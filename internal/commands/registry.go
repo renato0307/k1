@@ -95,7 +95,7 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "yaml",
 				Description:   "View resource YAML",
 				Category:      CategoryAction,
-				ResourceTypes: []string{}, // Applies to all resource types
+				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
 				Shortcut:      "ctrl+y",
 				Execute:       YamlCommand(repo),
 			},
@@ -103,7 +103,7 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "describe",
 				Description:   "View kubectl describe output",
 				Category:      CategoryAction,
-				ResourceTypes: []string{}, // Applies to all resource types
+				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
 				Shortcut:      "ctrl+d",
 				Execute:       DescribeCommand(repo),
 			},
@@ -111,7 +111,7 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:              "delete",
 				Description:       "Delete selected resource",
 				Category:          CategoryAction,
-				ResourceTypes:     []string{}, // Applies to all resource types
+				ResourceTypes:     []k8s.ResourceType{}, // Applies to all resource types
 				Shortcut:          "ctrl+x",
 				NeedsConfirmation: true,
 				Execute:           DeleteCommand(repo),
@@ -120,7 +120,7 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "logs",
 				Description:   "View pod logs (clipboard)",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"pods"}, // Only for pods
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				Shortcut:      "ctrl+l",
 				ArgsType:      &LogsArgs{},
 				ArgPattern:    " [container] [tail] [follow]",
@@ -130,14 +130,14 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "logs-previous",
 				Description:   "View previous pod logs",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"pods"}, // Only for pods
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				Execute:       LogsPreviousCommand(repo),
 			},
 			{
 				Name:          "port-forward",
 				Description:   "Port forward to pod (clipboard)",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"pods"}, // Only for pods
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				ArgsType:      &PortForwardArgs{},
 				ArgPattern:    " <local:remote>",
 				Execute:       PortForwardCommand(repo),
@@ -146,7 +146,7 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "shell",
 				Description:   "Open shell in pod (clipboard)",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"pods"}, // Only for pods
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				ArgsType:      &ShellArgs{},
 				ArgPattern:    " [container] [shell]",
 				Execute:       ShellCommand(repo),
@@ -155,21 +155,21 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "jump-owner",
 				Description:   "Jump to owner resource",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"pods"}, // Only for pods
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				Execute:       JumpOwnerCommand(repo),
 			},
 			{
 				Name:          "show-node",
 				Description:   "Show node details",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"pods"}, // Only for pods
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				Execute:       ShowNodeCommand(repo),
 			},
 			{
 				Name:          "scale",
 				Description:   "Scale replicas",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"deployments", "statefulsets"}, // For deployments and statefulsets
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment, k8s.ResourceTypeStatefulSet}, // For deployments and statefulsets
 				ArgsType:      &ScaleArgs{},
 				ArgPattern:    " <replicas>",
 				Execute:       ScaleCommand(repo),
@@ -178,14 +178,14 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "cordon",
 				Description:   "Cordon node (mark unschedulable)",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"nodes"}, // Only for nodes
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeNode}, // Only for nodes
 				Execute:       CordonCommand(repo),
 			},
 			{
 				Name:              "drain",
 				Description:       "Drain node (evict all pods)",
 				Category:          CategoryAction,
-				ResourceTypes:     []string{"nodes"}, // Only for nodes
+				ResourceTypes:     []k8s.ResourceType{k8s.ResourceTypeNode}, // Only for nodes
 				ArgsType:          &DrainArgs{},
 				ArgPattern:        " [grace] [force] [ignore-daemonsets]",
 				NeedsConfirmation: true,
@@ -195,14 +195,14 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Name:          "endpoints",
 				Description:   "Show service endpoints",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"services"}, // Only for services
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeService}, // Only for services
 				Execute:       EndpointsCommand(repo),
 			},
 			{
 				Name:          "restart",
 				Description:   "Restart deployment",
 				Category:      CategoryAction,
-				ResourceTypes: []string{"deployments"}, // Only for deployments
+				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment}, // Only for deployments
 				Execute:       RestartCommand(repo),
 			},
 
@@ -285,7 +285,7 @@ func (r *Registry) Filter(query string, category CommandCategory) []Command {
 
 // FilterByResourceType returns commands that apply to the given resource type
 // Empty resourceType returns all commands
-func (r *Registry) FilterByResourceType(commands []Command, resourceType string) []Command {
+func (r *Registry) FilterByResourceType(commands []Command, resourceType k8s.ResourceType) []Command {
 	if resourceType == "" {
 		return commands
 	}

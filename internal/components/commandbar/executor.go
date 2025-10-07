@@ -5,6 +5,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -38,7 +39,7 @@ func (e *Executor) SetWidth(width int) {
 }
 
 // BuildContext creates a CommandContext for command execution.
-func (e *Executor) BuildContext(resourceType string, selected map[string]interface{}, args string) commands.CommandContext {
+func (e *Executor) BuildContext(resourceType k8s.ResourceType, selected map[string]any, args string) commands.CommandContext {
 	return commands.CommandContext{
 		ResourceType: resourceType,
 		Selected:     selected,

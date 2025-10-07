@@ -32,8 +32,8 @@ func TestExecutor_BuildContext(t *testing.T) {
 		"namespace": "default",
 	}
 
-	ctx := exec.BuildContext("pods", selected, "arg1 arg2")
-	assert.Equal(t, "pods", ctx.ResourceType)
+	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "arg1 arg2")
+	assert.Equal(t, k8s.ResourceTypePod, ctx.ResourceType)
 	assert.Equal(t, selected, ctx.Selected)
 	assert.Equal(t, "arg1 arg2", ctx.Args)
 }
@@ -44,7 +44,7 @@ func TestExecutor_Execute(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext("pods", nil, "")
+	ctx := exec.BuildContext(k8s.ResourceTypePod, nil, "")
 
 	// Test executing a command that doesn't need confirmation
 	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, ctx)
@@ -63,7 +63,7 @@ func TestExecutor_Execute_NeedsConfirmation(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext("deployments", nil, "3")
+	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
 
 	// Test executing delete command (needs confirmation)
 	cmd, needsConfirm := exec.Execute("delete", commands.CategoryAction, ctx)
@@ -80,7 +80,7 @@ func TestExecutor_ExecutePending(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext("deployments", nil, "3")
+	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
 
 	// Setup pending command
 	_, needsConfirm := exec.Execute("delete", commands.CategoryAction, ctx)
@@ -99,7 +99,7 @@ func TestExecutor_CancelPending(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext("deployments", nil, "3")
+	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
 
 	// Setup pending command
 	exec.Execute("delete", commands.CategoryAction, ctx)
@@ -220,7 +220,7 @@ func TestExecutor_ExecuteReturnsCmd(t *testing.T) {
 		"name":      "test-pod",
 		"namespace": "default",
 	}
-	ctx := exec.BuildContext("pods", selected, "")
+	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "")
 
 	// Execute yaml command which should return a cmd
 	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, ctx)
