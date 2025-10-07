@@ -6,17 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/renato0307/k1/internal/commands"
-	"github.com/renato0307/k1/internal/k8s/dummy"
-	"github.com/renato0307/k1/internal/ui"
 )
 
 func TestNewPalette(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 	assert.NotNil(t, p)
 	assert.True(t, p.IsEmpty())
 	assert.Equal(t, 0, p.Size())
@@ -24,12 +20,10 @@ func TestNewPalette(t *testing.T) {
 }
 
 func TestPalette_Filter_Resource(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 
 	// Filter with empty query returns all resource commands
 	p.Filter("", CommandTypeResource, "pods")
@@ -49,12 +43,10 @@ func TestPalette_Filter_Resource(t *testing.T) {
 }
 
 func TestPalette_Filter_Action(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 
 	// Filter with empty query returns all action commands + ai
 	p.Filter("", CommandTypeAction, "pods")
@@ -72,12 +64,10 @@ func TestPalette_Filter_Action(t *testing.T) {
 }
 
 func TestPalette_NavigateUpDown(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 	p.Filter("", CommandTypeResource, "pods")
 
 	initialSize := p.Size()
@@ -117,12 +107,10 @@ func TestPalette_NavigateUpDown(t *testing.T) {
 }
 
 func TestPalette_GetSelected(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 
 	// Empty palette returns nil
 	selected := p.GetSelected()
@@ -146,12 +134,10 @@ func TestPalette_GetSelected(t *testing.T) {
 }
 
 func TestPalette_Reset(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 	p.Filter("", CommandTypeResource, "pods")
 	p.NavigateDown()
 
@@ -164,12 +150,10 @@ func TestPalette_Reset(t *testing.T) {
 }
 
 func TestPalette_SetWidth(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 	assert.Equal(t, 80, p.width)
 
 	p.SetWidth(120)
@@ -177,12 +161,10 @@ func TestPalette_SetWidth(t *testing.T) {
 }
 
 func TestPalette_View(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	p := NewPalette(registry, theme, 80)
+	p := NewPalette(ctx, registry, 80)
 
 	// Empty palette returns empty string
 	view := p.View(":")

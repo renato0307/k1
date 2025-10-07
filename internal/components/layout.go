@@ -2,6 +2,7 @@ package components
 
 import (
 	"github.com/charmbracelet/lipgloss"
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -14,14 +15,14 @@ type Layout struct {
 	theme   *ui.Theme
 }
 
-func NewLayout(width, height int, theme *ui.Theme) *Layout {
+func NewLayout(ctx *types.AppContext, width, height int) *Layout {
 	return &Layout{
 		width:   width,
 		height:  height,
 		appName: "k1",
 		version: "", // Will be set in the future
 		context: "", // Will be set in the future
-		theme:   theme,
+		theme:   ctx.Theme,
 	}
 }
 

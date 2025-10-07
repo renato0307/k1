@@ -6,6 +6,7 @@ import (
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -22,10 +23,10 @@ type Executor struct {
 }
 
 // NewExecutor creates a new executor.
-func NewExecutor(registry *commands.Registry, theme *ui.Theme, width int) *Executor {
+func NewExecutor(ctx *types.AppContext, registry *commands.Registry, width int) *Executor {
 	return &Executor{
 		registry:       registry,
-		theme:          theme,
+		theme:          ctx.Theme,
 		width:          width,
 		pendingCommand: nil,
 		pendingArgs:    "",

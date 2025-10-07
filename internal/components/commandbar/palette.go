@@ -7,6 +7,7 @@ import (
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -20,12 +21,12 @@ type Palette struct {
 }
 
 // NewPalette creates a new palette manager.
-func NewPalette(registry *commands.Registry, theme *ui.Theme, width int) *Palette {
+func NewPalette(ctx *types.AppContext, registry *commands.Registry, width int) *Palette {
 	return &Palette{
 		items:    []commands.Command{},
 		index:    0,
 		registry: registry,
-		theme:    theme,
+		theme:    ctx.Theme,
 		width:    width,
 	}
 }

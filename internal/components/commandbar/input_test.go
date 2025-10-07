@@ -7,29 +7,23 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/renato0307/k1/internal/commands"
-	"github.com/renato0307/k1/internal/k8s/dummy"
-	"github.com/renato0307/k1/internal/ui"
 )
 
 func TestNewInput(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	assert.NotNil(t, input)
 	assert.True(t, input.IsEmpty())
 	assert.Equal(t, "", input.Get())
 }
 
 func TestInput_AddChar(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	input.AddChar("a")
 	assert.Equal(t, "a", input.Get())
 	assert.Equal(t, 1, input.cursorPos)
@@ -40,24 +34,20 @@ func TestInput_AddChar(t *testing.T) {
 }
 
 func TestInput_AddText(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	input.AddText("hello world")
 	assert.Equal(t, "hello world", input.Get())
 	assert.Equal(t, 11, input.cursorPos)
 }
 
 func TestInput_Backspace(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	input.Set("abc")
 
 	isEmpty := input.Backspace()
@@ -79,12 +69,10 @@ func TestInput_Backspace(t *testing.T) {
 }
 
 func TestInput_Clear(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	input.Set("test")
 
 	assert.False(t, input.IsEmpty())
@@ -95,12 +83,10 @@ func TestInput_Clear(t *testing.T) {
 }
 
 func TestInput_Set(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	input.Set("hello")
 
 	assert.Equal(t, "hello", input.Get())
@@ -108,12 +94,10 @@ func TestInput_Set(t *testing.T) {
 }
 
 func TestInput_HandleKeyMsg(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 
 	// Test character input
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
@@ -134,10 +118,8 @@ func TestInput_HandleKeyMsg(t *testing.T) {
 }
 
 func TestInput_ParseCommand(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
 	tests := []struct {
 		name       string
@@ -185,7 +167,7 @@ func TestInput_ParseCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input := NewInput(registry, theme, 80)
+			input := NewInput(ctx, registry, 80)
 			input.Set(tt.input)
 
 			prefix, cmd, args := input.ParseCommand()
@@ -197,12 +179,10 @@ func TestInput_ParseCommand(t *testing.T) {
 }
 
 func TestInput_GetArgumentHint(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 
 	// No hint for filter mode (no prefix)
 	input.Set("foo")
@@ -220,12 +200,10 @@ func TestInput_GetArgumentHint(t *testing.T) {
 }
 
 func TestInput_View(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	input.Set("test")
 
 	view := input.View(CommandTypeFilter)
@@ -234,12 +212,10 @@ func TestInput_View(t *testing.T) {
 }
 
 func TestInput_SetWidth(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	input := NewInput(registry, theme, 80)
+	input := NewInput(ctx, registry, 80)
 	assert.Equal(t, 80, input.width)
 
 	input.SetWidth(120)

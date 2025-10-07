@@ -12,6 +12,7 @@ import (
 	"github.com/renato0307/k1/internal/app"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/k8s/dummy"
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -75,8 +76,11 @@ func main() {
 		fmt.Println("Cache synced! Starting UI...")
 	}
 
-	// Create the app model with components
-	model := app.NewModel(dataRepo, formatter, provider, theme)
+	// Create application context
+	appCtx := types.NewAppContext(theme, dataRepo, formatter, provider)
+
+	// Create the app model with context
+	model := app.NewModel(appCtx)
 
 	// Start the Bubble Tea program
 	p := tea.NewProgram(

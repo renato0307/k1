@@ -15,9 +15,9 @@ type StatusBar struct {
 }
 
 // NewStatusBar creates a new status bar
-func NewStatusBar(theme *ui.Theme) *StatusBar {
+func NewStatusBar(ctx *types.AppContext) *StatusBar {
 	return &StatusBar{
-		theme: theme,
+		theme: ctx.Theme,
 	}
 }
 

@@ -8,10 +8,8 @@ import (
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/components"
 	"github.com/renato0307/k1/internal/components/commandbar"
-	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/screens"
 	"github.com/renato0307/k1/internal/types"
-	"github.com/renato0307/k1/internal/ui"
 )
 
 const (
@@ -30,53 +28,45 @@ type Model struct {
 	commandBar     *commandbar.CommandBar
 	fullScreen     *components.FullScreen
 	fullScreenMode bool
-	data           k8s.DataProvider
-	formatter      k8s.ResourceFormatter
-	provider       k8s.KubeconfigProvider
-	theme          *ui.Theme
+	ctx            *types.AppContext
 }
 
-func NewModel(
-	data k8s.DataProvider,
-	formatter k8s.ResourceFormatter,
-	provider k8s.KubeconfigProvider,
-	theme *ui.Theme,
-) Model {
+func NewModel(ctx *types.AppContext) Model {
 	registry := types.NewScreenRegistry()
 
 	// Register all screens using config-driven approach
 	// Tier 1: Critical (Pods)
-	registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetPodsScreenConfig()))
 
 	// Tier 2: Common resources
-	registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetDeploymentsScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetServicesScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetConfigMapsScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetSecretsScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetNamespacesScreenConfig()))
 
 	// Tier 3: Less common resources
-	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetDaemonSetsScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetJobsScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), data, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), data, theme))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetStatefulSetsScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetDaemonSetsScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetJobsScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetCronJobsScreenConfig()))
+	registry.Register(screens.NewConfigScreen(ctx, screens.GetNodesScreenConfig()))
 
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")
 
-	header := components.NewHeader("k1", theme)
+	header := components.NewHeader(ctx, "k1")
 	header.SetScreenTitle(initialScreen.Title())
 	header.SetWidth(80)
 
-	cmdBar := commandbar.New(formatter, provider, theme)
+	cmdBar := commandbar.New(ctx)
 	cmdBar.SetWidth(80)
 	cmdBar.SetScreen("pods") // Set initial screen context
 
-	statusBar := components.NewStatusBar(theme)
+	statusBar := components.NewStatusBar(ctx)
 	statusBar.SetWidth(80)
 
-	layout := components.NewLayout(80, 24, theme)
+	layout := components.NewLayout(ctx, 80, 24)
 
 	// Set initial size for the screen
 	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(cmdBar.GetTotalHeight())
@@ -96,10 +86,7 @@ func NewModel(
 		layout:        layout,
 		statusBar:     statusBar,
 		commandBar:    cmdBar,
-		data:          data,
-		formatter:     formatter,
-		provider:      provider,
-		theme:         theme,
+		ctx:           ctx,
 	}
 }
 
@@ -247,10 +234,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case types.ShowFullScreenMsg:
 		// Create full-screen view
 		m.fullScreen = components.NewFullScreen(
+			m.ctx,
 			components.FullScreenViewType(msg.ViewType),
 			msg.ResourceName,
 			msg.Content,
-			m.theme,
 		)
 		m.fullScreen.SetSize(m.state.Width, m.state.Height)
 		m.fullScreenMode = true

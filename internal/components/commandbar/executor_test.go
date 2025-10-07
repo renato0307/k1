@@ -8,70 +8,74 @@ import (
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/k8s/dummy"
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
-func TestNewExecutor(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+// createTestAppContext creates an AppContext for testing
+func createTestAppContext() *types.AppContext {
+	dummyManager := dummy.NewManager()
+	return types.NewAppContext(
+		ui.GetTheme("charm"),
+		dummy.NewDataRepository(),
+		dummy.NewFormatter(),
+		dummyManager,
+	)
+}
 
-	exec := NewExecutor(registry, theme, 80)
+func TestNewExecutor(t *testing.T) {
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
+
+	exec := NewExecutor(ctx, registry, 80)
 	assert.NotNil(t, exec)
 	assert.False(t, exec.HasPending())
 }
 
 func TestExecutor_BuildContext(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
+	exec := NewExecutor(ctx, registry, 80)
 
 	selected := map[string]interface{}{
 		"name":      "test-pod",
 		"namespace": "default",
 	}
 
-	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "arg1 arg2")
-	assert.Equal(t, k8s.ResourceTypePod, ctx.ResourceType)
-	assert.Equal(t, selected, ctx.Selected)
-	assert.Equal(t, "arg1 arg2", ctx.Args)
+	cmdCtx := exec.BuildContext(k8s.ResourceTypePod, selected, "arg1 arg2")
+	assert.Equal(t, k8s.ResourceTypePod, cmdCtx.ResourceType)
+	assert.Equal(t, selected, cmdCtx.Selected)
+	assert.Equal(t, "arg1 arg2", cmdCtx.Args)
 }
 
 func TestExecutor_Execute(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypePod, nil, "")
+	exec := NewExecutor(ctx, registry, 80)
+	cmdCtx := exec.BuildContext(k8s.ResourceTypePod, nil, "")
 
 	// Test executing a command that doesn't need confirmation
-	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, ctx)
+	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, cmdCtx)
 	assert.False(t, needsConfirm)
 	assert.NotNil(t, cmd) // yaml command should return a cmd
 
 	// Test executing unknown command
-	cmd, needsConfirm = exec.Execute("unknown", commands.CategoryAction, ctx)
+	cmd, needsConfirm = exec.Execute("unknown", commands.CategoryAction, cmdCtx)
 	assert.False(t, needsConfirm)
 	assert.Nil(t, cmd)
 }
 
 func TestExecutor_Execute_NeedsConfirmation(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
+	exec := NewExecutor(ctx, registry, 80)
+	cmdCtx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
 
 	// Test executing delete command (needs confirmation)
-	cmd, needsConfirm := exec.Execute("delete", commands.CategoryAction, ctx)
+	cmd, needsConfirm := exec.Execute("delete", commands.CategoryAction, cmdCtx)
 	assert.True(t, needsConfirm)
 	assert.Nil(t, cmd) // Should not execute immediately
 	assert.True(t, exec.HasPending())
@@ -80,36 +84,32 @@ func TestExecutor_Execute_NeedsConfirmation(t *testing.T) {
 }
 
 func TestExecutor_ExecutePending(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
+	exec := NewExecutor(ctx, registry, 80)
+	cmdCtx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
 
 	// Setup pending command
-	_, needsConfirm := exec.Execute("delete", commands.CategoryAction, ctx)
+	_, needsConfirm := exec.Execute("delete", commands.CategoryAction, cmdCtx)
 	assert.True(t, needsConfirm)
 	assert.True(t, exec.HasPending())
 
 	// Execute pending
-	cmd := exec.ExecutePending(ctx)
+	cmd := exec.ExecutePending(cmdCtx)
 	assert.NotNil(t, cmd) // delete command should return error cmd
 	assert.False(t, exec.HasPending()) // Should clear after execution
 }
 
 func TestExecutor_CancelPending(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
+	exec := NewExecutor(ctx, registry, 80)
+	cmdCtx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
 
 	// Setup pending command
-	exec.Execute("delete", commands.CategoryAction, ctx)
+	exec.Execute("delete", commands.CategoryAction, cmdCtx)
 	assert.True(t, exec.HasPending())
 
 	// Cancel pending
@@ -119,12 +119,10 @@ func TestExecutor_CancelPending(t *testing.T) {
 }
 
 func TestExecutor_LLMTranslation(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
+	exec := NewExecutor(ctx, registry, 80)
 
 	translation := &commands.MockLLMTranslation{
 		Prompt:      "show me pods",
@@ -140,20 +138,18 @@ func TestExecutor_LLMTranslation(t *testing.T) {
 }
 
 func TestExecutor_ViewConfirmation(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
+	exec := NewExecutor(ctx, registry, 80)
 
 	// No pending command
 	view := exec.ViewConfirmation()
 	assert.Equal(t, "", view)
 
 	// With pending command
-	ctx := exec.BuildContext("deployments", nil, "")
-	exec.Execute("delete", commands.CategoryAction, ctx)
+	cmdCtx := exec.BuildContext("deployments", nil, "")
+	exec.Execute("delete", commands.CategoryAction, cmdCtx)
 
 	view = exec.ViewConfirmation()
 	assert.NotEqual(t, "", view)
@@ -162,12 +158,10 @@ func TestExecutor_ViewConfirmation(t *testing.T) {
 }
 
 func TestExecutor_ViewLLMPreview(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
+	exec := NewExecutor(ctx, registry, 80)
 
 	// No translation
 	view := exec.ViewLLMPreview()
@@ -189,12 +183,10 @@ func TestExecutor_ViewLLMPreview(t *testing.T) {
 }
 
 func TestExecutor_ViewResult(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
+	exec := NewExecutor(ctx, registry, 80)
 
 	// Success result
 	view := exec.ViewResult("Operation completed", true)
@@ -208,12 +200,10 @@ func TestExecutor_ViewResult(t *testing.T) {
 }
 
 func TestExecutor_SetWidth(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
+	exec := NewExecutor(ctx, registry, 80)
 	assert.Equal(t, 80, exec.width)
 
 	exec.SetWidth(120)
@@ -222,21 +212,19 @@ func TestExecutor_SetWidth(t *testing.T) {
 
 // Test that executor properly handles command execution with tea.Cmd
 func TestExecutor_ExecuteReturnsCmd(t *testing.T) {
-	formatter := dummy.NewFormatter()
-	provider := dummy.NewManager()
-	registry := commands.NewRegistry(formatter, provider)
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
-	exec := NewExecutor(registry, theme, 80)
+	exec := NewExecutor(ctx, registry, 80)
 
 	selected := map[string]interface{}{
 		"name":      "test-pod",
 		"namespace": "default",
 	}
-	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "")
+	cmdCtx := exec.BuildContext(k8s.ResourceTypePod, selected, "")
 
 	// Execute yaml command which should return a cmd
-	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, ctx)
+	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, cmdCtx)
 	assert.False(t, needsConfirm)
 	assert.NotNil(t, cmd)
 

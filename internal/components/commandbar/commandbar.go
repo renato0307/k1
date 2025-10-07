@@ -34,19 +34,19 @@ type CommandBar struct {
 }
 
 // New creates a new command bar coordinator.
-func New(formatter k8s.ResourceFormatter, provider k8s.KubeconfigProvider, theme *ui.Theme) *CommandBar {
-	registry := commands.NewRegistry(formatter, provider)
+func New(ctx *types.AppContext) *CommandBar {
+	registry := commands.NewRegistry(ctx.Formatter, ctx.Provider)
 
 	return &CommandBar{
 		state:     StateHidden,
 		inputType: CommandTypeFilter,
 		width:     80,
 		height:    1,
-		theme:     theme,
+		theme:     ctx.Theme,
 		history:   NewHistory(),
-		palette:   NewPalette(registry, theme, 80),
-		input:     NewInput(registry, theme, 80),
-		executor:  NewExecutor(registry, theme, 80),
+		palette:   NewPalette(ctx, registry, 80),
+		input:     NewInput(ctx, registry, 80),
+		executor:  NewExecutor(ctx, registry, 80),
 		registry:  registry,
 	}
 }

@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -34,14 +35,14 @@ type FullScreen struct {
 }
 
 // NewFullScreen creates a new full-screen component
-func NewFullScreen(viewType FullScreenViewType, resourceName string, content string, theme *ui.Theme) *FullScreen {
+func NewFullScreen(ctx *types.AppContext, viewType FullScreenViewType, resourceName string, content string) *FullScreen {
 	return &FullScreen{
 		viewType:     viewType,
 		resourceName: resourceName,
 		content:      content,
 		width:        80,
 		height:       24,
-		theme:        theme,
+		theme:        ctx.Theme,
 		scrollOffset: 0,
 	}
 }

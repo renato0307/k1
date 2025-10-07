@@ -71,7 +71,7 @@ type ConfigScreen struct {
 }
 
 // NewConfigScreen creates a new config-driven screen
-func NewConfigScreen(cfg ScreenConfig, data k8s.DataProvider, theme *ui.Theme) *ConfigScreen {
+func NewConfigScreen(ctx *types.AppContext, cfg ScreenConfig) *ConfigScreen {
 	// Build table columns from config
 	columns := make([]table.Column, len(cfg.Columns))
 	for i, col := range cfg.Columns {
@@ -86,13 +86,13 @@ func NewConfigScreen(cfg ScreenConfig, data k8s.DataProvider, theme *ui.Theme) *
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
-	t.SetStyles(theme.ToTableStyles())
+	t.SetStyles(ctx.Theme.ToTableStyles())
 
 	return &ConfigScreen{
 		config: cfg,
-		data:   data,
+		data:   ctx.Data,
 		table:  t,
-		theme:  theme,
+		theme:  ctx.Theme,
 	}
 }
 

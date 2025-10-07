@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -20,12 +21,12 @@ type Input struct {
 }
 
 // NewInput creates a new input manager.
-func NewInput(registry *commands.Registry, theme *ui.Theme, width int) *Input {
+func NewInput(ctx *types.AppContext, registry *commands.Registry, width int) *Input {
 	return &Input{
 		buffer:    "",
 		cursorPos: 0,
 		registry:  registry,
-		theme:     theme,
+		theme:     ctx.Theme,
 		width:     width,
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -20,10 +21,10 @@ type Header struct {
 	theme        *ui.Theme
 }
 
-func NewHeader(appName string, theme *ui.Theme) *Header {
+func NewHeader(ctx *types.AppContext, appName string) *Header {
 	return &Header{
 		appName: appName,
-		theme:   theme,
+		theme:   ctx.Theme,
 	}
 }
 

@@ -12,6 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createTestAppContext creates an AppContext for testing
+func createTestAppContext() *types.AppContext {
+	dummyManager := dummy.NewManager()
+	return types.NewAppContext(
+		ui.GetTheme("charm"),
+		dummy.NewDataRepository(),
+		dummy.NewFormatter(),
+		dummyManager,
+	)
+}
+
 func TestNewConfigScreen(t *testing.T) {
 	cfg := ScreenConfig{
 		ID:           "test",
@@ -25,10 +36,9 @@ func TestNewConfigScreen(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name"},
 	}
 
-	repo := dummy.NewDataRepository()
-	theme := ui.GetTheme("charm")
+	ctx := createTestAppContext()
 
-	screen := NewConfigScreen(cfg, repo, theme)
+	screen := NewConfigScreen(ctx, cfg)
 
 	assert.NotNil(t, screen)
 	assert.Equal(t, "test", screen.ID())
@@ -51,9 +61,8 @@ func TestConfigScreen_Refresh(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name", "Status"},
 	}
 
-	repo := dummy.NewDataRepository()
-	theme := ui.GetTheme("charm")
-	screen := NewConfigScreen(cfg, repo, theme)
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 
 	// Execute refresh command
 	cmd := screen.Refresh()
@@ -85,9 +94,8 @@ func TestConfigScreen_SetFilter(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name", "Status"},
 	}
 
-	repo := dummy.NewDataRepository()
-	theme := ui.GetTheme("charm")
-	screen := NewConfigScreen(cfg, repo, theme)
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 
 	// First refresh to populate items
 	cmd := screen.Refresh()
@@ -118,9 +126,8 @@ func TestConfigScreen_SetFilter_Negation(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name"},
 	}
 
-	repo := dummy.NewDataRepository()
-	theme := ui.GetTheme("charm")
-	screen := NewConfigScreen(cfg, repo, theme)
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 
 	// Refresh to populate
 	cmd := screen.Refresh()
@@ -155,9 +162,8 @@ func TestConfigScreen_GetSelectedResource(t *testing.T) {
 		SearchFields: []string{"Namespace", "Name"},
 	}
 
-	repo := dummy.NewDataRepository()
-	theme := ui.GetTheme("charm")
-	screen := NewConfigScreen(cfg, repo, theme)
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 
 	// Refresh to populate
 	cmd := screen.Refresh()
@@ -211,9 +217,8 @@ func TestConfigScreen_Operations(t *testing.T) {
 		},
 	}
 
-	repo := dummy.NewDataRepository()
-	theme := ui.GetTheme("charm")
-	screen := NewConfigScreen(cfg, repo, theme)
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 
 	ops := screen.Operations()
 	require.Len(t, ops, 2)
@@ -236,7 +241,8 @@ func TestConfigScreen_Init(t *testing.T) {
 		SearchFields: []string{"Name"},
 	}
 
-	screen := NewConfigScreen(cfg, dummy.NewDataRepository(), ui.GetTheme("charm"))
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 
 	cmd := screen.Init()
 	assert.NotNil(t, cmd, "Init should return a command")
@@ -251,7 +257,8 @@ func TestConfigScreen_SetSize(t *testing.T) {
 		SearchFields: []string{"Name"},
 	}
 
-	screen := NewConfigScreen(cfg, dummy.NewDataRepository(), ui.GetTheme("charm"))
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 
 	screen.SetSize(100, 50)
 	assert.Equal(t, 100, screen.width)
@@ -270,7 +277,8 @@ func TestConfigScreen_View(t *testing.T) {
 		SearchFields: []string{"Name"},
 	}
 
-	screen := NewConfigScreen(cfg, dummy.NewDataRepository(), ui.GetTheme("charm"))
+	ctx := createTestAppContext()
+	screen := NewConfigScreen(ctx, cfg)
 	screen.SetSize(80, 24)
 
 	// Perform a refresh to populate data
