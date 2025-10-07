@@ -473,6 +473,16 @@ Add cases for remaining screen types in handleEnterKey().
 - User questioned this - tests turned out to be straightforward
 - Lesson: Don't assume complexity - actually assess it before deferring work
 
+**Filter State Preservation** (Phase 2 bug fix):
+- Bug: When navigating back via ESC, command bar filter state was lost (list filtered but command bar empty)
+- Root cause: Sending FilterUpdateMsg only updates screen data, not command bar UI state
+- Failed attempt: Checking `if GetState() == StateFilter` before capturing (timing issue - already Hidden by then)
+- Working solution:
+  1. Always capture command bar input (persists after state transition)
+  2. Add `RestoreFilter()` method that sets input text AND transitions to StateFilter
+  3. Properly restores both visual state (command bar shows filter) and data (list is filtered)
+- Lesson: Restoring state requires updating both data and UI state; messages alone are insufficient
+
 ## TODO List
 
 ### Phase 1: MVP - Core Contextual Navigation ✅ COMPLETE
@@ -491,14 +501,15 @@ Add cases for remaining screen types in handleEnterKey().
 - [x] Write unit tests for Enter key handling (4 test functions, all passing)
 - [x] Refactor getFilterContextDescription to FilterContext.Description() method
 
-### Phase 2: Navigation History
-- [ ] Add NavigationState and history stack to app Model
-- [ ] Extend ScreenSwitchMsg with IsBackNav flag
-- [ ] Implement pushNavigationHistory() in app
-- [ ] Implement popNavigationHistory() in app
-- [ ] Add ESC key handler in app Update()
-- [ ] Write history stack tests
-- [ ] Manual testing: verify back navigation and history limits
+### Phase 2: Navigation History ✅ COMPLETE
+- [x] Add NavigationState and history stack to app Model
+- [x] Extend ScreenSwitchMsg with IsBackNav and CommandBarFilter fields
+- [x] Implement pushNavigationHistory() in app (captures FilterContext and command bar filter)
+- [x] Implement popNavigationHistory() in app (restores both contexts)
+- [x] Add ESC key handler in app Update() (only when command bar hidden)
+- [x] Write history stack tests (8 tests, all passing)
+- [x] Fix command bar filter restoration bug (RestoreFilter() method properly restores UI state)
+- [x] Manual testing: verified back navigation, filter restoration working correctly ✅
 
 ### Phase 3: Performance Optimization
 - [ ] Design index structures (4 indexes: node, namespace, owner, labels)
