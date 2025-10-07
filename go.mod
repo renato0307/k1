@@ -1,8 +1,6 @@
 module github.com/renato0307/k1
 
-go 1.24.2
-
-toolchain go1.24.7
+go 1.25.1
 
 require (
 	github.com/atotto/clipboard v0.1.4

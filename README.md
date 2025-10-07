@@ -17,7 +17,7 @@ The supersonic Kubernetes TUI. Built with Go and Bubble Tea for blazing-fast clu
 
 ### Prerequisites
 
-- Go 1.24.0 or later
+- Go 1.25.1 or later
 - Access to a Kubernetes cluster with valid kubeconfig
 
 ### Build from Source
