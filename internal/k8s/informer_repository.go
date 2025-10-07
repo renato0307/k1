@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -47,6 +48,12 @@ type InformerRepository struct {
 	// Kubeconfig and context (for kubectl subprocess commands)
 	kubeconfig  string
 	contextName string
+
+	// Performance indexes (built on informer updates)
+	mu              sync.RWMutex
+	podsByNode      map[string][]*corev1.Pod // nodeName → pods
+	podsByNamespace map[string][]*corev1.Pod // namespace → pods
+	podsByOwnerUID  map[string][]*corev1.Pod // ownerUID → pods
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -172,7 +179,8 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		return nil, fmt.Errorf("failed to sync critical resources (pods/deployments/services) - check RBAC permissions")
 	}
 
-	return &InformerRepository{
+	// Create repository with initialized indexes
+	repo := &InformerRepository{
 		clientset:        clientset,
 		factory:          factory,
 		podLister:        podLister,
@@ -185,9 +193,17 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		dynamicListers:   dynamicListers,
 		kubeconfig:       kubeconfig,
 		contextName:      contextName,
+		podsByNode:       make(map[string][]*corev1.Pod),
+		podsByNamespace:  make(map[string][]*corev1.Pod),
+		podsByOwnerUID:   make(map[string][]*corev1.Pod),
 		ctx:              ctx,
 		cancel:           cancel,
-	}, nil
+	}
+
+	// Setup pod indexes with event handlers
+	repo.setupPodIndexes()
+
+	return repo, nil
 }
 
 // GetPods returns all pods from the informer cache
@@ -357,14 +373,8 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 	return services, nil
 }
 
-// GetPodsForDeployment returns pods owned by a specific deployment
+// GetPodsForDeployment returns pods owned by a specific deployment (uses indexed lookups)
 func (r *InformerRepository) GetPodsForDeployment(namespace, name string) ([]Pod, error) {
-	// Get all pods
-	allPods, err := r.GetPods()
-	if err != nil {
-		return nil, err
-	}
-
 	// Get deployment to find its UID
 	deployment, err := r.deploymentLister.Deployments(namespace).Get(name)
 	if err != nil {
@@ -372,61 +382,36 @@ func (r *InformerRepository) GetPodsForDeployment(namespace, name string) ([]Pod
 	}
 
 	// Get ReplicaSets owned by this deployment
-	replicaSetUIDs := make(map[string]bool)
 	allReplicaSets, err := r.replicaSetLister.ReplicaSets(namespace).List(labels.Everything())
-	if err == nil {
-		for _, rs := range allReplicaSets {
-			for _, owner := range rs.OwnerReferences {
-				if owner.UID == deployment.UID {
-					replicaSetUIDs[string(rs.UID)] = true
-					break
-				}
-			}
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to list replicasets: %w", err)
 	}
 
-	// Filter pods: check if pod is owned by any ReplicaSet owned by the deployment
-	filteredPods := make([]Pod, 0)
-	for _, pod := range allPods {
-		if pod.Namespace != namespace {
-			continue
-		}
-
-		// Get the actual pod object to check owner references
-		podObj, err := r.podLister.Pods(namespace).Get(pod.Name)
-		if err != nil {
-			continue
-		}
-
-		// Check if pod is owned by any of the ReplicaSets
-		for _, owner := range podObj.OwnerReferences {
-			if replicaSetUIDs[string(owner.UID)] {
-				filteredPods = append(filteredPods, pod)
+	// Find ReplicaSets owned by this deployment and collect their pods using index
+	r.mu.RLock()
+	var allPods []*corev1.Pod
+	for _, rs := range allReplicaSets {
+		for _, owner := range rs.OwnerReferences {
+			if owner.UID == deployment.UID {
+				// Use indexed lookup for pods owned by this ReplicaSet
+				pods := r.podsByOwnerUID[string(rs.UID)]
+				allPods = append(allPods, pods...)
 				break
 			}
 		}
 	}
+	r.mu.RUnlock()
 
-	return filteredPods, nil
+	return r.transformPods(allPods)
 }
 
-// GetPodsOnNode returns pods running on a specific node
+// GetPodsOnNode returns pods running on a specific node (O(1) indexed lookup)
 func (r *InformerRepository) GetPodsOnNode(nodeName string) ([]Pod, error) {
-	// Get all pods
-	allPods, err := r.GetPods()
-	if err != nil {
-		return nil, err
-	}
+	r.mu.RLock()
+	pods := r.podsByNode[nodeName]
+	r.mu.RUnlock()
 
-	// Filter pods by node name
-	filteredPods := make([]Pod, 0)
-	for _, pod := range allPods {
-		if pod.Node == nodeName {
-			filteredPods = append(filteredPods, pod)
-		}
-	}
-
-	return filteredPods, nil
+	return r.transformPods(pods)
 }
 
 // GetPodsForService returns pods matching a service's selector
@@ -707,6 +692,157 @@ func (r *InformerRepository) Close() {
 	if r.cancel != nil {
 		r.cancel()
 	}
+}
+
+// setupPodIndexes registers event handlers to maintain pod indexes
+func (r *InformerRepository) setupPodIndexes() {
+	podInformer := r.factory.Core().V1().Pods().Informer()
+
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*corev1.Pod)
+			r.updatePodIndexes(pod, nil)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldPod := oldObj.(*corev1.Pod)
+			newPod := newObj.(*corev1.Pod)
+			r.updatePodIndexes(newPod, oldPod)
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod := obj.(*corev1.Pod)
+			r.removePodFromIndexes(pod)
+		},
+	})
+}
+
+// updatePodIndexes updates all indexes for a pod (call with nil oldPod for adds)
+func (r *InformerRepository) updatePodIndexes(newPod, oldPod *corev1.Pod) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Remove old pod from indexes if updating
+	if oldPod != nil {
+		r.removePodFromIndexesLocked(oldPod)
+	}
+
+	// Add to node index
+	if newPod.Spec.NodeName != "" {
+		r.podsByNode[newPod.Spec.NodeName] = append(
+			r.podsByNode[newPod.Spec.NodeName],
+			newPod,
+		)
+	}
+
+	// Add to namespace index
+	r.podsByNamespace[newPod.Namespace] = append(
+		r.podsByNamespace[newPod.Namespace],
+		newPod,
+	)
+
+	// Add to owner index
+	for _, ownerRef := range newPod.OwnerReferences {
+		r.podsByOwnerUID[string(ownerRef.UID)] = append(
+			r.podsByOwnerUID[string(ownerRef.UID)],
+			newPod,
+		)
+	}
+}
+
+// removePodFromIndexes removes a pod from all indexes (acquires lock)
+func (r *InformerRepository) removePodFromIndexes(pod *corev1.Pod) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.removePodFromIndexesLocked(pod)
+}
+
+// removePodFromIndexesLocked removes a pod from all indexes (assumes lock held)
+func (r *InformerRepository) removePodFromIndexesLocked(pod *corev1.Pod) {
+	// Remove from node index
+	if pod.Spec.NodeName != "" {
+		r.podsByNode[pod.Spec.NodeName] = removePodFromSlice(
+			r.podsByNode[pod.Spec.NodeName],
+			pod,
+		)
+		if len(r.podsByNode[pod.Spec.NodeName]) == 0 {
+			delete(r.podsByNode, pod.Spec.NodeName)
+		}
+	}
+
+	// Remove from namespace index
+	r.podsByNamespace[pod.Namespace] = removePodFromSlice(
+		r.podsByNamespace[pod.Namespace],
+		pod,
+	)
+	if len(r.podsByNamespace[pod.Namespace]) == 0 {
+		delete(r.podsByNamespace, pod.Namespace)
+	}
+
+	// Remove from owner index
+	for _, ownerRef := range pod.OwnerReferences {
+		ownerUID := string(ownerRef.UID)
+		r.podsByOwnerUID[ownerUID] = removePodFromSlice(
+			r.podsByOwnerUID[ownerUID],
+			pod,
+		)
+		if len(r.podsByOwnerUID[ownerUID]) == 0 {
+			delete(r.podsByOwnerUID, ownerUID)
+		}
+	}
+}
+
+// removePodFromSlice removes a pod from a slice by comparing UIDs
+func removePodFromSlice(pods []*corev1.Pod, target *corev1.Pod) []*corev1.Pod {
+	result := make([]*corev1.Pod, 0, len(pods))
+	for _, p := range pods {
+		if p.UID != target.UID {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// transformPods converts []*corev1.Pod to []Pod (our app type)
+func (r *InformerRepository) transformPods(podList []*corev1.Pod) ([]Pod, error) {
+	pods := make([]Pod, 0, len(podList))
+	now := time.Now()
+
+	for _, pod := range podList {
+		// Calculate age
+		age := now.Sub(pod.CreationTimestamp.Time)
+
+		// Calculate ready containers
+		readyContainers := 0
+		totalContainers := len(pod.Status.ContainerStatuses)
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Ready {
+				readyContainers++
+			}
+		}
+		readyStatus := fmt.Sprintf("%d/%d", readyContainers, totalContainers)
+
+		// Calculate total restarts
+		totalRestarts := int32(0)
+		for _, cs := range pod.Status.ContainerStatuses {
+			totalRestarts += cs.RestartCount
+		}
+
+		pods = append(pods, Pod{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			Ready:     readyStatus,
+			Status:    string(pod.Status.Phase),
+			Restarts:  totalRestarts,
+			Age:       age,
+			CreatedAt: pod.CreationTimestamp.Time,
+			Node:      pod.Spec.NodeName,
+			IP:        pod.Status.PodIP,
+		})
+	}
+
+	// Sort by creation time (newest first), then by name for stable sort
+	sortByCreationTime(pods, func(p Pod) time.Time { return p.CreatedAt }, func(p Pod) string { return p.Name })
+
+	return pods, nil
 }
 
 // GetKubeconfig returns the kubeconfig path
