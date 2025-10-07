@@ -37,7 +37,7 @@ func ScaleCommand(repo k8s.Repository) ExecuteFunc {
 		// Build kubectl scale command
 		kubectlArgs := []string{
 			"scale",
-			ctx.ResourceType,
+			string(ctx.ResourceType),
 			resourceName,
 			"--namespace", namespace,
 			"--replicas", strconv.Itoa(args.Replicas),
@@ -83,7 +83,7 @@ func RestartCommand(repo k8s.Repository) ExecuteFunc {
 		kubectlArgs := []string{
 			"rollout",
 			"restart",
-			ctx.ResourceType + "/" + resourceName,
+			string(ctx.ResourceType) + "/" + resourceName,
 			"--namespace", namespace,
 		}
 

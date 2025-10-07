@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -58,7 +59,7 @@ func (p *Palette) Filter(query string, cmdType CommandType, screenID string) {
 		}
 
 		// Filter by current screen (resource type)
-		items = p.registry.FilterByResourceType(items, screenID)
+		items = p.registry.FilterByResourceType(items, k8s.ResourceType(screenID))
 
 		// Add /ai option if it matches the query
 		if strings.HasPrefix("ai", strings.ToLower(query)) || query == "" {
@@ -120,11 +121,7 @@ func (p *Palette) GetHeight() int {
 		return 0
 	}
 
-	itemCount := len(p.items)
-	if itemCount > MaxPaletteItems {
-		itemCount = MaxPaletteItems
-	}
-	return itemCount
+	return min(len(p.items), MaxPaletteItems)
 }
 
 // View renders the palette items with selection indicator.
@@ -136,10 +133,7 @@ func (p *Palette) View(prefix string) string {
 	sections := []string{}
 
 	// Show up to MaxPaletteItems
-	maxItems := MaxPaletteItems
-	if len(p.items) < maxItems {
-		maxItems = len(p.items)
-	}
+	maxItems := min(MaxPaletteItems, len(p.items))
 
 	// First pass: find longest description to align shortcuts
 	longestMainText := 0
@@ -169,11 +163,8 @@ func (p *Palette) View(prefix string) string {
 
 		var line string
 		if cmd.Shortcut != "" {
-			// Pad to shortcut column position
-			padding := shortcutColumn - len(mainText)
-			if padding < 2 {
-				padding = 2 // Minimum 2 spaces
-			}
+			// Pad to shortcut column position (minimum 2 spaces)
+			padding := max(shortcutColumn-len(mainText), 2)
 			spacer := strings.Repeat(" ", padding)
 
 			// Style shortcut with dimmed color

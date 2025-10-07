@@ -1,6 +1,6 @@
 # PLAN-08: Medium Priority Code Quality Improvements
 
-**Status**: Not Started
+**Status**: Phase 1 Complete, Phase 2 In Progress
 **Created**: 2025-10-06
 **DDR Reference**: DDR-14 (Medium Priority items 6-8, partial 9)
 **Branch**: `refactor/medium-priority-improvements`
@@ -122,10 +122,14 @@ edge cases if needed
 ## TODO
 
 ### Phase 1: Extract Duplicate Code
-- [ ] Extract `sortByAge` helper function
-- [ ] Create `TransformFunc` abstraction for 11 transform functions
-- [ ] Implement table-driven navigation command registry
-- [ ] Run tests and verify zero regressions
+- [x] Extract `sortByAge` helper function (generic sortByCreationTime)
+- [x] Create `TransformFunc` abstraction for 11 transform functions
+- [x] Implement table-driven navigation command registry
+- [x] Run tests and verify zero regressions
+- [x] Optimize transform performance (extract commonFields once in caller)
+- [x] Replace interface{} with any (Go 1.18+ modernization)
+- [x] Extract DummyRepository to separate file
+- [x] Document patterns in CLAUDE.md
 
 ### Phase 2: Resource Type Safety
 - [ ] Define `ResourceType` string type with 11 constants
