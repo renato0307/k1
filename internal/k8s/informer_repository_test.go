@@ -796,11 +796,12 @@ func TestExtractName(t *testing.T) {
 }
 
 func TestSortByAge(t *testing.T) {
+	now := time.Now()
 	items := []interface{}{
-		Pod{Name: "old-pod", Age: 10 * time.Hour},
-		Pod{Name: "new-pod", Age: 1 * time.Hour},
-		Pod{Name: "medium-pod", Age: 5 * time.Hour},
-		Pod{Name: "ancient-pod", Age: 24 * time.Hour},
+		Pod{Name: "old-pod", CreatedAt: now.Add(-10 * time.Hour)},
+		Pod{Name: "new-pod", CreatedAt: now.Add(-1 * time.Hour)},
+		Pod{Name: "medium-pod", CreatedAt: now.Add(-5 * time.Hour)},
+		Pod{Name: "ancient-pod", CreatedAt: now.Add(-24 * time.Hour)},
 	}
 
 	sortByAge(items)
@@ -813,10 +814,12 @@ func TestSortByAge(t *testing.T) {
 }
 
 func TestSortByAge_SameAge(t *testing.T) {
+	now := time.Now()
+	sameTime := now.Add(-5 * time.Hour)
 	items := []interface{}{
-		Pod{Name: "pod-c", Age: 5 * time.Hour},
-		Pod{Name: "pod-a", Age: 5 * time.Hour},
-		Pod{Name: "pod-b", Age: 5 * time.Hour},
+		Pod{Name: "pod-c", CreatedAt: sameTime},
+		Pod{Name: "pod-a", CreatedAt: sameTime},
+		Pod{Name: "pod-b", CreatedAt: sameTime},
 	}
 
 	sortByAge(items)
@@ -828,10 +831,11 @@ func TestSortByAge_SameAge(t *testing.T) {
 }
 
 func TestSortByAge_MixedTypes(t *testing.T) {
+	now := time.Now()
 	items := []interface{}{
-		Deployment{Name: "deploy-1", Age: 10 * time.Hour},
-		Service{Name: "svc-1", Age: 2 * time.Hour},
-		Pod{Name: "pod-1", Age: 5 * time.Hour},
+		Deployment{Name: "deploy-1", CreatedAt: now.Add(-10 * time.Hour)},
+		Service{Name: "svc-1", CreatedAt: now.Add(-2 * time.Hour)},
+		Pod{Name: "pod-1", CreatedAt: now.Add(-5 * time.Hour)},
 	}
 
 	sortByAge(items)

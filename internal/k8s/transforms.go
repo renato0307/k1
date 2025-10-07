@@ -9,11 +9,42 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// Transform functions convert unstructured Kubernetes resources to typed structs.
+//
+// Design Decision: Why not use reflection?
+//
+// We use explicit transform functions instead of reflection-based generic
+// transformers for several reasons:
+//
+// 1. Performance: Reflection is 10-100x slower than direct field access.
+//    This matters for large clusters (1000+ resources) where transforms run
+//    on every list operation.
+//
+// 2. Complexity trade-off: Reflection adds implicit behavior that's harder to
+//    debug. Explicit transforms are immediately understandable.
+//
+// 3. Already optimized: The extractCommonFields helper eliminates most
+//    duplication (namespace, name, age, createdAt) without reflection overhead.
+//
+// 4. Type safety: Explicit transforms fail fast at compile time, while
+//    reflection-based approaches defer errors to runtime.
+//
+// The current approach balances maintainability (DRY via extractCommonFields)
+// with performance (no reflection overhead) and debuggability (explicit code).
+
+// extractCommonFields extracts common fields from unstructured resource
+func extractCommonFields(u *unstructured.Unstructured) commonFields {
+	createdAt := u.GetCreationTimestamp().Time
+	return commonFields{
+		Namespace: u.GetNamespace(),
+		Name:      u.GetName(),
+		Age:       time.Since(createdAt),
+		CreatedAt: createdAt,
+	}
+}
+
 // transformPod converts an unstructured pod to a typed Pod
-func transformPod(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformPod(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract container status for ready count
 	containerStatuses, _, _ := unstructured.NestedSlice(u.Object, "status", "containerStatuses")
@@ -22,7 +53,7 @@ func transformPod(u *unstructured.Unstructured) (interface{}, error) {
 	totalRestarts := int32(0)
 
 	for _, cs := range containerStatuses {
-		csMap, ok := cs.(map[string]interface{})
+		csMap, ok := cs.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -44,23 +75,20 @@ func transformPod(u *unstructured.Unstructured) (interface{}, error) {
 	ip, _, _ := unstructured.NestedString(u.Object, "status", "podIP")
 
 	return Pod{
-		Namespace: namespace,
-		Name:      name,
+		Namespace: common.Namespace,
+		Name:      common.Name,
 		Ready:     readyStatus,
 		Status:    status,
 		Restarts:  totalRestarts,
-		Age:       age,
-		CreatedAt: u.GetCreationTimestamp().Time,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
 		Node:      node,
 		IP:        ip,
 	}, nil
 }
 
 // transformDeployment converts an unstructured deployment to a typed Deployment
-func transformDeployment(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformDeployment(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract replica counts
 	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
@@ -71,21 +99,18 @@ func transformDeployment(u *unstructured.Unstructured) (interface{}, error) {
 	readyStatus := fmt.Sprintf("%d/%d", ready, desired)
 
 	return Deployment{
-		Namespace: namespace,
-		Name:      name,
+		Namespace: common.Namespace,
+		Name:      common.Name,
 		Ready:     readyStatus,
 		UpToDate:  int32(upToDate),
 		Available: int32(available),
-		Age:       age,
-		CreatedAt: u.GetCreationTimestamp().Time,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformService converts an unstructured service to a typed Service
-func transformService(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformService(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract service type
 	svcType, _, _ := unstructured.NestedString(u.Object, "spec", "type")
@@ -102,7 +127,7 @@ func transformService(u *unstructured.Unstructured) (interface{}, error) {
 	// Check load balancer ingress
 	lbIngress, _, _ := unstructured.NestedSlice(u.Object, "status", "loadBalancer", "ingress")
 	if len(lbIngress) > 0 {
-		ingressMap, ok := lbIngress[0].(map[string]interface{})
+		ingressMap, ok := lbIngress[0].(map[string]any)
 		if ok {
 			if ip, _, _ := unstructured.NestedString(ingressMap, "ip"); ip != "" {
 				externalIP = ip
@@ -124,7 +149,7 @@ func transformService(u *unstructured.Unstructured) (interface{}, error) {
 	portsSlice, _, _ := unstructured.NestedSlice(u.Object, "spec", "ports")
 	ports := []string{}
 	for _, p := range portsSlice {
-		portMap, ok := p.(map[string]interface{})
+		portMap, ok := p.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -146,41 +171,35 @@ func transformService(u *unstructured.Unstructured) (interface{}, error) {
 	}
 
 	return Service{
-		Namespace:  namespace,
-		Name:       name,
+		Namespace:  common.Namespace,
+		Name:       common.Name,
 		Type:       svcType,
 		ClusterIP:  clusterIP,
 		ExternalIP: externalIP,
 		Ports:      portsStr,
-		Age:        age,
-		CreatedAt:  u.GetCreationTimestamp().Time,
+		Age:        common.Age,
+		CreatedAt:  common.CreatedAt,
 	}, nil
 }
 
 // transformConfigMap converts an unstructured configmap to a typed ConfigMap
-func transformConfigMap(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformConfigMap(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Count data items
 	data, _, _ := unstructured.NestedMap(u.Object, "data")
 	dataCount := len(data)
 
 	return ConfigMap{
-		Namespace: namespace,
-		Name:      name,
+		Namespace: common.Namespace,
+		Name:      common.Name,
 		Data:      dataCount,
-		Age:       age,
-		CreatedAt: u.GetCreationTimestamp().Time,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformSecret converts an unstructured secret to a typed Secret
-func transformSecret(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformSecret(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract type
 	secretType, _, _ := unstructured.NestedString(u.Object, "type")
@@ -190,36 +209,31 @@ func transformSecret(u *unstructured.Unstructured) (interface{}, error) {
 	dataCount := len(data)
 
 	return Secret{
-		Namespace: namespace,
-		Name:      name,
+		Namespace: common.Namespace,
+		Name:      common.Name,
 		Type:      secretType,
 		Data:      dataCount,
-		Age:       age,
-		CreatedAt: u.GetCreationTimestamp().Time,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformNamespace converts an unstructured namespace to a typed Namespace
-func transformNamespace(u *unstructured.Unstructured) (interface{}, error) {
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformNamespace(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract status
 	status, _, _ := unstructured.NestedString(u.Object, "status", "phase")
 
 	return Namespace{
-		Name:      name,
+		Name:      common.Name,
 		Status:    status,
-		Age:       age,
-		CreatedAt: u.GetCreationTimestamp().Time,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformStatefulSet converts an unstructured statefulset to a typed StatefulSet
-func transformStatefulSet(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformStatefulSet(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract replica counts
 	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
@@ -228,19 +242,16 @@ func transformStatefulSet(u *unstructured.Unstructured) (interface{}, error) {
 	readyStatus := fmt.Sprintf("%d/%d", ready, desired)
 
 	return StatefulSet{
-		Namespace: namespace,
-		Name:      name,
+		Namespace: common.Namespace,
+		Name:      common.Name,
 		Ready:     readyStatus,
-		Age:       age,
-		CreatedAt: u.GetCreationTimestamp().Time,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformDaemonSet converts an unstructured daemonset to a typed DaemonSet
-func transformDaemonSet(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformDaemonSet(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract counts
 	desired, _, _ := unstructured.NestedInt64(u.Object, "status", "desiredNumberScheduled")
@@ -250,23 +261,20 @@ func transformDaemonSet(u *unstructured.Unstructured) (interface{}, error) {
 	available, _, _ := unstructured.NestedInt64(u.Object, "status", "numberAvailable")
 
 	return DaemonSet{
-		Namespace: namespace,
-		Name:      name,
+		Namespace: common.Namespace,
+		Name:      common.Name,
 		Desired:   int32(desired),
 		Current:   int32(current),
 		Ready:     int32(ready),
 		UpToDate:  int32(upToDate),
 		Available: int32(available),
-		Age:       age,
-		CreatedAt: u.GetCreationTimestamp().Time,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformJob converts an unstructured job to a typed Job
-func transformJob(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformJob(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract completions
 	completions, _, _ := unstructured.NestedInt64(u.Object, "spec", "completions")
@@ -283,20 +291,17 @@ func transformJob(u *unstructured.Unstructured) (interface{}, error) {
 	}
 
 	return Job{
-		Namespace:   namespace,
-		Name:        name,
+		Namespace:   common.Namespace,
+		Name:        common.Name,
 		Completions: completionsStr,
 		Duration:    duration,
-		Age:         age,
-		CreatedAt:   u.GetCreationTimestamp().Time,
+		Age:         common.Age,
+		CreatedAt:   common.CreatedAt,
 	}, nil
 }
 
 // transformCronJob converts an unstructured cronjob to a typed CronJob
-func transformCronJob(u *unstructured.Unstructured) (interface{}, error) {
-	namespace := u.GetNamespace()
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformCronJob(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract schedule
 	schedule, _, _ := unstructured.NestedString(u.Object, "spec", "schedule")
@@ -316,27 +321,25 @@ func transformCronJob(u *unstructured.Unstructured) (interface{}, error) {
 	}
 
 	return CronJob{
-		Namespace:    namespace,
-		Name:         name,
+		Namespace:    common.Namespace,
+		Name:         common.Name,
 		Schedule:     schedule,
 		Suspend:      suspend,
 		Active:       active,
 		LastSchedule: lastSchedule,
-		Age:          age,
-		CreatedAt:    u.GetCreationTimestamp().Time,
+		Age:          common.Age,
+		CreatedAt:    common.CreatedAt,
 	}, nil
 }
 
 // transformNode converts an unstructured node to a typed Node
-func transformNode(u *unstructured.Unstructured) (interface{}, error) {
-	name := u.GetName()
-	age := time.Since(u.GetCreationTimestamp().Time)
+func transformNode(u *unstructured.Unstructured, common commonFields) (any, error) {
 
 	// Extract status
 	conditions, _, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
 	status := "Unknown"
 	for _, c := range conditions {
-		condMap, ok := c.(map[string]interface{})
+		condMap, ok := c.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -401,11 +404,11 @@ func transformNode(u *unstructured.Unstructured) (interface{}, error) {
 	}
 
 	return Node{
-		Name:         name,
+		Name:         common.Name,
 		Status:       status,
 		Roles:        rolesStr,
-		Age:          age,
-		CreatedAt:    u.GetCreationTimestamp().Time,
+		Age:          common.Age,
+		CreatedAt:    common.CreatedAt,
 		Version:      version,
 		Hostname:     hostname,
 		InstanceType: instanceType,

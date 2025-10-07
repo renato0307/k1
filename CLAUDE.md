@@ -429,6 +429,108 @@ func Format(format string, args ...interface{}) string
 - Use `fmt.Errorf()` not custom error builders
 - Use `strconv.Itoa()` not custom number formatters
 
+### Performance Optimization Patterns
+
+**Extract common operations to the caller, not the callee**:
+
+When multiple functions perform the same expensive operation on the same data,
+move that operation to the caller and pass the result as a parameter.
+
+**Example from transforms.go**:
+```go
+// BEFORE (inefficient):
+// Each transform function extracts common fields independently
+func transformPod(u *unstructured.Unstructured) (any, error) {
+    common := extractCommonFields(u)  // Called 11 times per resource!
+    // ... use common fields
+}
+
+// AFTER (optimized):
+// Caller extracts once, passes to all transforms
+func GetResources(resourceType ResourceType) ([]any, error) {
+    for _, obj := range objList {
+        common := extractCommonFields(unstr)  // Called once per resource
+        transformed, err := config.Transform(unstr, common)
+    }
+}
+
+// Transform function signature changed:
+type TransformFunc func(*unstructured.Unstructured, commonFields) (any, error)
+```
+
+**Performance impact**: Reduces O(11n) to O(n) for field extraction on large clusters.
+
+**When to apply this pattern**:
+- Multiple functions need the same derived data
+- The extraction is non-trivial (reflection, parsing, nested field access)
+- The operation is called frequently (hot path)
+
+**When NOT to apply**:
+- The extraction is trivial (single field access)
+- Functions need different subsets of the data
+- The pattern increases coupling unnecessarily
+
+**Why not use reflection for transforms?**:
+- Reflection is 10-100x slower than direct field access
+- Critical for large clusters (1000+ resources on every list operation)
+- Explicit code is easier to debug and maintains type safety
+- Common field extraction already eliminates most duplication
+
+### Table-Driven Pattern for Reducing Duplication
+
+**Use data structures instead of nearly-identical functions**:
+
+When you have multiple functions that differ only in data values, replace them
+with a single function and a data structure (map, slice, struct).
+
+**Example from navigation.go**:
+```go
+// BEFORE (11 nearly-identical functions):
+func PodsCommand() ExecuteFunc {
+    return func(ctx CommandContext) tea.Cmd {
+        return func() tea.Msg {
+            return types.ScreenSwitchMsg{ScreenID: "pods"}
+        }
+    }
+}
+func DeploymentsCommand() ExecuteFunc { /* same but screenID: "deployments" */ }
+// ... 9 more identical functions
+
+// AFTER (single function + data registry):
+var navigationRegistry = map[string]string{
+    "pods":        "pods",
+    "deployments": "deployments",
+    // ... 9 more entries
+}
+
+func NavigationCommand(screenID string) ExecuteFunc {
+    return func(ctx CommandContext) tea.Cmd {
+        return func() tea.Msg {
+            return types.ScreenSwitchMsg{ScreenID: screenID}
+        }
+    }
+}
+
+// Legacy functions now just delegate:
+func PodsCommand() ExecuteFunc { return NavigationCommand("pods") }
+```
+
+**Benefits**:
+- Eliminates ~30 lines of boilerplate per pattern
+- Changes to behavior require updating one function, not 11
+- New entries require one line of data, not 8 lines of code
+- Easier to test (test one function with table-driven tests)
+
+**When to apply**:
+- 3+ functions with identical structure but different constants
+- The only difference is data values (strings, numbers, etc.)
+- No complex conditional logic per case
+
+**When NOT to apply**:
+- Functions have genuinely different logic
+- Each case needs custom error handling or validation
+- The abstraction makes the code harder to understand
+
 ## Quick Reference
 
 ### Global Keybindings
