@@ -558,6 +558,16 @@ func PodsCommand() ExecuteFunc { return NavigationCommand("pods") }
 - **Cmd**: Function that returns a message (for async operations)
 - **Init**: Returns initial command to run on startup
 
+**IMPORTANT - Elm Architecture Pattern**:
+BubbleTea follows the Elm Architecture, where a component SHOULD combine:
+- Data fetching and state management (Model)
+- Business logic and event handling (Update)
+- Rendering and presentation (View)
+
+This is the **correct pattern** for BubbleTea components. Do NOT try to split
+screens into separate Model/View/Controller classes - this fights against the
+framework's design. Traditional OOP patterns like MVC don't apply here.
+
 ### Common Lipgloss Patterns
 ```go
 // Create styled text

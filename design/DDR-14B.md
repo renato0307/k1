@@ -130,49 +130,7 @@ type ResourceFormatter interface {
 
 ---
 
-#### 3. ConfigScreen SRP Violation (NOT FIXED)
-
-**ConfigScreen mixes multiple concerns**
-
-Responsibilities:
-- Fetches data from repository
-- Filters data based on user input
-- Sorts data by age
-- Renders table view
-- Tracks selection state
-- Handles keyboard navigation
-
-**Problem**: Violates Single Responsibility Principle. Changes to any
-concern affect entire screen.
-
-**Recommended Fix** - Apply MVC/MVVM pattern:
-```go
-// Model - data and business logic
-type ScreenModel interface {
-    GetData() ([]any, error)
-    Filter(query string) []any
-    Sort(data []any) []any
-}
-
-// View - rendering only
-type ScreenView interface {
-    Render(data []any, selection int) string
-}
-
-// Controller - coordinates model and view
-type ConfigScreen struct {
-    model ScreenModel
-    view  ScreenView
-    // ... state
-}
-```
-
-**Impact**: Medium - Affects all 11 resource screens
-**Effort**: Medium-High (4-5 days) - Pattern affects all screens
-
----
-
-#### 4. Resource Management Issues (NOT FIXED) ⚠️
+#### 3. Resource Management Issues (NOT FIXED) ⚠️
 
 **Close() has no guard against multiple calls**
 
@@ -215,7 +173,7 @@ Need comprehensive audit of all goroutines.
 
 ---
 
-#### 5. Theme Propagation Anti-Pattern (NOT FIXED)
+#### 4. Theme Propagation Anti-Pattern (NOT FIXED)
 
 **Theme pointer passed to every component**
 
@@ -248,7 +206,7 @@ func NewConfigScreen(cfg ScreenConfig, ctx *AppContext) *ConfigScreen
 
 ---
 
-#### 6. Testing Architecture Issues (PARTIALLY FIXED)
+#### 5. Testing Architecture Issues (PARTIALLY FIXED)
 
 **CommandBar test coverage: 32.1% (target: 70%+)**
 
@@ -298,7 +256,7 @@ internal/k8s/
 
 ---
 
-#### 7. User Configuration (PARTIALLY FIXED)
+#### 6. User Configuration (PARTIALLY FIXED)
 
 **Constants extracted, but no user override mechanism**
 
@@ -327,7 +285,7 @@ But users cannot override these without recompiling.
 
 ---
 
-#### 8. State Validation Missing (NOT FIXED)
+#### 7. State Validation Missing (NOT FIXED)
 
 **No validation on state transitions**
 
@@ -365,7 +323,7 @@ func (cb *CommandBar) setState(newState State) error {
 
 ---
 
-#### 9. Performance Not Measured (NOT AUDITED)
+#### 8. Performance Not Measured (NOT AUDITED)
 
 **Need performance benchmarks for**:
 - Table rebuilding on filter changes
@@ -387,7 +345,7 @@ func BenchmarkTransform(b *testing.B) { ... }
 
 ---
 
-#### 10. Duplicate Filter State (NOT FIXED)
+#### 9. Duplicate Filter State (NOT FIXED)
 
 **Filter state exists in both Screen and CommandBar**
 
@@ -467,18 +425,20 @@ Adopt a **phased refactoring strategy** with two priority tiers:
 
 ### Low Priority (Future Work)
 
-8. **ConfigScreen MVC** - Apply separation of concerns pattern
-9. **State Validation** - Add state machine transition guards
-10. **Performance Benchmarks** - Measure and optimize
-11. **Filter State Consolidation** - Single source of truth
+7. **State Validation** - Add state machine transition guards
+8. **Performance Benchmarks** - Measure and optimize
+9. **Filter State Consolidation** - Single source of truth
 
-### Out of Scope
+### Not Architectural Issues
 
-These architectural issues are acceptable trade-offs given project
-stage:
-- ConfigScreen mixing concerns (11 screens, works well in practice)
-- Minor performance optimizations (no user complaints)
-- State machine validation (low bug frequency)
+These items were initially flagged but are actually correct patterns:
+
+**ConfigScreen "mixing concerns"**: ConfigScreen follows the **Elm
+Architecture** pattern (which BubbleTea implements), where a component
+combines Model + Update + View. This is the **intended design** of the
+framework, not an SRP violation. The proposed "fix" (splitting into
+MVC/MVVM) would fight against the framework's architecture. All 11
+resource screens correctly implement this pattern.
 
 ## Consequences
 
