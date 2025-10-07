@@ -163,13 +163,8 @@ func (r *InformerRepository) Close() {
 }
 ```
 
-**Unchecked context cancellation in goroutines**
-
-Some goroutines don't properly check `ctx.Done()` for cancellation.
-Need comprehensive audit of all goroutines.
-
-**Impact**: High - Resource leaks, goroutine leaks
-**Effort**: Low-Medium (1-2 days) - Audit + fix
+**Impact**: Low-Medium - Rare edge case, unlikely in practice
+**Effort**: Low (< 1 day) - Add guard flag and mutex
 
 ---
 
@@ -439,6 +434,12 @@ combines Model + Update + View. This is the **intended design** of the
 framework, not an SRP violation. The proposed "fix" (splitting into
 MVC/MVVM) would fight against the framework's architecture. All 11
 resource screens correctly implement this pattern.
+
+**Unchecked context cancellation in goroutines**: Comprehensive audit
+found only one production goroutine (commands/executor.go:67-69), which
+correctly handles cancellation via select statement that kills the
+subprocess on ctx.Done(). Informer lifecycle properly propagates
+cancellation through factory.Start(ctx.Done()). No issues found.
 
 ## Consequences
 
