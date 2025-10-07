@@ -98,6 +98,13 @@ func transformDeployment(u *unstructured.Unstructured, common commonFields) (any
 
 	readyStatus := fmt.Sprintf("%d/%d", ready, desired)
 
+	// Extract label selector from .spec.selector.matchLabels
+	selector := make(map[string]string)
+	matchLabels, found, _ := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
+	if found {
+		selector = matchLabels
+	}
+
 	return Deployment{
 		Namespace: common.Namespace,
 		Name:      common.Name,
@@ -106,6 +113,7 @@ func transformDeployment(u *unstructured.Unstructured, common commonFields) (any
 		Available: int32(available),
 		Age:       common.Age,
 		CreatedAt: common.CreatedAt,
+		Selector:  selector,
 	}, nil
 }
 
@@ -170,6 +178,13 @@ func transformService(u *unstructured.Unstructured, common commonFields) (any, e
 		portsStr = "<none>"
 	}
 
+	// Extract label selector from .spec.selector
+	selector := make(map[string]string)
+	selectorMap, found, _ := unstructured.NestedStringMap(u.Object, "spec", "selector")
+	if found {
+		selector = selectorMap
+	}
+
 	return Service{
 		Namespace:  common.Namespace,
 		Name:       common.Name,
@@ -179,6 +194,7 @@ func transformService(u *unstructured.Unstructured, common commonFields) (any, e
 		Ports:      portsStr,
 		Age:        common.Age,
 		CreatedAt:  common.CreatedAt,
+		Selector:   selector,
 	}, nil
 }
 
@@ -241,12 +257,20 @@ func transformStatefulSet(u *unstructured.Unstructured, common commonFields) (an
 
 	readyStatus := fmt.Sprintf("%d/%d", ready, desired)
 
+	// Extract label selector from .spec.selector.matchLabels
+	selector := make(map[string]string)
+	matchLabels, found, _ := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
+	if found {
+		selector = matchLabels
+	}
+
 	return StatefulSet{
 		Namespace: common.Namespace,
 		Name:      common.Name,
 		Ready:     readyStatus,
 		Age:       common.Age,
 		CreatedAt: common.CreatedAt,
+		Selector:  selector,
 	}, nil
 }
 
@@ -260,6 +284,13 @@ func transformDaemonSet(u *unstructured.Unstructured, common commonFields) (any,
 	upToDate, _, _ := unstructured.NestedInt64(u.Object, "status", "updatedNumberScheduled")
 	available, _, _ := unstructured.NestedInt64(u.Object, "status", "numberAvailable")
 
+	// Extract label selector from .spec.selector.matchLabels
+	selector := make(map[string]string)
+	matchLabels, found, _ := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
+	if found {
+		selector = matchLabels
+	}
+
 	return DaemonSet{
 		Namespace: common.Namespace,
 		Name:      common.Name,
@@ -270,6 +301,7 @@ func transformDaemonSet(u *unstructured.Unstructured, common commonFields) (any,
 		Available: int32(available),
 		Age:       common.Age,
 		CreatedAt: common.CreatedAt,
+		Selector:  selector,
 	}, nil
 }
 

@@ -10,6 +10,162 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+func TestTransformDeployment_WithSelector(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-deployment",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"spec": map[string]interface{}{
+				"replicas": int64(3),
+				"selector": map[string]interface{}{
+					"matchLabels": map[string]interface{}{
+						"app":  "nginx",
+						"tier": "frontend",
+					},
+				},
+			},
+			"status": map[string]interface{}{
+				"readyReplicas":     int64(3),
+				"updatedReplicas":   int64(3),
+				"availableReplicas": int64(3),
+			},
+		},
+	}
+
+	common := extractCommonFields(u)
+	result, err := transformDeployment(u, common)
+	require.NoError(t, err)
+
+	deployment, ok := result.(Deployment)
+	require.True(t, ok)
+	assert.Equal(t, "test-deployment", deployment.Name)
+	assert.Equal(t, "default", deployment.Namespace)
+	assert.Equal(t, "3/3", deployment.Ready)
+
+	// Verify selector extraction
+	require.NotNil(t, deployment.Selector)
+	assert.Equal(t, "nginx", deployment.Selector["app"])
+	assert.Equal(t, "frontend", deployment.Selector["tier"])
+}
+
+func TestTransformService_WithSelector(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-service",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"spec": map[string]interface{}{
+				"type":      "ClusterIP",
+				"clusterIP": "10.0.0.1",
+				"selector": map[string]interface{}{
+					"app": "web",
+				},
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port":     int64(80),
+						"protocol": "TCP",
+					},
+				},
+			},
+		},
+	}
+
+	common := extractCommonFields(u)
+	result, err := transformService(u, common)
+	require.NoError(t, err)
+
+	service, ok := result.(Service)
+	require.True(t, ok)
+	assert.Equal(t, "test-service", service.Name)
+	assert.Equal(t, "default", service.Namespace)
+
+	// Verify selector extraction
+	require.NotNil(t, service.Selector)
+	assert.Equal(t, "web", service.Selector["app"])
+}
+
+func TestTransformStatefulSet_WithSelector(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-statefulset",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"spec": map[string]interface{}{
+				"replicas": int64(3),
+				"selector": map[string]interface{}{
+					"matchLabels": map[string]interface{}{
+						"app": "database",
+					},
+				},
+			},
+			"status": map[string]interface{}{
+				"readyReplicas": int64(2),
+			},
+		},
+	}
+
+	common := extractCommonFields(u)
+	result, err := transformStatefulSet(u, common)
+	require.NoError(t, err)
+
+	statefulset, ok := result.(StatefulSet)
+	require.True(t, ok)
+	assert.Equal(t, "test-statefulset", statefulset.Name)
+
+	// Verify selector extraction
+	require.NotNil(t, statefulset.Selector)
+	assert.Equal(t, "database", statefulset.Selector["app"])
+}
+
+func TestTransformDaemonSet_WithSelector(t *testing.T) {
+	now := time.Now()
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":              "test-daemonset",
+				"namespace":         "kube-system",
+				"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+			},
+			"spec": map[string]interface{}{
+				"selector": map[string]interface{}{
+					"matchLabels": map[string]interface{}{
+						"name": "fluentd",
+					},
+				},
+			},
+			"status": map[string]interface{}{
+				"desiredNumberScheduled": int64(3),
+				"currentNumberScheduled": int64(3),
+				"numberReady":            int64(3),
+				"updatedNumberScheduled": int64(3),
+				"numberAvailable":        int64(3),
+			},
+		},
+	}
+
+	common := extractCommonFields(u)
+	result, err := transformDaemonSet(u, common)
+	require.NoError(t, err)
+
+	daemonset, ok := result.(DaemonSet)
+	require.True(t, ok)
+	assert.Equal(t, "test-daemonset", daemonset.Name)
+
+	// Verify selector extraction
+	require.NotNil(t, daemonset.Selector)
+	assert.Equal(t, "fluentd", daemonset.Selector["name"])
+}
+
 func TestTransformConfigMap(t *testing.T) {
 	now := time.Now()
 	u := &unstructured.Unstructured{

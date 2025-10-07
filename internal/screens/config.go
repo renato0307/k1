@@ -52,6 +52,9 @@ type ScreenConfig struct {
 	CustomFilter  func(*ConfigScreen, string)
 	CustomUpdate  func(*ConfigScreen, tea.Msg) (tea.Model, tea.Cmd)
 	CustomView    func(*ConfigScreen) string
+
+	// OnEnter callback for contextual navigation (returns nil to disable)
+	OnEnter func(*ConfigScreen) *types.NavigateMsg
 }
 
 // ConfigScreen is a generic screen implementation driven by ScreenConfig
@@ -163,6 +166,15 @@ func (s *ConfigScreen) DefaultUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
+		// Handle Enter key for contextual navigation
+		if msg.Type == tea.KeyEnter && s.config.OnEnter != nil {
+			if navMsg := s.config.OnEnter(s); navMsg != nil {
+				// Don't forward Enter to table - we handled it
+				return s, func() tea.Msg { return *navMsg }
+			}
+		}
+
+		// Forward other keys to table
 		var cmd tea.Cmd
 		s.table, cmd = s.table.Update(msg)
 		if s.config.TrackSelection {

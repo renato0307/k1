@@ -16,19 +16,24 @@ const (
 	// StatusBarDisplayDuration is how long status messages (success, error,
 	// info) are displayed before automatically clearing.
 	StatusBarDisplayDuration = 5 * time.Second
+
+	// MaxNavigationDepth is the maximum depth of the navigation stack
+	MaxNavigationDepth = 10
 )
 
 type Model struct {
-	state          types.AppState
-	registry       *types.ScreenRegistry
-	currentScreen  types.Screen
-	header         *components.Header
-	layout         *components.Layout
-	statusBar      *components.StatusBar
-	commandBar     *commandbar.CommandBar
-	fullScreen     *components.FullScreen
-	fullScreenMode bool
-	ctx            *types.AppContext
+	state           types.AppState
+	registry        *types.ScreenRegistry
+	currentScreen   types.Screen
+	header          *components.Header
+	layout          *components.Layout
+	statusBar       *components.StatusBar
+	commandBar      *commandbar.CommandBar
+	fullScreen      *components.FullScreen
+	fullScreenMode  bool
+	ctx             *types.AppContext
+	navigationStack []types.NavigationStackEntry
+	navContext      *types.NavigationContext // Current navigation context
 }
 
 func NewModel(ctx *types.AppContext) Model {
@@ -80,14 +85,49 @@ func NewModel(ctx *types.AppContext) Model {
 			Width:         80,
 			Height:        24,
 		},
-		registry:      registry,
-		currentScreen: initialScreen,
-		header:        header,
-		layout:        layout,
-		statusBar:     statusBar,
-		commandBar:    cmdBar,
-		ctx:           ctx,
+		registry:        registry,
+		currentScreen:   initialScreen,
+		header:          header,
+		layout:          layout,
+		statusBar:       statusBar,
+		commandBar:      cmdBar,
+		ctx:             ctx,
+		navigationStack: []types.NavigationStackEntry{},
+		navContext:      nil,
 	}
+}
+
+// pushNavigation adds a new entry to the navigation stack
+func (m *Model) pushNavigation(screenID string, context *types.NavigationContext, scrollPos int) {
+	// Check max depth
+	if len(m.navigationStack) >= MaxNavigationDepth {
+		// Remove oldest entry
+		m.navigationStack = m.navigationStack[1:]
+	}
+
+	entry := types.NavigationStackEntry{
+		ScreenID:  screenID,
+		Context:   context,
+		ScrollPos: scrollPos,
+	}
+	m.navigationStack = append(m.navigationStack, entry)
+}
+
+// popNavigation removes the last entry from the navigation stack
+func (m *Model) popNavigation() *types.NavigationStackEntry {
+	if len(m.navigationStack) == 0 {
+		return nil
+	}
+
+	lastIdx := len(m.navigationStack) - 1
+	entry := m.navigationStack[lastIdx]
+	m.navigationStack = m.navigationStack[:lastIdx]
+	return &entry
+}
+
+// hasNavigationHistory returns true if there's navigation history
+func (m *Model) hasNavigationHistory() bool {
+	return len(m.navigationStack) > 0
 }
 
 func (m Model) Init() tea.Cmd {
@@ -114,7 +154,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// Handle global shortcuts
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
+			return m, tea.Quit
+		case "q":
+			// Check if we have navigation history, if so pop the stack
+			if m.hasNavigationHistory() {
+				return m.Update(types.NavigateBackMsg{})
+			}
 			return m, tea.Quit
 		case "ctrl+y":
 			// Update selection context before executing command
@@ -168,6 +214,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedFS, fsCmd := m.fullScreen.Update(msg)
 			m.fullScreen = updatedFS
 			return m, fsCmd
+		}
+
+		// Handle ESC to navigate back (if not handled by command bar)
+		if msg.String() == "esc" && m.hasNavigationHistory() {
+			// Check if command bar is visible - if so, let it handle ESC
+			if m.commandBar.GetState() != commandbar.StateHidden {
+				// Let command bar handle ESC (it will dismiss itself)
+			} else {
+				// Command bar is hidden, navigate back
+				return m.Update(types.NavigateBackMsg{})
+			}
 		}
 
 		// Update command bar with current selection context
@@ -247,6 +304,70 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Return to list view
 		m.fullScreenMode = false
 		m.fullScreen = nil
+		return m, nil
+
+	case types.NavigateMsg:
+		// Save current screen state to navigation stack
+		scrollPos := 0
+		if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+			// Try to get scroll position if available
+			if screenWithScroll, ok := screenWithSel.(interface{ GetScrollPosition() int }); ok {
+				scrollPos = screenWithScroll.GetScrollPosition()
+			}
+		}
+		m.pushNavigation(m.state.CurrentScreen, m.navContext, scrollPos)
+
+		// Navigate to new screen with context
+		if screen, ok := m.registry.Get(msg.ScreenID); ok {
+			m.currentScreen = screen
+			m.state.CurrentScreen = msg.ScreenID
+			m.navContext = &msg.Context
+
+			// Update command bar with current screen context for command filtering
+			m.commandBar.SetScreen(msg.ScreenID)
+
+			// Update header with screen title and navigation context
+			m.header.SetScreenTitle(screen.Title())
+			m.header.SetNavigationContext(m.navContext)
+
+			bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
+			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
+				screenWithSize.SetSize(m.state.Width, bodyHeight)
+			}
+
+			return m, screen.Init()
+		}
+
+	case types.NavigateBackMsg:
+		// Pop navigation stack and restore previous screen
+		entry := m.popNavigation()
+		if entry != nil {
+			if screen, ok := m.registry.Get(entry.ScreenID); ok {
+				m.currentScreen = screen
+				m.state.CurrentScreen = entry.ScreenID
+				m.navContext = entry.Context
+
+				// Update command bar with current screen context
+				m.commandBar.SetScreen(entry.ScreenID)
+
+				// Update header with screen title and navigation context
+				m.header.SetScreenTitle(screen.Title())
+				m.header.SetNavigationContext(m.navContext)
+
+				bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
+				if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
+					screenWithSize.SetSize(m.state.Width, bodyHeight)
+				}
+
+				// TODO: Restore scroll position if screen supports it
+				// if screenWithScroll, ok := screen.(interface{ SetScrollPosition(int) }); ok {
+				//     screenWithScroll.SetScrollPosition(entry.ScrollPos)
+				// }
+
+				return m, screen.Init()
+			}
+		}
+		// If no history, just return
 		return m, nil
 	}
 

@@ -73,6 +73,7 @@ func GetDeploymentsScreenConfig() ScreenConfig {
 		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
+		OnEnter:               buildDeploymentToPods,
 	}
 }
 
@@ -101,6 +102,7 @@ func GetServicesScreenConfig() ScreenConfig {
 		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
+		OnEnter:               buildServiceToPods,
 	}
 }
 
@@ -198,6 +200,7 @@ func GetStatefulSetsScreenConfig() ScreenConfig {
 		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
+		OnEnter:               buildStatefulSetToPods,
 	}
 }
 
@@ -226,6 +229,7 @@ func GetDaemonSetsScreenConfig() ScreenConfig {
 		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
+		OnEnter:               buildDaemonSetToPods,
 	}
 }
 
@@ -250,6 +254,7 @@ func GetJobsScreenConfig() ScreenConfig {
 		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
+		OnEnter:               buildJobToPods,
 	}
 }
 
@@ -307,6 +312,7 @@ func GetNodesScreenConfig() ScreenConfig {
 		RefreshInterval:       RefreshInterval,
 		TrackSelection:        true,
 		CustomUpdate:          getPeriodicRefreshUpdate(),
+		OnEnter:               buildNodeToPods,
 	}
 }
 

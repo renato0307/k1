@@ -19,6 +19,7 @@ type Header struct {
 	lastRefresh  time.Time
 	width        int
 	theme        *ui.Theme
+	navContext   *types.NavigationContext
 }
 
 func NewHeader(ctx *types.AppContext, appName string) *Header {
@@ -48,6 +49,10 @@ func (h *Header) SetWidth(width int) {
 	h.width = width
 }
 
+func (h *Header) SetNavigationContext(ctx *types.NavigationContext) {
+	h.navContext = ctx
+}
+
 func (h *Header) View() string {
 	// Build header style from theme
 	headerStyle := lipgloss.NewStyle().
@@ -59,9 +64,20 @@ func (h *Header) View() string {
 		Padding(0, 1)
 
 	// Build left side: "Pods • namespace: default • 47 items"
+	// If navigation context exists, show breadcrumb: "Pods (Deployment: my-app)"
 	leftParts := []string{}
 	if h.screenTitle != "" {
-		leftParts = append(leftParts, h.screenTitle)
+		title := h.screenTitle
+		// Add breadcrumb if navigation context exists
+		if h.navContext != nil && h.navContext.FilterLabel != "" {
+			// Truncate resource name if too long
+			filterLabel := h.navContext.FilterLabel
+			if len(filterLabel) > 40 {
+				filterLabel = filterLabel[:37] + "..."
+			}
+			title = fmt.Sprintf("%s (%s)", h.screenTitle, filterLabel)
+		}
+		leftParts = append(leftParts, title)
 	}
 
 	if h.namespace != "" {

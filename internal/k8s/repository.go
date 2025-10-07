@@ -116,6 +116,7 @@ type Deployment struct {
 	Available int32
 	Age       time.Duration
 	CreatedAt time.Time // Stable creation timestamp for sorting
+	Selector  map[string]string // Label selector from .spec.selector.matchLabels
 }
 
 // Service represents a Kubernetes service
@@ -128,6 +129,7 @@ type Service struct {
 	Ports      string
 	Age        time.Duration
 	CreatedAt  time.Time // Stable creation timestamp for sorting
+	Selector   map[string]string // Label selector from .spec.selector
 }
 
 // ConfigMap represents a Kubernetes configmap
@@ -164,6 +166,7 @@ type StatefulSet struct {
 	Ready     string
 	Age       time.Duration
 	CreatedAt time.Time // Stable creation timestamp for sorting
+	Selector  map[string]string // Label selector from .spec.selector.matchLabels
 }
 
 // DaemonSet represents a Kubernetes daemonset
@@ -177,6 +180,7 @@ type DaemonSet struct {
 	Available int32
 	Age       time.Duration
 	CreatedAt time.Time // Stable creation timestamp for sorting
+	Selector  map[string]string // Label selector from .spec.selector.matchLabels
 }
 
 // Job represents a Kubernetes job

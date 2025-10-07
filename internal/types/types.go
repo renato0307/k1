@@ -18,7 +18,7 @@ type Screen interface {
 // ScreenWithSelection interface for screens that track selected resources
 type ScreenWithSelection interface {
 	Screen
-	GetSelectedResource() map[string]interface{}
+	GetSelectedResource() map[string]any
 }
 
 // Operation represents an action that can be executed on a screen
@@ -130,3 +130,31 @@ type ShowFullScreenMsg struct {
 
 // ExitFullScreenMsg returns from full-screen view to list
 type ExitFullScreenMsg struct{}
+
+// NavigationContext holds information about how a screen was navigated to
+type NavigationContext struct {
+	// ParentScreen is the ID of the screen that navigated to this screen
+	ParentScreen string
+	// ParentResource is the name of the resource that was selected in the parent screen
+	ParentResource string
+	// FilterLabel is the label to show in the breadcrumb (e.g., "Deployment: my-app")
+	FilterLabel string
+	// FilterValue is the actual filter to apply (e.g., label selector, namespace, etc.)
+	FilterValue string
+}
+
+// NavigationStackEntry represents a single entry in the navigation history
+type NavigationStackEntry struct {
+	ScreenID  string
+	Context   *NavigationContext
+	ScrollPos int // Preserve scroll position when returning
+}
+
+// NavigateMsg triggers navigation to a new screen with context
+type NavigateMsg struct {
+	ScreenID string
+	Context  NavigationContext
+}
+
+// NavigateBackMsg triggers navigation back to previous screen
+type NavigateBackMsg struct{}
