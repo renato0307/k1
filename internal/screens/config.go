@@ -313,6 +313,11 @@ func (s *ConfigScreen) ApplyFilterContext(ctx *types.FilterContext) {
 	s.filterContext = ctx
 }
 
+// GetFilterContext returns the current filter context
+func (s *ConfigScreen) GetFilterContext() *types.FilterContext {
+	return s.filterContext
+}
+
 // SetFilter applies a filter to the resource list
 func (s *ConfigScreen) SetFilter(filter string) {
 	s.filter = filter

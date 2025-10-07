@@ -105,6 +105,22 @@ func (cb *CommandBar) GetInputType() CommandType {
 	return cb.inputType
 }
 
+// RestoreFilter restores filter state (for back navigation).
+// Sets input text and transitions to StateFilter, returning a FilterUpdateMsg.
+func (cb *CommandBar) RestoreFilter(filter string) tea.Cmd {
+	if filter == "" {
+		return nil
+	}
+
+	cb.input.Set(filter)
+	cb.state = StateFilter
+	cb.inputType = CommandTypeFilter
+
+	return func() tea.Msg {
+		return types.FilterUpdateMsg{Filter: filter}
+	}
+}
+
 // IsActive returns true if the command bar is accepting input.
 func (cb *CommandBar) IsActive() bool {
 	return cb.state != StateHidden && cb.state != StateResult
