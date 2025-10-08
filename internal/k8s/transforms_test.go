@@ -760,3 +760,421 @@ func TestTransformNode(t *testing.T) {
 		})
 	}
 }
+
+func TestTransformReplicaSet(t *testing.T) {
+	now := time.Now()
+	
+	tests := []struct {
+		name            string
+		spec            map[string]interface{}
+		status          map[string]interface{}
+		expectedDesired int32
+		expectedCurrent int32
+		expectedReady   int32
+	}{
+		{
+			name: "ReplicaSet with all replicas ready",
+			spec: map[string]interface{}{
+				"replicas": int64(3),
+			},
+			status: map[string]interface{}{
+				"replicas":      int64(3),
+				"readyReplicas": int64(3),
+			},
+			expectedDesired: 3,
+			expectedCurrent: 3,
+			expectedReady:   3,
+		},
+		{
+			name: "ReplicaSet scaling up",
+			spec: map[string]interface{}{
+				"replicas": int64(5),
+			},
+			status: map[string]interface{}{
+				"replicas":      int64(3),
+				"readyReplicas": int64(3),
+			},
+			expectedDesired: 5,
+			expectedCurrent: 3,
+			expectedReady:   3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-rs",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"spec":   tt.spec,
+					"status": tt.status,
+				},
+			}
+
+			common := extractCommonFields(u)
+			result, err := transformReplicaSet(u, common)
+			require.NoError(t, err)
+
+			rs, ok := result.(ReplicaSet)
+			require.True(t, ok)
+			assert.Equal(t, "test-rs", rs.Name)
+			assert.Equal(t, "default", rs.Namespace)
+			assert.Equal(t, tt.expectedDesired, rs.Desired)
+			assert.Equal(t, tt.expectedCurrent, rs.Current)
+			assert.Equal(t, tt.expectedReady, rs.Ready)
+		})
+	}
+}
+
+func TestTransformPVC(t *testing.T) {
+	now := time.Now()
+	
+	tests := []struct {
+		name                 string
+		spec                 map[string]interface{}
+		status               map[string]interface{}
+		expectedStatus       string
+		expectedVolume       string
+		expectedCapacity     string
+		expectedAccessModes  string
+		expectedStorageClass string
+	}{
+		{
+			name: "Bound PVC",
+			spec: map[string]interface{}{
+				"volumeName":       "pv-123",
+				"accessModes":      []interface{}{"ReadWriteOnce"},
+				"storageClassName": "standard",
+			},
+			status: map[string]interface{}{
+				"phase": "Bound",
+				"capacity": map[string]interface{}{
+					"storage": "10Gi",
+				},
+			},
+			expectedStatus:       "Bound",
+			expectedVolume:       "pv-123",
+			expectedCapacity:     "10Gi",
+			expectedAccessModes:  "ReadWriteOnce",
+			expectedStorageClass: "standard",
+		},
+		{
+			name: "Pending PVC",
+			spec: map[string]interface{}{
+				"accessModes":      []interface{}{"ReadWriteOnce", "ReadWriteMany"},
+				"storageClassName": "fast",
+			},
+			status: map[string]interface{}{
+				"phase": "Pending",
+			},
+			expectedStatus:       "Pending",
+			expectedVolume:       "",
+			expectedCapacity:     "<none>",
+			expectedAccessModes:  "ReadWriteOnce,ReadWriteMany",
+			expectedStorageClass: "fast",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-pvc",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"spec":   tt.spec,
+					"status": tt.status,
+				},
+			}
+
+			common := extractCommonFields(u)
+			result, err := transformPVC(u, common)
+			require.NoError(t, err)
+
+			pvc, ok := result.(PersistentVolumeClaim)
+			require.True(t, ok)
+			assert.Equal(t, "test-pvc", pvc.Name)
+			assert.Equal(t, "default", pvc.Namespace)
+			assert.Equal(t, tt.expectedStatus, pvc.Status)
+			assert.Equal(t, tt.expectedVolume, pvc.Volume)
+			assert.Equal(t, tt.expectedCapacity, pvc.Capacity)
+			assert.Equal(t, tt.expectedAccessModes, pvc.AccessModes)
+			assert.Equal(t, tt.expectedStorageClass, pvc.StorageClass)
+		})
+	}
+}
+
+func TestTransformIngress(t *testing.T) {
+	now := time.Now()
+	
+	tests := []struct {
+		name            string
+		spec            map[string]interface{}
+		status          map[string]interface{}
+		expectedClass   string
+		expectedHosts   string
+		expectedAddress string
+	}{
+		{
+			name: "Ingress with hostname",
+			spec: map[string]interface{}{
+				"ingressClassName": "nginx",
+				"rules": []interface{}{
+					map[string]interface{}{
+						"host": "example.com",
+					},
+					map[string]interface{}{
+						"host": "api.example.com",
+					},
+				},
+			},
+			status: map[string]interface{}{
+				"loadBalancer": map[string]interface{}{
+					"ingress": []interface{}{
+						map[string]interface{}{
+							"hostname": "lb.example.com",
+						},
+					},
+				},
+			},
+			expectedClass:   "nginx",
+			expectedHosts:   "example.com, api.example.com",
+			expectedAddress: "lb.example.com",
+		},
+		{
+			name: "Ingress with IP address",
+			spec: map[string]interface{}{
+				"ingressClassName": "traefik",
+				"rules": []interface{}{
+					map[string]interface{}{
+						"host": "test.com",
+					},
+				},
+			},
+			status: map[string]interface{}{
+				"loadBalancer": map[string]interface{}{
+					"ingress": []interface{}{
+						map[string]interface{}{
+							"ip": "10.0.0.1",
+						},
+					},
+				},
+			},
+			expectedClass:   "traefik",
+			expectedHosts:   "test.com",
+			expectedAddress: "10.0.0.1",
+		},
+		{
+			name: "Ingress without host (default backend)",
+			spec: map[string]interface{}{
+				"ingressClassName": "nginx",
+				"rules":            []interface{}{},
+			},
+			status:          map[string]interface{}{},
+			expectedClass:   "nginx",
+			expectedHosts:   "*",
+			expectedAddress: "<pending>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-ingress",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"spec":   tt.spec,
+					"status": tt.status,
+				},
+			}
+
+			common := extractCommonFields(u)
+			result, err := transformIngress(u, common)
+			require.NoError(t, err)
+
+			ingress, ok := result.(Ingress)
+			require.True(t, ok)
+			assert.Equal(t, "test-ingress", ingress.Name)
+			assert.Equal(t, "default", ingress.Namespace)
+			assert.Equal(t, tt.expectedClass, ingress.Class)
+			assert.Equal(t, tt.expectedHosts, ingress.Hosts)
+			assert.Equal(t, tt.expectedAddress, ingress.Address)
+			assert.Equal(t, "80, 443", ingress.Ports)
+		})
+	}
+}
+
+func TestTransformEndpoints(t *testing.T) {
+	now := time.Now()
+	
+	tests := []struct {
+		name              string
+		subsets           []interface{}
+		expectedEndpoints string
+	}{
+		{
+			name: "Endpoints with multiple addresses",
+			subsets: []interface{}{
+				map[string]interface{}{
+					"addresses": []interface{}{
+						map[string]interface{}{"ip": "10.0.1.5"},
+						map[string]interface{}{"ip": "10.0.1.6"},
+					},
+					"ports": []interface{}{
+						map[string]interface{}{"port": int64(8080)},
+					},
+				},
+			},
+			expectedEndpoints: "10.0.1.5:8080, 10.0.1.6:8080",
+		},
+		{
+			name: "Endpoints with multiple ports",
+			subsets: []interface{}{
+				map[string]interface{}{
+					"addresses": []interface{}{
+						map[string]interface{}{"ip": "10.0.1.5"},
+					},
+					"ports": []interface{}{
+						map[string]interface{}{"port": int64(8080)},
+						map[string]interface{}{"port": int64(9090)},
+					},
+				},
+			},
+			expectedEndpoints: "10.0.1.5:8080, 10.0.1.5:9090",
+		},
+		{
+			name:              "Empty endpoints",
+			subsets:           []interface{}{},
+			expectedEndpoints: "<none>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-endpoints",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"subsets": tt.subsets,
+				},
+			}
+
+			common := extractCommonFields(u)
+			result, err := transformEndpoints(u, common)
+			require.NoError(t, err)
+
+			endpoints, ok := result.(Endpoints)
+			require.True(t, ok)
+			assert.Equal(t, "test-endpoints", endpoints.Name)
+			assert.Equal(t, "default", endpoints.Namespace)
+			assert.Equal(t, tt.expectedEndpoints, endpoints.Endpoints)
+		})
+	}
+}
+
+func TestTransformHPA(t *testing.T) {
+	now := time.Now()
+	
+	tests := []struct {
+		name              string
+		spec              map[string]interface{}
+		status            map[string]interface{}
+		expectedReference string
+		expectedMinPods   int32
+		expectedMaxPods   int32
+		expectedReplicas  int32
+		expectedTargetCPU string
+	}{
+		{
+			name: "HPA with CPU metric",
+			spec: map[string]interface{}{
+				"minReplicas": int64(2),
+				"maxReplicas": int64(10),
+				"scaleTargetRef": map[string]interface{}{
+					"kind": "Deployment",
+					"name": "nginx",
+				},
+				"metrics": []interface{}{
+					map[string]interface{}{
+						"type": "Resource",
+						"resource": map[string]interface{}{
+							"name": "cpu",
+							"target": map[string]interface{}{
+								"averageUtilization": int64(80),
+							},
+						},
+					},
+				},
+			},
+			status: map[string]interface{}{
+				"currentReplicas": int64(5),
+			},
+			expectedReference: "Deployment/nginx",
+			expectedMinPods:   2,
+			expectedMaxPods:   10,
+			expectedReplicas:  5,
+			expectedTargetCPU: "80%",
+		},
+		{
+			name: "HPA without CPU metric",
+			spec: map[string]interface{}{
+				"minReplicas": int64(1),
+				"maxReplicas": int64(5),
+				"scaleTargetRef": map[string]interface{}{
+					"kind": "StatefulSet",
+					"name": "redis",
+				},
+				"metrics": []interface{}{},
+			},
+			status: map[string]interface{}{
+				"currentReplicas": int64(3),
+			},
+			expectedReference: "StatefulSet/redis",
+			expectedMinPods:   1,
+			expectedMaxPods:   5,
+			expectedReplicas:  3,
+			expectedTargetCPU: "N/A",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":              "test-hpa",
+						"namespace":         "default",
+						"creationTimestamp": metav1.NewTime(now).Format(time.RFC3339),
+					},
+					"spec":   tt.spec,
+					"status": tt.status,
+				},
+			}
+
+			common := extractCommonFields(u)
+			result, err := transformHPA(u, common)
+			require.NoError(t, err)
+
+			hpa, ok := result.(HorizontalPodAutoscaler)
+			require.True(t, ok)
+			assert.Equal(t, "test-hpa", hpa.Name)
+			assert.Equal(t, "default", hpa.Namespace)
+			assert.Equal(t, tt.expectedReference, hpa.Reference)
+			assert.Equal(t, tt.expectedMinPods, hpa.MinPods)
+			assert.Equal(t, tt.expectedMaxPods, hpa.MaxPods)
+			assert.Equal(t, tt.expectedReplicas, hpa.Replicas)
+			assert.Equal(t, tt.expectedTargetCPU, hpa.TargetCPU)
+		})
+	}
+}

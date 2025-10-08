@@ -320,6 +320,144 @@ func GetNodesScreenConfig() ScreenConfig {
 	}
 }
 
+// GetReplicaSetsScreenConfig returns the configuration for ReplicaSets screen
+func GetReplicaSetsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "replicasets",
+		Title:        "ReplicaSets",
+		ResourceType: k8s.ResourceTypeReplicaSet,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 40},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Desired", Title: "Desired", Width: 10},
+			{Field: "Current", Title: "Current", Width: 10},
+			{Field: "Ready", Title: "Ready", Width: 10},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected ReplicaSet", Shortcut: "d"},
+			{ID: "yaml", Name: "YAML", Description: "View YAML", Shortcut: "y"},
+		},
+		NavigationHandler:     navigateToPodsForOwner("ReplicaSet"),
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
+	}
+}
+
+// GetPVCsScreenConfig returns the configuration for PersistentVolumeClaims screen
+func GetPVCsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "persistentvolumeclaims",
+		Title:        "PersistentVolumeClaims",
+		ResourceType: k8s.ResourceTypePersistentVolumeClaim,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 40},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Status", Title: "Status", Width: 12},
+			{Field: "Volume", Title: "Volume", Width: 30},
+			{Field: "Capacity", Title: "Capacity", Width: 12},
+			{Field: "AccessModes", Title: "Access", Width: 12},
+			{Field: "StorageClass", Title: "StorageClass", Width: 20},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name", "Status", "StorageClass"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected PVC", Shortcut: "d"},
+			{ID: "yaml", Name: "YAML", Description: "View YAML", Shortcut: "y"},
+		},
+		NavigationHandler:     navigateToPodsForPVC(),
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
+	}
+}
+
+// GetIngressesScreenConfig returns the configuration for Ingresses screen
+func GetIngressesScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "ingresses",
+		Title:        "Ingresses",
+		ResourceType: k8s.ResourceTypeIngress,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 40},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Class", Title: "Class", Width: 20},
+			{Field: "Hosts", Title: "Hosts", Width: 40},
+			{Field: "Address", Title: "Address", Width: 30},
+			{Field: "Ports", Title: "Ports", Width: 12},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name", "Hosts", "Address"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected Ingress", Shortcut: "d"},
+			{ID: "yaml", Name: "YAML", Description: "View YAML", Shortcut: "y"},
+		},
+		NavigationHandler:     navigateToServicesForIngress(),
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
+	}
+}
+
+// GetEndpointsScreenConfig returns the configuration for Endpoints screen
+func GetEndpointsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "endpoints",
+		Title:        "Endpoints",
+		ResourceType: k8s.ResourceTypeEndpoints,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 40},
+			{Field: "Name", Title: "Name", Width: 30},
+			{Field: "Endpoints", Title: "Endpoints", Width: 0},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name", "Endpoints"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected Endpoints", Shortcut: "d"},
+			{ID: "yaml", Name: "YAML", Description: "View YAML", Shortcut: "y"},
+		},
+		NavigationHandler:     navigateToPodsForEndpoints(),
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
+	}
+}
+
+// GetHPAsScreenConfig returns the configuration for HorizontalPodAutoscalers screen
+func GetHPAsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "horizontalpodautoscalers",
+		Title:        "HorizontalPodAutoscalers",
+		ResourceType: k8s.ResourceTypeHPA,
+		Columns: []ColumnConfig{
+			{Field: "Namespace", Title: "Namespace", Width: 40},
+			{Field: "Name", Title: "Name", Width: 0},
+			{Field: "Reference", Title: "Reference", Width: 35},
+			{Field: "MinPods", Title: "Min", Width: 8},
+			{Field: "MaxPods", Title: "Max", Width: 8},
+			{Field: "Replicas", Title: "Current", Width: 10},
+			{Field: "TargetCPU", Title: "Target", Width: 12},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
+		},
+		SearchFields: []string{"Namespace", "Name", "Reference"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected HPA", Shortcut: "d"},
+			{ID: "yaml", Name: "YAML", Description: "View YAML", Shortcut: "y"},
+		},
+		NavigationHandler:     navigateToTargetForHPA(),
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
+	}
+}
+
 // tickCmd returns a command that sends a tickMsg after 1 second
 func tickCmd() tea.Cmd {
 	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {

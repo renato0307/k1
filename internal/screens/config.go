@@ -332,6 +332,21 @@ func (s *ConfigScreen) refreshWithFilterContext() ([]interface{}, error) {
 		return items, nil
 	}
 
+	// Handle Deployment → ReplicaSets navigation (target is replicasets, not pods)
+	if s.config.ResourceType == k8s.ResourceTypeReplicaSet && s.filterContext.Field == "owner" {
+		namespace := s.filterContext.Metadata["namespace"]
+		replicaSets, err := s.repo.GetReplicaSetsForDeployment(namespace, s.filterContext.Value)
+		if err != nil {
+			return nil, err
+		}
+		// Convert []ReplicaSet to []interface{}
+		items := make([]interface{}, len(replicaSets))
+		for i, rs := range replicaSets {
+			items[i] = rs
+		}
+		return items, nil
+	}
+
 	// All other filtering targets pods
 	if s.config.ResourceType != k8s.ResourceTypePod {
 		return s.repo.GetResources(s.config.ResourceType)
@@ -344,7 +359,7 @@ func (s *ConfigScreen) refreshWithFilterContext() ([]interface{}, error) {
 
 	switch s.filterContext.Field {
 	case "owner":
-		// Deployment/StatefulSet/DaemonSet/Job → Pods
+		// Deployment/StatefulSet/DaemonSet/Job/ReplicaSet → Pods
 		switch kind {
 		case "Deployment":
 			pods, err = s.repo.GetPodsForDeployment(namespace, s.filterContext.Value)
@@ -354,6 +369,8 @@ func (s *ConfigScreen) refreshWithFilterContext() ([]interface{}, error) {
 			pods, err = s.repo.GetPodsForDaemonSet(namespace, s.filterContext.Value)
 		case "Job":
 			pods, err = s.repo.GetPodsForJob(namespace, s.filterContext.Value)
+		case "ReplicaSet":
+			pods, err = s.repo.GetPodsForReplicaSet(namespace, s.filterContext.Value)
 		default:
 			return s.repo.GetResources(s.config.ResourceType)
 		}
@@ -372,6 +389,12 @@ func (s *ConfigScreen) refreshWithFilterContext() ([]interface{}, error) {
 	case "secret":
 		// Secret → Pods
 		pods, err = s.repo.GetPodsUsingSecret(namespace, s.filterContext.Value)
+	case "pvc":
+		// PVC → Pods
+		pods, err = s.repo.GetPodsForPVC(namespace, s.filterContext.Value)
+	case "endpoints":
+		// Endpoints → Pods (same as service selector)
+		pods, err = s.repo.GetPodsForService(namespace, s.filterContext.Value)
 	default:
 		return s.repo.GetResources(s.config.ResourceType)
 	}

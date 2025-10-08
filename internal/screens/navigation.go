@@ -1,6 +1,8 @@
 package screens
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/types"
 )
@@ -179,6 +181,167 @@ func navigateToPodsForVolumeSource(kind string) NavigationFunc {
 				ScreenID: "pods",
 				FilterContext: &types.FilterContext{
 					Field: field,
+					Value: name,
+					Metadata: map[string]string{
+						"namespace": namespace,
+						"kind":      kind,
+					},
+				},
+			}
+		}
+	}
+}
+// navigateToReplicaSetsForDeployment creates handler for Deployment → ReplicaSets
+func navigateToReplicaSetsForDeployment() NavigationFunc {
+	return func(s *ConfigScreen) tea.Cmd {
+		resource := s.GetSelectedResource()
+		if resource == nil {
+			return nil
+		}
+
+		namespace, _ := resource["namespace"].(string)
+		name, _ := resource["name"].(string)
+		if namespace == "" || name == "" {
+			return nil
+		}
+
+		return func() tea.Msg {
+			return types.ScreenSwitchMsg{
+				ScreenID: "replicasets",
+				FilterContext: &types.FilterContext{
+					Field: "owner",
+					Value: name,
+					Metadata: map[string]string{
+						"namespace": namespace,
+						"kind":      "Deployment",
+					},
+				},
+			}
+		}
+	}
+}
+
+// navigateToPodsForPVC creates handler for PVC → Pods
+func navigateToPodsForPVC() NavigationFunc {
+	return func(s *ConfigScreen) tea.Cmd {
+		resource := s.GetSelectedResource()
+		if resource == nil {
+			return nil
+		}
+
+		namespace, _ := resource["namespace"].(string)
+		name, _ := resource["name"].(string)
+		if namespace == "" || name == "" {
+			return nil
+		}
+
+		return func() tea.Msg {
+			return types.ScreenSwitchMsg{
+				ScreenID: "pods",
+				FilterContext: &types.FilterContext{
+					Field: "pvc",
+					Value: name,
+					Metadata: map[string]string{
+						"namespace": namespace,
+						"kind":      "PersistentVolumeClaim",
+					},
+				},
+			}
+		}
+	}
+}
+
+// navigateToServicesForIngress creates handler for Ingress → Services
+func navigateToServicesForIngress() NavigationFunc {
+	return func(s *ConfigScreen) tea.Cmd {
+		resource := s.GetSelectedResource()
+		if resource == nil {
+			return nil
+		}
+
+		namespace, _ := resource["namespace"].(string)
+		name, _ := resource["name"].(string)
+		if namespace == "" || name == "" {
+			return nil
+		}
+
+		return func() tea.Msg {
+			return types.ScreenSwitchMsg{
+				ScreenID: "services",
+				FilterContext: &types.FilterContext{
+					Field: "ingress",
+					Value: name,
+					Metadata: map[string]string{
+						"namespace": namespace,
+						"kind":      "Ingress",
+					},
+				},
+			}
+		}
+	}
+}
+
+// navigateToPodsForEndpoints creates handler for Endpoints → Pods
+func navigateToPodsForEndpoints() NavigationFunc {
+	return func(s *ConfigScreen) tea.Cmd {
+		resource := s.GetSelectedResource()
+		if resource == nil {
+			return nil
+		}
+
+		namespace, _ := resource["namespace"].(string)
+		name, _ := resource["name"].(string)
+		if namespace == "" || name == "" {
+			return nil
+		}
+
+		return func() tea.Msg {
+			return types.ScreenSwitchMsg{
+				ScreenID: "pods",
+				FilterContext: &types.FilterContext{
+					Field: "endpoints",
+					Value: name,
+					Metadata: map[string]string{
+						"namespace": namespace,
+						"kind":      "Endpoints",
+					},
+				},
+			}
+		}
+	}
+}
+
+// navigateToTargetForHPA creates handler for HPA → Deployment/StatefulSet
+func navigateToTargetForHPA() NavigationFunc {
+	return func(s *ConfigScreen) tea.Cmd {
+		resource := s.GetSelectedResource()
+		if resource == nil {
+			return nil
+		}
+
+		namespace, _ := resource["namespace"].(string)
+		reference, _ := resource["reference"].(string)
+		if namespace == "" || reference == "" {
+			return nil
+		}
+
+		// Parse "Deployment/nginx" format
+		parts := strings.Split(reference, "/")
+		if len(parts) != 2 {
+			return nil
+		}
+
+		kind := parts[0]
+		name := parts[1]
+
+		// Map kind to screen ID
+		screenID := strings.ToLower(kind) + "s"
+
+		return func() tea.Msg {
+			return types.ScreenSwitchMsg{
+				ScreenID: screenID,
+				FilterContext: &types.FilterContext{
+					Field: "name",
 					Value: name,
 					Metadata: map[string]string{
 						"namespace": namespace,

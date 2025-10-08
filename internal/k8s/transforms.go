@@ -418,6 +418,195 @@ func transformNode(u *unstructured.Unstructured, common commonFields) (any, erro
 	}, nil
 }
 
+// transformReplicaSet converts an unstructured replicaset to a typed ReplicaSet
+func transformReplicaSet(u *unstructured.Unstructured, common commonFields) (any, error) {
+	desired, _, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
+	current, _, _ := unstructured.NestedInt64(u.Object, "status", "replicas")
+	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
+
+	return ReplicaSet{
+		Namespace: common.Namespace,
+		Name:      common.Name,
+		Desired:   int32(desired),
+		Current:   int32(current),
+		Ready:     int32(ready),
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
+	}, nil
+}
+
+// transformPVC converts an unstructured PVC to a typed PersistentVolumeClaim
+func transformPVC(u *unstructured.Unstructured, common commonFields) (any, error) {
+	phase, _, _ := unstructured.NestedString(u.Object, "status", "phase")
+	volumeName, _, _ := unstructured.NestedString(u.Object, "spec", "volumeName")
+
+	// Extract capacity
+	capacity := "<none>"
+	if phase == "Bound" {
+		capacityMap, found, _ := unstructured.NestedMap(u.Object, "status", "capacity")
+		if found {
+			if storage, ok := capacityMap["storage"].(string); ok {
+				capacity = storage
+			}
+		}
+	}
+
+	// Extract access modes
+	accessModes, _, _ := unstructured.NestedStringSlice(u.Object, "spec", "accessModes")
+	accessModesStr := strings.Join(accessModes, ",")
+
+	storageClass, _, _ := unstructured.NestedString(u.Object, "spec", "storageClassName")
+
+	return PersistentVolumeClaim{
+		Namespace:    common.Namespace,
+		Name:         common.Name,
+		Status:       phase,
+		Volume:       volumeName,
+		Capacity:     capacity,
+		AccessModes:  accessModesStr,
+		StorageClass: storageClass,
+		Age:          common.Age,
+		CreatedAt:    common.CreatedAt,
+	}, nil
+}
+
+// transformIngress converts an unstructured ingress to a typed Ingress
+func transformIngress(u *unstructured.Unstructured, common commonFields) (any, error) {
+	ingressClass, _, _ := unstructured.NestedString(u.Object, "spec", "ingressClassName")
+
+	// Extract hosts from rules
+	rules, _, _ := unstructured.NestedSlice(u.Object, "spec", "rules")
+	hosts := []string{}
+	for _, rule := range rules {
+		ruleMap, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if host, _, _ := unstructured.NestedString(ruleMap, "host"); host != "" {
+			hosts = append(hosts, host)
+		}
+	}
+	hostsStr := strings.Join(hosts, ", ")
+	if hostsStr == "" {
+		hostsStr = "*"
+	}
+
+	// Extract load balancer address
+	address := "<pending>"
+	lbIngress, _, _ := unstructured.NestedSlice(u.Object, "status", "loadBalancer", "ingress")
+	if len(lbIngress) > 0 {
+		if lbMap, ok := lbIngress[0].(map[string]any); ok {
+			if ip, _, _ := unstructured.NestedString(lbMap, "ip"); ip != "" {
+				address = ip
+			} else if hostname, _, _ := unstructured.NestedString(lbMap, "hostname"); hostname != "" {
+				address = hostname
+			}
+		}
+	}
+
+	return Ingress{
+		Namespace: common.Namespace,
+		Name:      common.Name,
+		Class:     ingressClass,
+		Hosts:     hostsStr,
+		Address:   address,
+		Ports:     "80, 443", // Simplified - most ingresses use these
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
+	}, nil
+}
+
+// transformEndpoints converts an unstructured endpoints to a typed Endpoints
+func transformEndpoints(u *unstructured.Unstructured, common commonFields) (any, error) {
+	// Parse subsets to extract endpoints (IP:port pairs)
+	subsets, _, _ := unstructured.NestedSlice(u.Object, "subsets")
+	endpoints := []string{}
+
+	for _, subset := range subsets {
+		subsetMap, ok := subset.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		addresses, _, _ := unstructured.NestedSlice(subsetMap, "addresses")
+		ports, _, _ := unstructured.NestedSlice(subsetMap, "ports")
+
+		for _, addr := range addresses {
+			addrMap, ok := addr.(map[string]any)
+			if !ok {
+				continue
+			}
+			ip, _, _ := unstructured.NestedString(addrMap, "ip")
+
+			for _, port := range ports {
+				portMap, ok := port.(map[string]any)
+				if !ok {
+					continue
+				}
+				portNum, _, _ := unstructured.NestedInt64(portMap, "port")
+				endpoints = append(endpoints, fmt.Sprintf("%s:%d", ip, portNum))
+			}
+		}
+	}
+
+	endpointsStr := strings.Join(endpoints, ", ")
+	if endpointsStr == "" {
+		endpointsStr = "<none>"
+	}
+
+	return Endpoints{
+		Namespace: common.Namespace,
+		Name:      common.Name,
+		Endpoints: endpointsStr,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
+	}, nil
+}
+
+// transformHPA converts an unstructured HPA to a typed HorizontalPodAutoscaler
+func transformHPA(u *unstructured.Unstructured, common commonFields) (any, error) {
+	minReplicas, _, _ := unstructured.NestedInt64(u.Object, "spec", "minReplicas")
+	maxReplicas, _, _ := unstructured.NestedInt64(u.Object, "spec", "maxReplicas")
+	currentReplicas, _, _ := unstructured.NestedInt64(u.Object, "status", "currentReplicas")
+
+	// Extract scale target reference
+	refKind, _, _ := unstructured.NestedString(u.Object, "spec", "scaleTargetRef", "kind")
+	refName, _, _ := unstructured.NestedString(u.Object, "spec", "scaleTargetRef", "name")
+	reference := fmt.Sprintf("%s/%s", refKind, refName)
+
+	// Extract target CPU utilization (v2 API)
+	targetCPU := "N/A"
+	metrics, _, _ := unstructured.NestedSlice(u.Object, "spec", "metrics")
+	for _, metric := range metrics {
+		metricMap, ok := metric.(map[string]any)
+		if !ok {
+			continue
+		}
+		metricType, _, _ := unstructured.NestedString(metricMap, "type")
+		if metricType == "Resource" {
+			resource, _, _ := unstructured.NestedMap(metricMap, "resource")
+			name, _, _ := unstructured.NestedString(resource, "name")
+			if name == "cpu" {
+				if target, _, _ := unstructured.NestedInt64(resource, "target", "averageUtilization"); target > 0 {
+					targetCPU = fmt.Sprintf("%d%%", target)
+				}
+			}
+		}
+	}
+
+	return HorizontalPodAutoscaler{
+		Namespace: common.Namespace,
+		Name:      common.Name,
+		Reference: reference,
+		MinPods:   int32(minReplicas),
+		MaxPods:   int32(maxReplicas),
+		Replicas:  int32(currentReplicas),
+		TargetCPU: targetCPU,
+		Age:       common.Age,
+		CreatedAt: common.CreatedAt,
+	}, nil
+}
+
 // getResourceRegistry returns the registry of all supported resources
 func getResourceRegistry() map[ResourceType]ResourceConfig {
 	return map[ResourceType]ResourceConfig{
@@ -541,6 +730,61 @@ func getResourceRegistry() map[ResourceType]ResourceConfig {
 			Namespaced: false, // Cluster-scoped
 			Tier:       3,
 			Transform:  transformNode,
+		},
+		ResourceTypeReplicaSet: {
+			GVR: schema.GroupVersionResource{
+				Group:    "apps",
+				Version:  "v1",
+				Resource: "replicasets",
+			},
+			Name:       "ReplicaSets",
+			Namespaced: true,
+			Tier:       1,
+			Transform:  transformReplicaSet,
+		},
+		ResourceTypePersistentVolumeClaim: {
+			GVR: schema.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "persistentvolumeclaims",
+			},
+			Name:       "PersistentVolumeClaims",
+			Namespaced: true,
+			Tier:       1,
+			Transform:  transformPVC,
+		},
+		ResourceTypeIngress: {
+			GVR: schema.GroupVersionResource{
+				Group:    "networking.k8s.io",
+				Version:  "v1",
+				Resource: "ingresses",
+			},
+			Name:       "Ingresses",
+			Namespaced: true,
+			Tier:       1,
+			Transform:  transformIngress,
+		},
+		ResourceTypeEndpoints: {
+			GVR: schema.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "endpoints",
+			},
+			Name:       "Endpoints",
+			Namespaced: true,
+			Tier:       1,
+			Transform:  transformEndpoints,
+		},
+		ResourceTypeHPA: {
+			GVR: schema.GroupVersionResource{
+				Group:    "autoscaling",
+				Version:  "v2",
+				Resource: "horizontalpodautoscalers",
+			},
+			Name:       "HorizontalPodAutoscalers",
+			Namespaced: true,
+			Tier:       1,
+			Transform:  transformHPA,
 		},
 	}
 }

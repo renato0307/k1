@@ -21,7 +21,12 @@ const (
 	ResourceTypeDaemonSet   ResourceType = "daemonsets"
 	ResourceTypeJob         ResourceType = "jobs"
 	ResourceTypeCronJob     ResourceType = "cronjobs"
-	ResourceTypeNode        ResourceType = "nodes"
+	ResourceTypeNode                  ResourceType = "nodes"
+	ResourceTypeReplicaSet            ResourceType = "replicasets"
+	ResourceTypePersistentVolumeClaim ResourceType = "persistentvolumeclaims"
+	ResourceTypeIngress               ResourceType = "ingresses"
+	ResourceTypeEndpoints             ResourceType = "endpoints"
+	ResourceTypeHPA                   ResourceType = "horizontalpodautoscalers"
 )
 
 // GetGVRForResourceType returns the GroupVersionResource for a resource type
@@ -67,6 +72,18 @@ type ResourceConfig struct {
 // to avoid redundant field extraction in every transform function
 type TransformFunc func(*unstructured.Unstructured, commonFields) (any, error)
 
+// ResourceStats holds statistics for a resource type
+type ResourceStats struct {
+	ResourceType ResourceType
+	Count        int
+	LastUpdate   time.Time
+	AddEvents    int64
+	UpdateEvents int64
+	DeleteEvents int64
+	Synced       bool
+	MemoryBytes  int64 // Approximate
+}
+
 // Repository provides access to Kubernetes resources
 type Repository interface {
 	// Generic resource access (config-driven)
@@ -88,6 +105,9 @@ type Repository interface {
 	GetPodsForNamespace(namespace string) ([]Pod, error)
 	GetPodsUsingConfigMap(namespace, name string) ([]Pod, error)
 	GetPodsUsingSecret(namespace, name string) ([]Pod, error)
+	GetPodsForReplicaSet(namespace, name string) ([]Pod, error)
+	GetReplicaSetsForDeployment(namespace, name string) ([]ReplicaSet, error)
+	GetPodsForPVC(namespace, name string) ([]Pod, error)
 
 	// Resource detail commands (using kubectl libraries)
 	GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error)
@@ -96,6 +116,9 @@ type Repository interface {
 	// Kubeconfig and context (for kubectl subprocess commands)
 	GetKubeconfig() string
 	GetContext() string
+
+	// Statistics (for system resources screen)
+	GetResourceStats() []ResourceStats
 
 	Close()
 }
@@ -220,4 +243,62 @@ type Node struct {
 	Zone         string
 	NodePool     string
 	OSImage      string
+}
+
+// ReplicaSet represents a Kubernetes replicaset
+type ReplicaSet struct {
+	Namespace string
+	Name      string
+	Desired   int32
+	Current   int32
+	Ready     int32
+	Age       time.Duration
+	CreatedAt time.Time
+}
+
+// PersistentVolumeClaim represents a Kubernetes PVC
+type PersistentVolumeClaim struct {
+	Namespace    string
+	Name         string
+	Status       string // Bound, Pending, Lost
+	Volume       string // PV name
+	Capacity     string // "10Gi"
+	AccessModes  string // "RWO", "RWX", "ROX"
+	StorageClass string
+	Age          time.Duration
+	CreatedAt    time.Time
+}
+
+// Ingress represents a Kubernetes ingress
+type Ingress struct {
+	Namespace string
+	Name      string
+	Class     string // IngressClass name
+	Hosts     string // Comma-separated
+	Address   string // LoadBalancer IP/hostname
+	Ports     string // "80, 443"
+	Age       time.Duration
+	CreatedAt time.Time
+}
+
+// Endpoints represents a Kubernetes endpoints
+type Endpoints struct {
+	Namespace string
+	Name      string
+	Endpoints string // "10.0.1.5:8080, 10.0.1.6:8080" (comma-separated)
+	Age       time.Duration
+	CreatedAt time.Time
+}
+
+// HorizontalPodAutoscaler represents a Kubernetes HPA
+type HorizontalPodAutoscaler struct {
+	Namespace string
+	Name      string
+	Reference string // "Deployment/nginx"
+	MinPods   int32
+	MaxPods   int32
+	Replicas  int32  // Current
+	TargetCPU string // "80%" or "N/A"
+	Age       time.Duration
+	CreatedAt time.Time
 }

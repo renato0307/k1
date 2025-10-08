@@ -63,11 +63,23 @@ func (m *mockRepository) GetPodsUsingConfigMap(namespace, name string) ([]k8s.Po
 func (m *mockRepository) GetPodsUsingSecret(namespace, name string) ([]k8s.Pod, error) {
 	return nil, nil
 }
+func (m *mockRepository) GetPodsForReplicaSet(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetReplicaSetsForDeployment(namespace, name string) ([]k8s.ReplicaSet, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsForPVC(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
 func (m *mockRepository) GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
 	return "", nil
 }
 func (m *mockRepository) DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
 	return "", nil
+}
+func (m *mockRepository) GetResourceStats() []k8s.ResourceStats {
+	return nil
 }
 func (m *mockRepository) Close() {}
 
