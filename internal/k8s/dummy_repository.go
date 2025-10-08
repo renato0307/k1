@@ -395,3 +395,119 @@ func (r *DummyRepository) GetResources(resourceType ResourceType) ([]any, error)
 		return []any{}, nil
 	}
 }
+
+func (r *DummyRepository) GetResourceStats() []ResourceStats {
+	now := time.Now()
+	return []ResourceStats{
+		{
+			ResourceType: ResourceTypePod,
+			Count:        4,
+			LastUpdate:   now.Add(-5 * time.Second),
+			AddEvents:    10,
+			UpdateEvents: 50,
+			DeleteEvents: 3,
+			Synced:       true,
+			MemoryBytes:  4096, // ~4KB (4 pods * 1KB)
+		},
+		{
+			ResourceType: ResourceTypeDeployment,
+			Count:        3,
+			LastUpdate:   now.Add(-2 * time.Second),
+			AddEvents:    5,
+			UpdateEvents: 12,
+			DeleteEvents: 1,
+			Synced:       true,
+			MemoryBytes:  3072, // ~3KB
+		},
+		{
+			ResourceType: ResourceTypeService,
+			Count:        3,
+			LastUpdate:   now.Add(-10 * time.Second),
+			AddEvents:    3,
+			UpdateEvents: 8,
+			DeleteEvents: 0,
+			Synced:       true,
+			MemoryBytes:  3072, // ~3KB
+		},
+		{
+			ResourceType: ResourceTypeConfigMap,
+			Count:        5,
+			LastUpdate:   now.Add(-1 * time.Minute),
+			AddEvents:    5,
+			UpdateEvents: 2,
+			DeleteEvents: 0,
+			Synced:       true,
+			MemoryBytes:  5120, // ~5KB
+		},
+		{
+			ResourceType: ResourceTypeSecret,
+			Count:        8,
+			LastUpdate:   now.Add(-30 * time.Second),
+			AddEvents:    8,
+			UpdateEvents: 5,
+			DeleteEvents: 2,
+			Synced:       true,
+			MemoryBytes:  8192, // ~8KB
+		},
+		{
+			ResourceType: ResourceTypeNamespace,
+			Count:        5,
+			LastUpdate:   now.Add(-5 * time.Minute),
+			AddEvents:    5,
+			UpdateEvents: 0,
+			DeleteEvents: 0,
+			Synced:       true,
+			MemoryBytes:  5120, // ~5KB
+		},
+		{
+			ResourceType: ResourceTypeStatefulSet,
+			Count:        2,
+			LastUpdate:   now.Add(-1 * time.Hour),
+			AddEvents:    2,
+			UpdateEvents: 10,
+			DeleteEvents: 0,
+			Synced:       true,
+			MemoryBytes:  2048, // ~2KB
+		},
+		{
+			ResourceType: ResourceTypeDaemonSet,
+			Count:        3,
+			LastUpdate:   now.Add(-2 * time.Hour),
+			AddEvents:    3,
+			UpdateEvents: 15,
+			DeleteEvents: 0,
+			Synced:       true,
+			MemoryBytes:  3072, // ~3KB
+		},
+		{
+			ResourceType: ResourceTypeJob,
+			Count:        10,
+			LastUpdate:   now.Add(-15 * time.Second),
+			AddEvents:    25,
+			UpdateEvents: 30,
+			DeleteEvents: 15,
+			Synced:       true,
+			MemoryBytes:  10240, // ~10KB
+		},
+		{
+			ResourceType: ResourceTypeCronJob,
+			Count:        4,
+			LastUpdate:   now.Add(-1 * time.Minute),
+			AddEvents:    4,
+			UpdateEvents: 8,
+			DeleteEvents: 0,
+			Synced:       true,
+			MemoryBytes:  4096, // ~4KB
+		},
+		{
+			ResourceType: ResourceTypeNode,
+			Count:        3,
+			LastUpdate:   now.Add(-5 * time.Hour),
+			AddEvents:    3,
+			UpdateEvents: 20,
+			DeleteEvents: 0,
+			Synced:       true,
+			MemoryBytes:  3072, // ~3KB
+		},
+	}
+}

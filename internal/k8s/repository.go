@@ -67,6 +67,18 @@ type ResourceConfig struct {
 // to avoid redundant field extraction in every transform function
 type TransformFunc func(*unstructured.Unstructured, commonFields) (any, error)
 
+// ResourceStats holds statistics for a resource type
+type ResourceStats struct {
+	ResourceType ResourceType
+	Count        int
+	LastUpdate   time.Time
+	AddEvents    int64
+	UpdateEvents int64
+	DeleteEvents int64
+	Synced       bool
+	MemoryBytes  int64 // Approximate
+}
+
 // Repository provides access to Kubernetes resources
 type Repository interface {
 	// Generic resource access (config-driven)
@@ -96,6 +108,9 @@ type Repository interface {
 	// Kubeconfig and context (for kubectl subprocess commands)
 	GetKubeconfig() string
 	GetContext() string
+
+	// Statistics (for system resources screen)
+	GetResourceStats() []ResourceStats
 
 	Close()
 }

@@ -69,6 +69,9 @@ func (m *mockRepository) GetResourceYAML(gvr schema.GroupVersionResource, namesp
 func (m *mockRepository) DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
 	return "", nil
 }
+func (m *mockRepository) GetResourceStats() []k8s.ResourceStats {
+	return nil
+}
 func (m *mockRepository) Close() {}
 
 func TestScaleCommand_ArgParsing(t *testing.T) {

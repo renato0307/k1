@@ -84,6 +84,12 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Execute:     NodesCommand(),
 			},
 			{
+				Name:        "system-resources",
+				Description: "View system resource statistics",
+				Category:    CategoryResource,
+				Execute:     NavigationCommand("system-resources"),
+			},
+			{
 				Name:        "ns",
 				Description: "Filter by namespace",
 				Category:    CategoryResource,

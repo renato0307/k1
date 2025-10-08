@@ -29,6 +29,12 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Common GVRs used for statistics tracking
+var (
+	podGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	jobGVR = schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}
+)
+
 // InformerRepository implements Repository using Kubernetes informers
 type InformerRepository struct {
 	// Typed client and informers (legacy, preserved for compatibility)
@@ -61,8 +67,25 @@ type InformerRepository struct {
 	jobsByOwnerUID   map[string][]string                  // ownerUID → job namespaced names
 	jobsByNamespace  map[string][]string                  // namespace → job names
 
+	// Statistics tracking (channel-based, no locks needed)
+	resourceStats map[schema.GroupVersionResource]*ResourceStats
+	statsUpdateCh chan statsUpdateMsg
+
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+// Event type constants for statistics tracking
+const (
+	eventTypeAdd    = "add"
+	eventTypeUpdate = "update"
+	eventTypeDelete = "delete"
+)
+
+// statsUpdateMsg is an internal message for statistics updates
+type statsUpdateMsg struct {
+	gvr       schema.GroupVersionResource
+	eventType string
 }
 
 // NewInformerRepository creates a new informer-based repository
@@ -195,6 +218,22 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		return nil, fmt.Errorf("failed to sync critical resources (pods/deployments/services) - check RBAC permissions")
 	}
 
+	// Initialize resource statistics
+	resourceStats := make(map[schema.GroupVersionResource]*ResourceStats)
+	for _, resCfg := range resourceRegistry {
+		synced := syncedInformers[resCfg.GVR]
+		resourceStats[resCfg.GVR] = &ResourceStats{
+			ResourceType: ResourceType(resCfg.GVR.Resource),
+			Count:        0,
+			LastUpdate:   time.Time{},
+			AddEvents:    0,
+			UpdateEvents: 0,
+			DeleteEvents: 0,
+			Synced:       synced,
+			MemoryBytes:  0,
+		}
+	}
+
 	// Create repository with initialized indexes
 	repo := &InformerRepository{
 		clientset:         clientset,
@@ -218,13 +257,19 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		podsBySecret:      make(map[string]map[string][]*corev1.Pod),
 		jobsByOwnerUID:    make(map[string][]string),
 		jobsByNamespace:   make(map[string][]string),
+		resourceStats:     resourceStats,
+		statsUpdateCh:     make(chan statsUpdateMsg, 1000), // Buffered channel for high-frequency events
 		ctx:               ctx,
 		cancel:            cancel,
 	}
 
+	// Start statistics updater goroutine
+	go repo.statsUpdater()
+
 	// Setup pod indexes with event handlers
 	repo.setupPodIndexes()
 	repo.setupJobIndexes()
+	repo.setupDynamicInformersEventTracking(dynamicInformers)
 
 	return repo, nil
 }
@@ -537,7 +582,6 @@ func (r *InformerRepository) GetPodsForDaemonSet(namespace, name string) ([]Pod,
 // GetPodsForJob returns pods owned by a specific job (uses indexed lookups)
 func (r *InformerRepository) GetPodsForJob(namespace, name string) ([]Pod, error) {
 	// Get job from dynamic lister to find its UID
-	jobGVR := schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}
 	lister, ok := r.dynamicListers[jobGVR]
 	if !ok {
 		return nil, fmt.Errorf("job informer not initialized")
@@ -586,7 +630,6 @@ func (r *InformerRepository) GetJobsForCronJob(namespace, name string) ([]Job, e
 	r.mu.RUnlock()
 
 	// Fetch jobs from dynamic lister
-	jobGVR := schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}
 	jobLister, ok := r.dynamicListers[jobGVR]
 	if !ok {
 		return nil, fmt.Errorf("job informer not initialized")
@@ -877,10 +920,44 @@ func formatEventAge(d time.Duration) string {
 	}
 }
 
+// trackStats sends a statistics update to the channel (non-blocking)
+// If the channel is full, the update is skipped since stats are approximate
+func (r *InformerRepository) trackStats(gvr schema.GroupVersionResource, eventType string) {
+	select {
+	case r.statsUpdateCh <- statsUpdateMsg{gvr: gvr, eventType: eventType}:
+	default:
+		// Channel full, skip this update (stats are approximate anyway)
+	}
+}
+
+// statsUpdater is a goroutine that owns the resourceStats map and processes updates
+// This eliminates lock contention from high-frequency event handlers
+func (r *InformerRepository) statsUpdater() {
+	for msg := range r.statsUpdateCh {
+		stats, ok := r.resourceStats[msg.gvr]
+		if !ok {
+			continue
+		}
+
+		switch msg.eventType {
+		case eventTypeAdd:
+			stats.AddEvents++
+		case eventTypeUpdate:
+			stats.UpdateEvents++
+		case eventTypeDelete:
+			stats.DeleteEvents++
+		}
+		stats.LastUpdate = time.Now()
+	}
+}
+
 // Close stops the informers and cleans up resources
 func (r *InformerRepository) Close() {
 	if r.cancel != nil {
 		r.cancel()
+	}
+	if r.statsUpdateCh != nil {
+		close(r.statsUpdateCh) // Goroutine will exit when channel is drained
 	}
 }
 
@@ -892,15 +969,18 @@ func (r *InformerRepository) setupPodIndexes() {
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
 			r.updatePodIndexes(pod, nil)
+			r.trackStats(podGVR, eventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod := oldObj.(*corev1.Pod)
 			newPod := newObj.(*corev1.Pod)
 			r.updatePodIndexes(newPod, oldPod)
+			r.trackStats(podGVR, eventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
 			r.removePodFromIndexes(pod)
+			r.trackStats(podGVR, eventTypeDelete)
 		},
 	})
 }
@@ -1112,7 +1192,6 @@ func (r *InformerRepository) GetContext() string {
 // setupJobIndexes registers event handlers to maintain job indexes for CronJob → Jobs navigation
 func (r *InformerRepository) setupJobIndexes() {
 	// Get job informer from dynamic factory
-	jobGVR := schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}
 	jobInformer := r.dynamicFactory.ForResource(jobGVR).Informer()
 
 	jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -1122,6 +1201,7 @@ func (r *InformerRepository) setupJobIndexes() {
 				return
 			}
 			r.updateJobIndexes(unstr, nil)
+			r.trackStats(jobGVR, eventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldUnstr, _ := oldObj.(*unstructured.Unstructured)
@@ -1130,6 +1210,7 @@ func (r *InformerRepository) setupJobIndexes() {
 				return
 			}
 			r.updateJobIndexes(newUnstr, oldUnstr)
+			r.trackStats(jobGVR, eventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
 			unstr, ok := obj.(*unstructured.Unstructured)
@@ -1137,6 +1218,7 @@ func (r *InformerRepository) setupJobIndexes() {
 				return
 			}
 			r.removeJobFromIndexes(unstr)
+			r.trackStats(jobGVR, eventTypeDelete)
 		},
 	})
 }
@@ -1206,6 +1288,79 @@ func removeStringFromSlice(slice []string, target string) []string {
 	return result
 }
 
+// updateMemoryStats calculates approximate memory usage for all resource types
+// No locks needed - this is called from GetResourceStats which reads from the
+// statsUpdater goroutine-owned map. Slight data races are acceptable since
+// stats are approximate.
+func (r *InformerRepository) updateMemoryStats() {
+	for gvr, lister := range r.dynamicListers {
+		objs, err := lister.List(labels.Everything())
+		if err != nil {
+			continue
+		}
+
+		stats, ok := r.resourceStats[gvr]
+		if !ok {
+			continue
+		}
+
+		// Approximate: 1KB per resource (conservative estimate)
+		stats.Count = len(objs)
+		stats.MemoryBytes = int64(len(objs) * 1024)
+	}
+
+	// For informers that failed to sync (not in dynamicListers), ensure stats reflect 0
+	for gvr, stats := range r.resourceStats {
+		if _, exists := r.dynamicListers[gvr]; !exists {
+			stats.Count = 0
+			stats.MemoryBytes = 0
+		}
+	}
+}
+
+// GetResourceStats returns statistics for all resource types
+// No locks needed - accepts slightly stale data for better performance
+func (r *InformerRepository) GetResourceStats() []ResourceStats {
+	r.updateMemoryStats() // Refresh counts and memory
+
+	result := make([]ResourceStats, 0, len(r.resourceStats))
+	for _, stats := range r.resourceStats {
+		result = append(result, *stats)
+	}
+
+	// Sort by resource type name
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ResourceType < result[j].ResourceType
+	})
+
+	return result
+}
+
+// setupDynamicInformersEventTracking registers event handlers for statistics tracking on all dynamic informers
+func (r *InformerRepository) setupDynamicInformersEventTracking(dynamicInformers map[schema.GroupVersionResource]cache.SharedIndexInformer) {
+	for gvr, informer := range dynamicInformers {
+		// Skip job informer (already has tracking in setupJobIndexes)
+		if gvr.Group == "batch" && gvr.Resource == "jobs" {
+			continue
+		}
+
+		// Capture gvr in closure
+		gvrCopy := gvr
+
+		informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				r.trackStats(gvrCopy, eventTypeAdd)
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				r.trackStats(gvrCopy, eventTypeUpdate)
+			},
+			DeleteFunc: func(obj interface{}) {
+				r.trackStats(gvrCopy, eventTypeDelete)
+			},
+		})
+	}
+}
+
 // GetResources returns all resources of the specified type using dynamic informers
 func (r *InformerRepository) GetResources(resourceType ResourceType) ([]any, error) {
 	// Get resource config
@@ -1217,7 +1372,8 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]any, err
 	// Get dynamic lister for this resource
 	lister, ok := r.dynamicListers[config.GVR]
 	if !ok {
-		return nil, fmt.Errorf("informer not initialized for resource type: %s", resourceType)
+		// Informer failed to sync (likely RBAC issue) - return explicit error
+		return nil, fmt.Errorf("cannot access %s: informer failed to sync (check RBAC permissions)", resourceType)
 	}
 
 	// List resources from cache

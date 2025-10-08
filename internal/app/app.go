@@ -66,6 +66,9 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), repo, theme))
 	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), repo, theme))
 
+	// System screen
+	registry.Register(screens.NewSystemScreen(repo, theme))
+
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")
 
