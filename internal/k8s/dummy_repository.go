@@ -14,107 +14,140 @@ func NewDummyRepository() *DummyRepository {
 }
 
 func (r *DummyRepository) GetPods() ([]Pod, error) {
+	now := time.Now()
 	return []Pod{
 		{
-			Namespace: "default",
-			Name:      "nginx-deployment-7d64f8d9c8-abc12",
-			Ready:     "1/1",
-			Status:    "Running",
-			Restarts:  0,
-			Age:       24 * time.Hour,
-			Node:      "node-1",
-			IP:        "10.244.1.5",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "default",
+				Name:      "nginx-deployment-7d64f8d9c8-abc12",
+				Age:       24 * time.Hour,
+				CreatedAt: now.Add(-24 * time.Hour),
+			},
+			Ready:    "1/1",
+			Status:   "Running",
+			Restarts: 0,
+			Node:     "node-1",
+			IP:       "10.244.1.5",
 		},
 		{
-			Namespace: "default",
-			Name:      "nginx-deployment-7d64f8d9c8-def34",
-			Ready:     "1/1",
-			Status:    "Running",
-			Restarts:  2,
-			Age:       24 * time.Hour,
-			Node:      "node-2",
-			IP:        "10.244.2.3",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "default",
+				Name:      "nginx-deployment-7d64f8d9c8-def34",
+				Age:       24 * time.Hour,
+				CreatedAt: now.Add(-24 * time.Hour),
+			},
+			Ready:    "1/1",
+			Status:   "Running",
+			Restarts: 2,
+			Node:     "node-2",
+			IP:       "10.244.2.3",
 		},
 		{
-			Namespace: "kube-system",
-			Name:      "coredns-5d78c9869d-xyz89",
-			Ready:     "1/1",
-			Status:    "Running",
-			Restarts:  0,
-			Age:       168 * time.Hour,
-			Node:      "node-1",
-			IP:        "10.244.1.2",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "kube-system",
+				Name:      "coredns-5d78c9869d-xyz89",
+				Age:       168 * time.Hour,
+				CreatedAt: now.Add(-168 * time.Hour),
+			},
+			Ready:    "1/1",
+			Status:   "Running",
+			Restarts: 0,
+			Node:     "node-1",
+			IP:       "10.244.1.2",
 		},
 		{
-			Namespace: "production",
-			Name:      "api-server-6b9f8c7d5e-qwert",
-			Ready:     "0/1",
-			Status:    "CrashLoopBackOff",
-			Restarts:  15,
-			Age:       2 * time.Hour,
-			Node:      "node-3",
-			IP:        "10.244.3.7",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "production",
+				Name:      "api-server-6b9f8c7d5e-qwert",
+				Age:       2 * time.Hour,
+				CreatedAt: now.Add(-2 * time.Hour),
+			},
+			Ready:    "0/1",
+			Status:   "CrashLoopBackOff",
+			Restarts: 15,
+			Node:     "node-3",
+			IP:       "10.244.3.7",
 		},
 	}, nil
 }
 
 func (r *DummyRepository) GetDeployments() ([]Deployment, error) {
+	now := time.Now()
 	return []Deployment{
 		{
-			Namespace: "default",
-			Name:      "nginx-deployment",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "default",
+				Name:      "nginx-deployment",
+				Age:       24 * time.Hour,
+				CreatedAt: now.Add(-24 * time.Hour),
+			},
 			Ready:     "2/2",
 			UpToDate:  2,
 			Available: 2,
-			Age:       24 * time.Hour,
 		},
 		{
-			Namespace: "kube-system",
-			Name:      "coredns",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "kube-system",
+				Name:      "coredns",
+				Age:       168 * time.Hour,
+				CreatedAt: now.Add(-168 * time.Hour),
+			},
 			Ready:     "2/2",
 			UpToDate:  2,
 			Available: 2,
-			Age:       168 * time.Hour,
 		},
 		{
-			Namespace: "production",
-			Name:      "api-server",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "production",
+				Name:      "api-server",
+				Age:       48 * time.Hour,
+				CreatedAt: now.Add(-48 * time.Hour),
+			},
 			Ready:     "1/3",
 			UpToDate:  1,
 			Available: 1,
-			Age:       48 * time.Hour,
 		},
 	}, nil
 }
 
 func (r *DummyRepository) GetServices() ([]Service, error) {
+	now := time.Now()
 	return []Service{
 		{
-			Namespace:  "default",
-			Name:       "kubernetes",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "default",
+				Name:      "kubernetes",
+				Age:       168 * time.Hour,
+				CreatedAt: now.Add(-168 * time.Hour),
+			},
 			Type:       "ClusterIP",
 			ClusterIP:  "10.96.0.1",
 			ExternalIP: "<none>",
 			Ports:      "443/TCP",
-			Age:        168 * time.Hour,
 		},
 		{
-			Namespace:  "default",
-			Name:       "nginx-service",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "default",
+				Name:      "nginx-service",
+				Age:       24 * time.Hour,
+				CreatedAt: now.Add(-24 * time.Hour),
+			},
 			Type:       "LoadBalancer",
 			ClusterIP:  "10.96.10.5",
 			ExternalIP: "203.0.113.45",
 			Ports:      "80/TCP,443/TCP",
-			Age:        24 * time.Hour,
 		},
 		{
-			Namespace:  "production",
-			Name:       "api-service",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: "production",
+				Name:      "api-service",
+				Age:       48 * time.Hour,
+				CreatedAt: now.Add(-48 * time.Hour),
+			},
 			Type:       "ClusterIP",
 			ClusterIP:  "10.96.20.10",
 			ExternalIP: "<none>",
 			Ports:      "8080/TCP",
-			Age:        48 * time.Hour,
 		},
 	}, nil
 }
@@ -256,18 +289,24 @@ func (r *DummyRepository) GetJobsForCronJob(namespace, name string) ([]Job, erro
 	// Return dummy jobs for testing
 	return []Job{
 		{
-			Namespace:   namespace,
-			Name:        name + "-27893456",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: namespace,
+				Name:      name + "-27893456",
+				Age:       2 * time.Hour,
+				CreatedAt: time.Now().Add(-2 * time.Hour),
+			},
 			Completions: "1/1",
 			Duration:    15 * time.Second,
-			Age:         2 * time.Hour,
 		},
 		{
-			Namespace:   namespace,
-			Name:        name + "-27893450",
+			ResourceMetadata: ResourceMetadata{
+				Namespace: namespace,
+				Name:      name + "-27893450",
+				Age:       26 * time.Hour,
+				CreatedAt: time.Now().Add(-26 * time.Hour),
+			},
 			Completions: "1/1",
 			Duration:    20 * time.Second,
-			Age:         26 * time.Hour,
 		},
 	}, nil
 }
@@ -332,12 +371,15 @@ func (r *DummyRepository) GetPodsForReplicaSet(namespace, name string) ([]Pod, e
 	// Return dummy pods
 	return []Pod{
 		{
-			Namespace: namespace,
-			Name:      "nginx-abc123-xyz789",
-			Status:    "Running",
-			Ready:     "1/1",
-			Restarts:  0,
-			Age:       5 * time.Hour,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: namespace,
+				Name:      "nginx-abc123-xyz789",
+				Age:       5 * time.Hour,
+				CreatedAt: time.Now().Add(-5 * time.Hour),
+			},
+			Status:   "Running",
+			Ready:    "1/1",
+			Restarts: 0,
 		},
 	}, nil
 }
@@ -346,12 +388,15 @@ func (r *DummyRepository) GetReplicaSetsForDeployment(namespace, name string) ([
 	// Return dummy ReplicaSets
 	return []ReplicaSet{
 		{
-			Namespace: namespace,
-			Name:      name + "-abc123",
-			Desired:   3,
-			Current:   3,
-			Ready:     3,
-			Age:       10 * time.Hour,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: namespace,
+				Name:      name + "-abc123",
+				Age:       10 * time.Hour,
+				CreatedAt: time.Now().Add(-10 * time.Hour),
+			},
+			Desired: 3,
+			Current: 3,
+			Ready:   3,
 		},
 	}, nil
 }
@@ -360,12 +405,15 @@ func (r *DummyRepository) GetPodsForPVC(namespace, name string) ([]Pod, error) {
 	// Return dummy pods
 	return []Pod{
 		{
-			Namespace: namespace,
-			Name:      "app-xyz789",
-			Status:    "Running",
-			Ready:     "1/1",
-			Restarts:  0,
-			Age:       3 * time.Hour,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: namespace,
+				Name:      "app-xyz789",
+				Age:       3 * time.Hour,
+				CreatedAt: time.Now().Add(-3 * time.Hour),
+			},
+			Status:   "Running",
+			Ready:    "1/1",
+			Restarts: 0,
 		},
 	}, nil
 }

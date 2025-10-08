@@ -23,19 +23,20 @@ import (
 // 2. Complexity trade-off: Reflection adds implicit behavior that's harder to
 //    debug. Explicit transforms are immediately understandable.
 //
-// 3. Already optimized: The extractCommonFields helper eliminates most
+// 3. Already optimized: The extractMetadata helper eliminates most
 //    duplication (namespace, name, age, createdAt) without reflection overhead.
+//    It extracts once per resource and passes ResourceMetadata to transforms.
 //
 // 4. Type safety: Explicit transforms fail fast at compile time, while
 //    reflection-based approaches defer errors to runtime.
 //
-// The current approach balances maintainability (DRY via extractCommonFields)
+// The current approach balances maintainability (DRY via extractMetadata)
 // with performance (no reflection overhead) and debuggability (explicit code).
 
-// extractCommonFields extracts common fields from unstructured resource
-func extractCommonFields(u *unstructured.Unstructured) commonFields {
+// extractMetadata extracts common fields from unstructured resource
+func extractMetadata(u *unstructured.Unstructured) ResourceMetadata {
 	createdAt := u.GetCreationTimestamp().Time
-	return commonFields{
+	return ResourceMetadata{
 		Namespace: u.GetNamespace(),
 		Name:      u.GetName(),
 		Age:       time.Since(createdAt),
@@ -44,7 +45,7 @@ func extractCommonFields(u *unstructured.Unstructured) commonFields {
 }
 
 // transformPod converts an unstructured pod to a typed Pod
-func transformPod(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformPod(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract container status for ready count
 	containerStatuses, _, _ := unstructured.NestedSlice(u.Object, "status", "containerStatuses")
@@ -75,20 +76,22 @@ func transformPod(u *unstructured.Unstructured, common commonFields) (any, error
 	ip, _, _ := unstructured.NestedString(u.Object, "status", "podIP")
 
 	return Pod{
-		Namespace: common.Namespace,
-		Name:      common.Name,
-		Ready:     readyStatus,
-		Status:    status,
-		Restarts:  totalRestarts,
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
-		Node:      node,
-		IP:        ip,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Ready:    readyStatus,
+		Status:   status,
+		Restarts: totalRestarts,
+		Node:     node,
+		IP:       ip,
 	}, nil
 }
 
 // transformDeployment converts an unstructured deployment to a typed Deployment
-func transformDeployment(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformDeployment(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract replica counts
 	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
@@ -99,18 +102,20 @@ func transformDeployment(u *unstructured.Unstructured, common commonFields) (any
 	readyStatus := fmt.Sprintf("%d/%d", ready, desired)
 
 	return Deployment{
-		Namespace: common.Namespace,
-		Name:      common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Ready:     readyStatus,
 		UpToDate:  int32(upToDate),
 		Available: int32(available),
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformService converts an unstructured service to a typed Service
-func transformService(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformService(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract service type
 	svcType, _, _ := unstructured.NestedString(u.Object, "spec", "type")
@@ -171,35 +176,39 @@ func transformService(u *unstructured.Unstructured, common commonFields) (any, e
 	}
 
 	return Service{
-		Namespace:  common.Namespace,
-		Name:       common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Type:       svcType,
 		ClusterIP:  clusterIP,
 		ExternalIP: externalIP,
 		Ports:      portsStr,
-		Age:        common.Age,
-		CreatedAt:  common.CreatedAt,
 	}, nil
 }
 
 // transformConfigMap converts an unstructured configmap to a typed ConfigMap
-func transformConfigMap(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformConfigMap(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Count data items
 	data, _, _ := unstructured.NestedMap(u.Object, "data")
 	dataCount := len(data)
 
 	return ConfigMap{
-		Namespace: common.Namespace,
-		Name:      common.Name,
-		Data:      dataCount,
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Data: dataCount,
 	}, nil
 }
 
 // transformSecret converts an unstructured secret to a typed Secret
-func transformSecret(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformSecret(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract type
 	secretType, _, _ := unstructured.NestedString(u.Object, "type")
@@ -209,31 +218,36 @@ func transformSecret(u *unstructured.Unstructured, common commonFields) (any, er
 	dataCount := len(data)
 
 	return Secret{
-		Namespace: common.Namespace,
-		Name:      common.Name,
-		Type:      secretType,
-		Data:      dataCount,
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Type: secretType,
+		Data: dataCount,
 	}, nil
 }
 
 // transformNamespace converts an unstructured namespace to a typed Namespace
-func transformNamespace(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformNamespace(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract status
 	status, _, _ := unstructured.NestedString(u.Object, "status", "phase")
 
 	return Namespace{
-		Name:      common.Name,
-		Status:    status,
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Status: status,
 	}, nil
 }
 
 // transformStatefulSet converts an unstructured statefulset to a typed StatefulSet
-func transformStatefulSet(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformStatefulSet(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract replica counts
 	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
@@ -242,16 +256,18 @@ func transformStatefulSet(u *unstructured.Unstructured, common commonFields) (an
 	readyStatus := fmt.Sprintf("%d/%d", ready, desired)
 
 	return StatefulSet{
-		Namespace: common.Namespace,
-		Name:      common.Name,
-		Ready:     readyStatus,
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Ready: readyStatus,
 	}, nil
 }
 
 // transformDaemonSet converts an unstructured daemonset to a typed DaemonSet
-func transformDaemonSet(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformDaemonSet(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract counts
 	desired, _, _ := unstructured.NestedInt64(u.Object, "status", "desiredNumberScheduled")
@@ -261,20 +277,22 @@ func transformDaemonSet(u *unstructured.Unstructured, common commonFields) (any,
 	available, _, _ := unstructured.NestedInt64(u.Object, "status", "numberAvailable")
 
 	return DaemonSet{
-		Namespace: common.Namespace,
-		Name:      common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Desired:   int32(desired),
 		Current:   int32(current),
 		Ready:     int32(ready),
 		UpToDate:  int32(upToDate),
 		Available: int32(available),
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformJob converts an unstructured job to a typed Job
-func transformJob(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformJob(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract completions
 	completions, _, _ := unstructured.NestedInt64(u.Object, "spec", "completions")
@@ -291,17 +309,19 @@ func transformJob(u *unstructured.Unstructured, common commonFields) (any, error
 	}
 
 	return Job{
-		Namespace:   common.Namespace,
-		Name:        common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Completions: completionsStr,
 		Duration:    duration,
-		Age:         common.Age,
-		CreatedAt:   common.CreatedAt,
 	}, nil
 }
 
 // transformCronJob converts an unstructured cronjob to a typed CronJob
-func transformCronJob(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformCronJob(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract schedule
 	schedule, _, _ := unstructured.NestedString(u.Object, "spec", "schedule")
@@ -321,19 +341,21 @@ func transformCronJob(u *unstructured.Unstructured, common commonFields) (any, e
 	}
 
 	return CronJob{
-		Namespace:    common.Namespace,
-		Name:         common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Schedule:     schedule,
 		Suspend:      suspend,
 		Active:       active,
 		LastSchedule: lastSchedule,
-		Age:          common.Age,
-		CreatedAt:    common.CreatedAt,
 	}, nil
 }
 
 // transformNode converts an unstructured node to a typed Node
-func transformNode(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformNode(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 
 	// Extract status
 	conditions, _, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
@@ -404,11 +426,14 @@ func transformNode(u *unstructured.Unstructured, common commonFields) (any, erro
 	}
 
 	return Node{
-		Name:         common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Status:       status,
 		Roles:        rolesStr,
-		Age:          common.Age,
-		CreatedAt:    common.CreatedAt,
 		Version:      version,
 		Hostname:     hostname,
 		InstanceType: instanceType,
@@ -419,24 +444,26 @@ func transformNode(u *unstructured.Unstructured, common commonFields) (any, erro
 }
 
 // transformReplicaSet converts an unstructured replicaset to a typed ReplicaSet
-func transformReplicaSet(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformReplicaSet(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 	desired, _, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
 	current, _, _ := unstructured.NestedInt64(u.Object, "status", "replicas")
 	ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
 
 	return ReplicaSet{
-		Namespace: common.Namespace,
-		Name:      common.Name,
-		Desired:   int32(desired),
-		Current:   int32(current),
-		Ready:     int32(ready),
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Desired: int32(desired),
+		Current: int32(current),
+		Ready:   int32(ready),
 	}, nil
 }
 
 // transformPVC converts an unstructured PVC to a typed PersistentVolumeClaim
-func transformPVC(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformPVC(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 	phase, _, _ := unstructured.NestedString(u.Object, "status", "phase")
 	volumeName, _, _ := unstructured.NestedString(u.Object, "spec", "volumeName")
 
@@ -458,20 +485,22 @@ func transformPVC(u *unstructured.Unstructured, common commonFields) (any, error
 	storageClass, _, _ := unstructured.NestedString(u.Object, "spec", "storageClassName")
 
 	return PersistentVolumeClaim{
-		Namespace:    common.Namespace,
-		Name:         common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Status:       phase,
 		Volume:       volumeName,
 		Capacity:     capacity,
 		AccessModes:  accessModesStr,
 		StorageClass: storageClass,
-		Age:          common.Age,
-		CreatedAt:    common.CreatedAt,
 	}, nil
 }
 
 // transformIngress converts an unstructured ingress to a typed Ingress
-func transformIngress(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformIngress(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 	ingressClass, _, _ := unstructured.NestedString(u.Object, "spec", "ingressClassName")
 
 	// Extract hosts from rules
@@ -505,19 +534,21 @@ func transformIngress(u *unstructured.Unstructured, common commonFields) (any, e
 	}
 
 	return Ingress{
-		Namespace: common.Namespace,
-		Name:      common.Name,
-		Class:     ingressClass,
-		Hosts:     hostsStr,
-		Address:   address,
-		Ports:     "80, 443", // Simplified - most ingresses use these
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Class:   ingressClass,
+		Hosts:   hostsStr,
+		Address: address,
+		Ports:   "80, 443", // Simplified - most ingresses use these
 	}, nil
 }
 
 // transformEndpoints converts an unstructured endpoints to a typed Endpoints
-func transformEndpoints(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformEndpoints(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 	// Parse subsets to extract endpoints (IP:port pairs)
 	subsets, _, _ := unstructured.NestedSlice(u.Object, "subsets")
 	endpoints := []string{}
@@ -555,16 +586,18 @@ func transformEndpoints(u *unstructured.Unstructured, common commonFields) (any,
 	}
 
 	return Endpoints{
-		Namespace: common.Namespace,
-		Name:      common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Endpoints: endpointsStr,
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
 	}, nil
 }
 
 // transformHPA converts an unstructured HPA to a typed HorizontalPodAutoscaler
-func transformHPA(u *unstructured.Unstructured, common commonFields) (any, error) {
+func transformHPA(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
 	minReplicas, _, _ := unstructured.NestedInt64(u.Object, "spec", "minReplicas")
 	maxReplicas, _, _ := unstructured.NestedInt64(u.Object, "spec", "maxReplicas")
 	currentReplicas, _, _ := unstructured.NestedInt64(u.Object, "status", "currentReplicas")
@@ -595,15 +628,17 @@ func transformHPA(u *unstructured.Unstructured, common commonFields) (any, error
 	}
 
 	return HorizontalPodAutoscaler{
-		Namespace: common.Namespace,
-		Name:      common.Name,
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
 		Reference: reference,
 		MinPods:   int32(minReplicas),
 		MaxPods:   int32(maxReplicas),
 		Replicas:  int32(currentReplicas),
 		TargetCPU: targetCPU,
-		Age:       common.Age,
-		CreatedAt: common.CreatedAt,
 	}, nil
 }
 

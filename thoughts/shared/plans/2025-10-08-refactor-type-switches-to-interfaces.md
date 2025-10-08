@@ -4,7 +4,7 @@
 
 - **Date**: 2025-10-08
 - **Author**: @renato0307
-- **Status**: Not Started
+- **Status**: In Progress - Phase 1 Complete
 - **Related Research**: `thoughts/shared/research/2025-10-08-issue-3-implementation-challenges.md`
 - **Related Ticket**: Issue #3 (Phase 2 post-mortem findings)
 - **Branch**: `feat/refactor-type-switches`
@@ -198,20 +198,25 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]any, err
 ```
 
 **Success Criteria**:
-- [ ] Resource interface defined with 4 methods
-- [ ] All 16 resource types implement interface (64 methods total)
-- [ ] Type switch functions deleted (113 lines removed)
-- [ ] sortByAge uses interface methods only
-- [ ] GetResources uses []Resource internally
-- [ ] `make test` passes (existing tests still work)
-- [ ] `make build` succeeds
-- [ ] File size reduced: 1774 → 1661 lines (6% reduction)
+- [x] Resource interface defined with 4 methods
+- [x] All 16 resource types implement interface (64 methods total)
+- [x] Type switch functions deleted (113 lines removed)
+- [x] sortByAge uses interface methods only
+- [x] GetResources uses []Resource internally
+- [x] `make test` passes (existing tests still work)
+- [x] `make build` succeeds
+- [x] File size reduced: 1774 → 1661 lines (6% reduction)
 
 **Manual Verification**:
-- [ ] Navigate to all 16 resource screens
-- [ ] Verify sorting is stable (not constantly changing)
+- [x] Navigate to all 16 resource screens
+- [x] Verify sorting is stable (not constantly changing)
 - [ ] Add a new dummy resource type with interface implementation
 - [ ] Verify it compiles and sorts correctly without updating sortByAge
+
+**Additional Fixes Applied**:
+- Changed `sort.Slice` → `sort.SliceStable` for stable sorting
+- Added three-level sort key (CreatedAt → Name → Namespace) for determinism
+- Fixed sorting instability that caused lists to jump around on refresh
 
 ### Phase 2: Add Requirement-Based Tests (Week 2)
 

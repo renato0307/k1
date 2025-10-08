@@ -288,25 +288,28 @@ func TestGetFieldValue(t *testing.T) {
 	}{
 		{
 			name:      "valid pod name",
-			item:      k8s.Pod{Name: "test-pod", Namespace: "default"},
+			item:      k8s.Pod{ResourceMetadata: k8s.ResourceMetadata{Name: "test-pod", Namespace: "default"}},
 			fieldName: "Name",
 			expected:  "test-pod",
 		},
 		{
 			name:      "valid pod namespace",
-			item:      k8s.Pod{Name: "test-pod", Namespace: "default"},
+			item:      k8s.Pod{ResourceMetadata: k8s.ResourceMetadata{Name: "test-pod", Namespace: "default"}},
 			fieldName: "Namespace",
 			expected:  "default",
 		},
 		{
 			name:      "non-existent field returns empty string",
-			item:      k8s.Pod{Name: "test-pod"},
+			item:      k8s.Pod{ResourceMetadata: k8s.ResourceMetadata{Name: "test-pod"}},
 			fieldName: "NonExistent",
 			expected:  "",
 		},
 		{
-			name:      "deployment ready field",
-			item:      k8s.Deployment{Name: "deploy1", Ready: "2/2"},
+			name: "deployment ready field",
+			item: k8s.Deployment{
+				ResourceMetadata: k8s.ResourceMetadata{Name: "deploy1"},
+				Ready:            "2/2",
+			},
 			fieldName: "Ready",
 			expected:  "2/2",
 		},
@@ -338,8 +341,8 @@ func TestConfigScreen_NavigateToPodsForDeployment(t *testing.T) {
 
 	// Set up items
 	screen.items = []interface{}{
-		k8s.Deployment{Namespace: "default", Name: "nginx-deployment"},
-		k8s.Deployment{Namespace: "prod", Name: "api-deployment"},
+		k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx-deployment"}},
+		k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "prod", Name: "api-deployment"}},
 	}
 	screen.applyFilter()
 
@@ -418,8 +421,8 @@ func TestConfigScreen_NavigateToPodsForNode(t *testing.T) {
 
 	// Set up items
 	screen.items = []interface{}{
-		k8s.Node{Name: "node-1", Status: "Ready"},
-		k8s.Node{Name: "node-2", Status: "Ready"},
+		k8s.Node{ResourceMetadata: k8s.ResourceMetadata{Name: "node-1"}, Status: "Ready"},
+		k8s.Node{ResourceMetadata: k8s.ResourceMetadata{Name: "node-2"}, Status: "Ready"},
 	}
 	screen.applyFilter()
 
@@ -494,8 +497,8 @@ func TestConfigScreen_NavigateToPodsForService(t *testing.T) {
 
 	// Set up items
 	screen.items = []interface{}{
-		k8s.Service{Namespace: "default", Name: "nginx-service"},
-		k8s.Service{Namespace: "prod", Name: "api-service"},
+		k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx-service"}},
+		k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "prod", Name: "api-service"}},
 	}
 	screen.applyFilter()
 
@@ -574,7 +577,7 @@ func TestConfigScreen_HandleEnterKey(t *testing.T) {
 			navigationHandler: navigateToPodsForOwner("Deployment"),
 			setupItems: func(s *ConfigScreen) {
 				s.items = []interface{}{
-					k8s.Deployment{Namespace: "default", Name: "test-deployment"},
+					k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "test-deployment"}},
 				}
 				s.applyFilter()
 			},
@@ -586,7 +589,7 @@ func TestConfigScreen_HandleEnterKey(t *testing.T) {
 			navigationHandler: navigateToPodsForNode(),
 			setupItems: func(s *ConfigScreen) {
 				s.items = []interface{}{
-					k8s.Node{Name: "test-node"},
+					k8s.Node{ResourceMetadata: k8s.ResourceMetadata{Name: "test-node"}},
 				}
 				s.applyFilter()
 			},
@@ -598,7 +601,7 @@ func TestConfigScreen_HandleEnterKey(t *testing.T) {
 			navigationHandler: navigateToPodsForService(),
 			setupItems: func(s *ConfigScreen) {
 				s.items = []interface{}{
-					k8s.Service{Namespace: "default", Name: "test-service"},
+					k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "test-service"}},
 				}
 				s.applyFilter()
 			},
@@ -610,7 +613,7 @@ func TestConfigScreen_HandleEnterKey(t *testing.T) {
 			navigationHandler: nil,
 			setupItems: func(s *ConfigScreen) {
 				s.items = []interface{}{
-					k8s.Pod{Namespace: "default", Name: "test-pod"},
+					k8s.Pod{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "test-pod"}},
 				}
 				s.applyFilter()
 			},
@@ -677,8 +680,8 @@ func TestConfigScreen_NavigateToPodsForStatefulSet(t *testing.T) {
 
 	// Set up items
 	screen.items = []interface{}{
-		k8s.StatefulSet{Namespace: "default", Name: "web"},
-		k8s.StatefulSet{Namespace: "prod", Name: "cache"},
+		k8s.StatefulSet{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "web"}},
+		k8s.StatefulSet{ResourceMetadata: k8s.ResourceMetadata{Namespace: "prod", Name: "cache"}},
 	}
 	screen.applyFilter()
 
@@ -746,7 +749,7 @@ func TestConfigScreen_NavigateToPodsForDaemonSet(t *testing.T) {
 	screen := NewConfigScreen(cfg, repo, theme)
 
 	screen.items = []interface{}{
-		k8s.DaemonSet{Namespace: "kube-system", Name: "fluentd"},
+		k8s.DaemonSet{ResourceMetadata: k8s.ResourceMetadata{Namespace: "kube-system", Name: "fluentd"}},
 	}
 	screen.applyFilter()
 
@@ -784,7 +787,7 @@ func TestConfigScreen_NavigateToPodsForJob(t *testing.T) {
 	screen := NewConfigScreen(cfg, repo, theme)
 
 	screen.items = []interface{}{
-		k8s.Job{Namespace: "default", Name: "backup-job"},
+		k8s.Job{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "backup-job"}},
 	}
 	screen.applyFilter()
 
@@ -822,7 +825,7 @@ func TestConfigScreen_NavigateToJobsForCronJob(t *testing.T) {
 	screen := NewConfigScreen(cfg, repo, theme)
 
 	screen.items = []interface{}{
-		k8s.CronJob{Namespace: "default", Name: "daily-backup"},
+		k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "daily-backup"}},
 	}
 	screen.applyFilter()
 
@@ -859,8 +862,8 @@ func TestConfigScreen_NavigateToPodsForNamespace(t *testing.T) {
 	screen := NewConfigScreen(cfg, repo, theme)
 
 	screen.items = []interface{}{
-		k8s.Namespace{Name: "kube-system"},
-		k8s.Namespace{Name: "default"},
+		k8s.Namespace{ResourceMetadata: k8s.ResourceMetadata{Name: "kube-system"}},
+		k8s.Namespace{ResourceMetadata: k8s.ResourceMetadata{Name: "default"}},
 	}
 	screen.applyFilter()
 
@@ -921,7 +924,7 @@ func TestConfigScreen_NavigateToPodsUsingConfigMap(t *testing.T) {
 	screen := NewConfigScreen(cfg, repo, theme)
 
 	screen.items = []interface{}{
-		k8s.ConfigMap{Namespace: "default", Name: "app-config"},
+		k8s.ConfigMap{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "app-config"}},
 	}
 	screen.applyFilter()
 
@@ -959,7 +962,7 @@ func TestConfigScreen_NavigateToPodsUsingSecret(t *testing.T) {
 	screen := NewConfigScreen(cfg, repo, theme)
 
 	screen.items = []interface{}{
-		k8s.Secret{Namespace: "default", Name: "db-password"},
+		k8s.Secret{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "db-password"}},
 	}
 	screen.applyFilter()
 
@@ -1042,8 +1045,8 @@ func TestConfigScreen_View_WithResults(t *testing.T) {
 	}
 
 	screen.items = []interface{}{
-		k8s.Pod{Namespace: "default", Name: "nginx-pod-1"},
-		k8s.Pod{Namespace: "default", Name: "nginx-pod-2"},
+		k8s.Pod{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx-pod-1"}},
+		k8s.Pod{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx-pod-2"}},
 	}
 	screen.applyFilter()
 

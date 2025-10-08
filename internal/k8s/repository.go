@@ -49,15 +49,6 @@ func GetGVRForResourceType(resourceType ResourceType) (schema.GroupVersionResour
 	return gvr, ok
 }
 
-// commonFields holds fields that are common to all resource types
-// This is extracted once per resource to avoid redundant field extraction
-type commonFields struct {
-	Namespace string
-	Name      string
-	Age       time.Duration
-	CreatedAt time.Time
-}
-
 // ResourceConfig defines configuration for a resource type
 type ResourceConfig struct {
 	GVR        schema.GroupVersionResource
@@ -68,9 +59,9 @@ type ResourceConfig struct {
 }
 
 // TransformFunc converts an unstructured resource to a typed struct
-// The commonFields parameter contains pre-extracted common fields (name, namespace, age, createdAt)
+// The ResourceMetadata parameter contains pre-extracted common fields (name, namespace, age, createdAt)
 // to avoid redundant field extraction in every transform function
-type TransformFunc func(*unstructured.Unstructured, commonFields) (any, error)
+type TransformFunc func(*unstructured.Unstructured, ResourceMetadata) (any, error)
 
 // ResourceStats holds statistics for a resource type
 type ResourceStats struct {
@@ -123,182 +114,4 @@ type Repository interface {
 	Close()
 }
 
-// Pod represents a Kubernetes pod
-type Pod struct {
-	Namespace string
-	Name      string
-	Ready     string
-	Status    string
-	Restarts  int32
-	Age       time.Duration
-	CreatedAt time.Time // Stable creation timestamp for sorting
-	Node      string
-	IP        string
-}
-
-// Deployment represents a Kubernetes deployment
-type Deployment struct {
-	Namespace string
-	Name      string
-	Ready     string
-	UpToDate  int32
-	Available int32
-	Age       time.Duration
-	CreatedAt time.Time // Stable creation timestamp for sorting
-}
-
-// Service represents a Kubernetes service
-type Service struct {
-	Namespace  string
-	Name       string
-	Type       string
-	ClusterIP  string
-	ExternalIP string
-	Ports      string
-	Age        time.Duration
-	CreatedAt  time.Time // Stable creation timestamp for sorting
-}
-
-// ConfigMap represents a Kubernetes configmap
-type ConfigMap struct {
-	Namespace string
-	Name      string
-	Data      int // Number of data items
-	Age       time.Duration
-	CreatedAt time.Time // Stable creation timestamp for sorting
-}
-
-// Secret represents a Kubernetes secret
-type Secret struct {
-	Namespace string
-	Name      string
-	Type      string
-	Data      int // Number of data items
-	Age       time.Duration
-	CreatedAt time.Time // Stable creation timestamp for sorting
-}
-
-// Namespace represents a Kubernetes namespace
-type Namespace struct {
-	Name      string
-	Status    string
-	Age       time.Duration
-	CreatedAt time.Time // Stable creation timestamp for sorting
-}
-
-// StatefulSet represents a Kubernetes statefulset
-type StatefulSet struct {
-	Namespace string
-	Name      string
-	Ready     string
-	Age       time.Duration
-	CreatedAt time.Time // Stable creation timestamp for sorting
-}
-
-// DaemonSet represents a Kubernetes daemonset
-type DaemonSet struct {
-	Namespace string
-	Name      string
-	Desired   int32
-	Current   int32
-	Ready     int32
-	UpToDate  int32
-	Available int32
-	Age       time.Duration
-	CreatedAt time.Time // Stable creation timestamp for sorting
-}
-
-// Job represents a Kubernetes job
-type Job struct {
-	Namespace   string
-	Name        string
-	Completions string
-	Duration    time.Duration
-	Age         time.Duration
-	CreatedAt   time.Time // Stable creation timestamp for sorting
-}
-
-// CronJob represents a Kubernetes cronjob
-type CronJob struct {
-	Namespace    string
-	Name         string
-	Schedule     string
-	Suspend      bool
-	Active       int32
-	LastSchedule time.Duration
-	Age          time.Duration
-	CreatedAt    time.Time // Stable creation timestamp for sorting
-}
-
-// Node represents a Kubernetes node
-type Node struct {
-	Name         string
-	Status       string
-	Roles        string
-	Age          time.Duration
-	CreatedAt    time.Time // Stable creation timestamp for sorting
-	Version      string
-	Hostname     string
-	InstanceType string
-	Zone         string
-	NodePool     string
-	OSImage      string
-}
-
-// ReplicaSet represents a Kubernetes replicaset
-type ReplicaSet struct {
-	Namespace string
-	Name      string
-	Desired   int32
-	Current   int32
-	Ready     int32
-	Age       time.Duration
-	CreatedAt time.Time
-}
-
-// PersistentVolumeClaim represents a Kubernetes PVC
-type PersistentVolumeClaim struct {
-	Namespace    string
-	Name         string
-	Status       string // Bound, Pending, Lost
-	Volume       string // PV name
-	Capacity     string // "10Gi"
-	AccessModes  string // "RWO", "RWX", "ROX"
-	StorageClass string
-	Age          time.Duration
-	CreatedAt    time.Time
-}
-
-// Ingress represents a Kubernetes ingress
-type Ingress struct {
-	Namespace string
-	Name      string
-	Class     string // IngressClass name
-	Hosts     string // Comma-separated
-	Address   string // LoadBalancer IP/hostname
-	Ports     string // "80, 443"
-	Age       time.Duration
-	CreatedAt time.Time
-}
-
-// Endpoints represents a Kubernetes endpoints
-type Endpoints struct {
-	Namespace string
-	Name      string
-	Endpoints string // "10.0.1.5:8080, 10.0.1.6:8080" (comma-separated)
-	Age       time.Duration
-	CreatedAt time.Time
-}
-
-// HorizontalPodAutoscaler represents a Kubernetes HPA
-type HorizontalPodAutoscaler struct {
-	Namespace string
-	Name      string
-	Reference string // "Deployment/nginx"
-	MinPods   int32
-	MaxPods   int32
-	Replicas  int32  // Current
-	TargetCPU string // "80%" or "N/A"
-	Age       time.Duration
-	CreatedAt time.Time
-}
+// Resource types are now defined in repository_types.go

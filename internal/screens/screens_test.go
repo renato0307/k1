@@ -358,25 +358,25 @@ func TestScreenConfigs_NavigationHandlers(t *testing.T) {
 				// Add mock data based on screen type
 				switch tt.expectedNavType {
 				case "owner":
-					screen.items = []interface{}{k8s.Deployment{Namespace: "test", Name: "test-deploy"}}
+					screen.items = []interface{}{k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-deploy"}}}
 				case "node":
-					screen.items = []interface{}{k8s.Node{Name: "test-node"}}
+					screen.items = []interface{}{k8s.Node{ResourceMetadata: k8s.ResourceMetadata{Name: "test-node"}}}
 				case "service":
-					screen.items = []interface{}{k8s.Service{Namespace: "test", Name: "test-svc"}}
+					screen.items = []interface{}{k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-svc"}}}
 				case "namespace":
-					screen.items = []interface{}{k8s.Namespace{Name: "test-ns"}}
+					screen.items = []interface{}{k8s.Namespace{ResourceMetadata: k8s.ResourceMetadata{Name: "test-ns"}}}
 				case "volume":
-					screen.items = []interface{}{k8s.ConfigMap{Namespace: "test", Name: "test-cm"}}
+					screen.items = []interface{}{k8s.ConfigMap{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-cm"}}}
 				case "cronjob":
-					screen.items = []interface{}{k8s.CronJob{Namespace: "test", Name: "test-cron"}}
+					screen.items = []interface{}{k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-cron"}}}
 				case "pvc":
-					screen.items = []interface{}{k8s.PersistentVolumeClaim{Namespace: "test", Name: "test-pvc"}}
+					screen.items = []interface{}{k8s.PersistentVolumeClaim{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-pvc"}}}
 				case "ingress":
-					screen.items = []interface{}{k8s.Ingress{Namespace: "test", Name: "test-ingress"}}
+					screen.items = []interface{}{k8s.Ingress{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-ingress"}}}
 				case "endpoints":
-					screen.items = []interface{}{k8s.Endpoints{Namespace: "test", Name: "test-ep"}}
+					screen.items = []interface{}{k8s.Endpoints{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-ep"}}}
 				case "hpa":
-					screen.items = []interface{}{k8s.HorizontalPodAutoscaler{Namespace: "test", Name: "test-hpa", Reference: "Deployment/nginx"}}
+					screen.items = []interface{}{k8s.HorizontalPodAutoscaler{ResourceMetadata: k8s.ResourceMetadata{Namespace: "test", Name: "test-hpa"}, Reference: "Deployment/nginx"}}
 				}
 				screen.applyFilter()
 				screen.table.SetCursor(0)

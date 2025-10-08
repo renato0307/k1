@@ -28,7 +28,7 @@ func TestNavigateToPodsForOwner(t *testing.T) {
 		{
 			name:              "deployment navigation",
 			kind:              "Deployment",
-			resource:          k8s.Deployment{Namespace: "default", Name: "nginx"},
+			resource:          k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx"}},
 			expectNil:         false,
 			expectedScreenID:  "pods",
 			expectedField:     "owner",
@@ -39,7 +39,7 @@ func TestNavigateToPodsForOwner(t *testing.T) {
 		{
 			name:              "statefulset navigation",
 			kind:              "StatefulSet",
-			resource:          k8s.StatefulSet{Namespace: "prod", Name: "web"},
+			resource:          k8s.StatefulSet{ResourceMetadata: k8s.ResourceMetadata{Namespace: "prod", Name: "web"}},
 			expectNil:         false,
 			expectedScreenID:  "pods",
 			expectedField:     "owner",
@@ -50,7 +50,7 @@ func TestNavigateToPodsForOwner(t *testing.T) {
 		{
 			name:              "daemonset navigation",
 			kind:              "DaemonSet",
-			resource:          k8s.DaemonSet{Namespace: "kube-system", Name: "fluentd"},
+			resource:          k8s.DaemonSet{ResourceMetadata: k8s.ResourceMetadata{Namespace: "kube-system", Name: "fluentd"}},
 			expectNil:         false,
 			expectedScreenID:  "pods",
 			expectedField:     "owner",
@@ -61,7 +61,7 @@ func TestNavigateToPodsForOwner(t *testing.T) {
 		{
 			name:              "job navigation",
 			kind:              "Job",
-			resource:          k8s.Job{Namespace: "batch", Name: "backup"},
+			resource:          k8s.Job{ResourceMetadata: k8s.ResourceMetadata{Namespace: "batch", Name: "backup"}},
 			expectNil:         false,
 			expectedScreenID:  "pods",
 			expectedField:     "owner",
@@ -72,13 +72,13 @@ func TestNavigateToPodsForOwner(t *testing.T) {
 		{
 			name:      "missing namespace returns nil",
 			kind:      "Deployment",
-			resource:  k8s.Deployment{Name: "nginx"}, // Missing namespace
+			resource:  k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Name: "nginx"}}, // Missing namespace
 			expectNil: true,
 		},
 		{
 			name:      "missing name returns nil",
 			kind:      "Deployment",
-			resource:  k8s.Deployment{Namespace: "default"}, // Missing name
+			resource:  k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}}, // Missing name
 			expectNil: true,
 		},
 	}
@@ -138,7 +138,7 @@ func TestNavigateToJobsForCronJob(t *testing.T) {
 	}{
 		{
 			name:              "valid cronjob",
-			resource:          k8s.CronJob{Namespace: "default", Name: "daily-backup"},
+			resource:          k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "daily-backup"}},
 			expectNil:         false,
 			expectedScreenID:  "jobs",
 			expectedField:     "owner",
@@ -147,12 +147,12 @@ func TestNavigateToJobsForCronJob(t *testing.T) {
 		},
 		{
 			name:      "missing namespace returns nil",
-			resource:  k8s.CronJob{Name: "backup"},
+			resource:  k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Name: "backup"}},
 			expectNil: true,
 		},
 		{
 			name:      "missing name returns nil",
-			resource:  k8s.CronJob{Namespace: "default"},
+			resource:  k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}},
 			expectNil: true,
 		},
 	}
@@ -211,7 +211,7 @@ func TestNavigateToPodsForNode(t *testing.T) {
 	}{
 		{
 			name:             "valid node",
-			resource:         k8s.Node{Name: "node-1"},
+			resource:         k8s.Node{ResourceMetadata: k8s.ResourceMetadata{Name: "node-1"}},
 			expectNil:        false,
 			expectedScreenID: "pods",
 			expectedField:    "node",
@@ -277,7 +277,7 @@ func TestNavigateToPodsForService(t *testing.T) {
 	}{
 		{
 			name:              "valid service",
-			resource:          k8s.Service{Namespace: "default", Name: "nginx-svc"},
+			resource:          k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx-svc"}},
 			expectNil:         false,
 			expectedScreenID:  "pods",
 			expectedField:     "selector",
@@ -286,12 +286,12 @@ func TestNavigateToPodsForService(t *testing.T) {
 		},
 		{
 			name:      "missing namespace returns nil",
-			resource:  k8s.Service{Name: "nginx-svc"},
+			resource:  k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Name: "nginx-svc"}},
 			expectNil: true,
 		},
 		{
 			name:      "missing name returns nil",
-			resource:  k8s.Service{Namespace: "default"},
+			resource:  k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}},
 			expectNil: true,
 		},
 	}
@@ -350,7 +350,7 @@ func TestNavigateToPodsForNamespace(t *testing.T) {
 	}{
 		{
 			name:             "valid namespace",
-			resource:         k8s.Namespace{Name: "production"},
+			resource:         k8s.Namespace{ResourceMetadata: k8s.ResourceMetadata{Name: "production"}},
 			expectNil:        false,
 			expectedScreenID: "pods",
 			expectedField:    "namespace",
@@ -419,7 +419,7 @@ func TestNavigateToPodsForVolumeSource(t *testing.T) {
 		{
 			name:              "configmap navigation",
 			kind:              "ConfigMap",
-			resource:          k8s.ConfigMap{Namespace: "default", Name: "app-config"},
+			resource:          k8s.ConfigMap{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "app-config"}},
 			expectNil:         false,
 			expectedScreenID:  "pods",
 			expectedField:     "configmap",
@@ -430,7 +430,7 @@ func TestNavigateToPodsForVolumeSource(t *testing.T) {
 		{
 			name:              "secret navigation",
 			kind:              "Secret",
-			resource:          k8s.Secret{Namespace: "prod", Name: "db-password"},
+			resource:          k8s.Secret{ResourceMetadata: k8s.ResourceMetadata{Namespace: "prod", Name: "db-password"}},
 			expectNil:         false,
 			expectedScreenID:  "pods",
 			expectedField:     "secret",
@@ -441,13 +441,13 @@ func TestNavigateToPodsForVolumeSource(t *testing.T) {
 		{
 			name:      "missing namespace returns nil",
 			kind:      "ConfigMap",
-			resource:  k8s.ConfigMap{Name: "config"},
+			resource:  k8s.ConfigMap{ResourceMetadata: k8s.ResourceMetadata{Name: "config"}},
 			expectNil: true,
 		},
 		{
 			name:      "missing name returns nil",
 			kind:      "Secret",
-			resource:  k8s.Secret{Namespace: "default"},
+			resource:  k8s.Secret{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}},
 			expectNil: true,
 		},
 	}
