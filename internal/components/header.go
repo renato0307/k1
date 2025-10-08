@@ -15,6 +15,7 @@ type Header struct {
 	screenTitle  string
 	namespace    string
 	itemCount    int
+	filterText   string // Contextual navigation filter
 	lastRefresh  time.Time
 	width        int
 	theme        *ui.Theme
@@ -43,6 +44,10 @@ func (h *Header) SetLastRefresh(t time.Time) {
 	h.lastRefresh = t
 }
 
+func (h *Header) SetFilterText(text string) {
+	h.filterText = text
+}
+
 func (h *Header) SetWidth(width int) {
 	h.width = width
 }
@@ -57,10 +62,15 @@ func (h *Header) View() string {
 		Foreground(h.theme.Muted).
 		Padding(0, 1)
 
-	// Build left side: "Pods • namespace: default • 47 items"
+	// Build left side: "Pods • filtered by Deployment: name • 47 items"
 	leftParts := []string{}
 	if h.screenTitle != "" {
 		leftParts = append(leftParts, h.screenTitle)
+	}
+
+	// Add filter text if present
+	if h.filterText != "" {
+		leftParts = append(leftParts, h.filterText)
 	}
 
 	if h.namespace != "" {

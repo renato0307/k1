@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,11 +32,14 @@ import (
 // InformerRepository implements Repository using Kubernetes informers
 type InformerRepository struct {
 	// Typed client and informers (legacy, preserved for compatibility)
-	clientset        *kubernetes.Clientset
-	factory          informers.SharedInformerFactory
-	podLister        v1listers.PodLister
-	deploymentLister appsv1listers.DeploymentLister
-	serviceLister    v1listers.ServiceLister
+	clientset         *kubernetes.Clientset
+	factory           informers.SharedInformerFactory
+	podLister         v1listers.PodLister
+	deploymentLister  appsv1listers.DeploymentLister
+	serviceLister     v1listers.ServiceLister
+	replicaSetLister  appsv1listers.ReplicaSetLister
+	statefulSetLister appsv1listers.StatefulSetLister
+	daemonSetLister   appsv1listers.DaemonSetLister
 
 	// Dynamic client and informers (config-driven approach)
 	dynamicClient  dynamic.Interface
@@ -46,6 +50,16 @@ type InformerRepository struct {
 	// Kubeconfig and context (for kubectl subprocess commands)
 	kubeconfig  string
 	contextName string
+
+	// Performance indexes (built on informer updates)
+	mu               sync.RWMutex
+	podsByNode       map[string][]*corev1.Pod             // nodeName → pods
+	podsByNamespace  map[string][]*corev1.Pod             // namespace → pods
+	podsByOwnerUID   map[string][]*corev1.Pod             // ownerUID → pods
+	podsByConfigMap  map[string]map[string][]*corev1.Pod // namespace/configMapName → pods
+	podsBySecret     map[string]map[string][]*corev1.Pod // namespace/secretName → pods
+	jobsByOwnerUID   map[string][]string                  // ownerUID → job namespaced names
+	jobsByNamespace  map[string][]string                  // namespace → job names
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -108,6 +122,18 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	serviceInformer := factory.Core().V1().Services().Informer()
 	serviceLister := factory.Core().V1().Services().Lister()
 
+	// Create replicaset informer and lister (needed for deployment → pods filtering)
+	replicaSetInformer := factory.Apps().V1().ReplicaSets().Informer()
+	replicaSetLister := factory.Apps().V1().ReplicaSets().Lister()
+
+	// Create statefulset informer and lister
+	statefulSetInformer := factory.Apps().V1().StatefulSets().Informer()
+	statefulSetLister := factory.Apps().V1().StatefulSets().Lister()
+
+	// Create daemonset informer and lister
+	daemonSetInformer := factory.Apps().V1().DaemonSets().Informer()
+	daemonSetLister := factory.Apps().V1().DaemonSets().Lister()
+
 	// Initialize resource registry
 	resourceRegistry := getResourceRegistry()
 
@@ -136,11 +162,14 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	// Track which informers synced successfully
 	syncedInformers := make(map[schema.GroupVersionResource]bool)
 
-	// Try typed informers first (pods, deployments, services)
+	// Try typed informers first (pods, deployments, services, replicasets, statefulsets, daemonsets)
 	typedSynced := cache.WaitForCacheSync(syncCtx.Done(),
 		podInformer.HasSynced,
 		deploymentInformer.HasSynced,
 		serviceInformer.HasSynced,
+		replicaSetInformer.HasSynced,
+		statefulSetInformer.HasSynced,
+		daemonSetInformer.HasSynced,
 	)
 	if !typedSynced {
 		fmt.Fprintf(os.Stderr, "Warning: Some core resources (pods/deployments/services) failed to sync - may have permission issues\n")
@@ -166,21 +195,38 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		return nil, fmt.Errorf("failed to sync critical resources (pods/deployments/services) - check RBAC permissions")
 	}
 
-	return &InformerRepository{
-		clientset:        clientset,
-		factory:          factory,
-		podLister:        podLister,
-		deploymentLister: deploymentLister,
-		serviceLister:    serviceLister,
-		dynamicClient:    dynamicClient,
-		dynamicFactory:   dynamicFactory,
-		resources:        resourceRegistry,
-		dynamicListers:   dynamicListers,
-		kubeconfig:       kubeconfig,
-		contextName:      contextName,
-		ctx:              ctx,
-		cancel:           cancel,
-	}, nil
+	// Create repository with initialized indexes
+	repo := &InformerRepository{
+		clientset:         clientset,
+		factory:           factory,
+		podLister:         podLister,
+		deploymentLister:  deploymentLister,
+		serviceLister:     serviceLister,
+		replicaSetLister:  replicaSetLister,
+		statefulSetLister: statefulSetLister,
+		daemonSetLister:   daemonSetLister,
+		dynamicClient:     dynamicClient,
+		dynamicFactory:    dynamicFactory,
+		resources:         resourceRegistry,
+		dynamicListers:    dynamicListers,
+		kubeconfig:        kubeconfig,
+		contextName:       contextName,
+		podsByNode:        make(map[string][]*corev1.Pod),
+		podsByNamespace:   make(map[string][]*corev1.Pod),
+		podsByOwnerUID:    make(map[string][]*corev1.Pod),
+		podsByConfigMap:   make(map[string]map[string][]*corev1.Pod),
+		podsBySecret:      make(map[string]map[string][]*corev1.Pod),
+		jobsByOwnerUID:    make(map[string][]string),
+		jobsByNamespace:   make(map[string][]string),
+		ctx:               ctx,
+		cancel:            cancel,
+	}
+
+	// Setup pod indexes with event handlers
+	repo.setupPodIndexes()
+	repo.setupJobIndexes()
+
+	return repo, nil
 }
 
 // GetPods returns all pods from the informer cache
@@ -348,6 +394,279 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 	sortByCreationTime(services, func(s Service) time.Time { return s.CreatedAt }, func(s Service) string { return s.Name })
 
 	return services, nil
+}
+
+// GetPodsForDeployment returns pods owned by a specific deployment (uses indexed lookups)
+func (r *InformerRepository) GetPodsForDeployment(namespace, name string) ([]Pod, error) {
+	// Get deployment to find its UID
+	deployment, err := r.deploymentLister.Deployments(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment: %w", err)
+	}
+
+	// Get ReplicaSets owned by this deployment
+	allReplicaSets, err := r.replicaSetLister.ReplicaSets(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list replicasets: %w", err)
+	}
+
+	// Find ReplicaSets owned by this deployment and collect their pods using index
+	r.mu.RLock()
+	var allPods []*corev1.Pod
+	for _, rs := range allReplicaSets {
+		for _, owner := range rs.OwnerReferences {
+			if owner.UID == deployment.UID {
+				// Use indexed lookup for pods owned by this ReplicaSet
+				pods := r.podsByOwnerUID[string(rs.UID)]
+				allPods = append(allPods, pods...)
+				break
+			}
+		}
+	}
+	r.mu.RUnlock()
+
+	return r.transformPods(allPods)
+}
+
+// GetPodsOnNode returns pods running on a specific node (O(1) indexed lookup)
+func (r *InformerRepository) GetPodsOnNode(nodeName string) ([]Pod, error) {
+	r.mu.RLock()
+	pods := r.podsByNode[nodeName]
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
+// GetPodsForService returns pods matching a service's selector
+func (r *InformerRepository) GetPodsForService(namespace, name string) ([]Pod, error) {
+	// Get service to find its selector
+	service, err := r.serviceLister.Services(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service: %w", err)
+	}
+
+	// If service has no selector, return empty list
+	if len(service.Spec.Selector) == 0 {
+		return []Pod{}, nil
+	}
+
+	// Convert service selector to label selector
+	selector := labels.SelectorFromSet(service.Spec.Selector)
+
+	// List pods in the same namespace matching the selector
+	podList, err := r.podLister.Pods(namespace).List(selector)
+	if err != nil {
+		return nil, fmt.Errorf("error listing pods: %w", err)
+	}
+
+	// Convert to our Pod type
+	pods := make([]Pod, 0, len(podList))
+	now := time.Now()
+
+	for _, pod := range podList {
+		// Calculate age
+		age := now.Sub(pod.CreationTimestamp.Time)
+
+		// Calculate ready containers
+		readyContainers := 0
+		totalContainers := len(pod.Status.ContainerStatuses)
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Ready {
+				readyContainers++
+			}
+		}
+		readyStatus := fmt.Sprintf("%d/%d", readyContainers, totalContainers)
+
+		// Calculate total restarts
+		totalRestarts := int32(0)
+		for _, cs := range pod.Status.ContainerStatuses {
+			totalRestarts += cs.RestartCount
+		}
+
+		pods = append(pods, Pod{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			Ready:     readyStatus,
+			Status:    string(pod.Status.Phase),
+			Restarts:  totalRestarts,
+			Age:       age,
+			CreatedAt: pod.CreationTimestamp.Time,
+			Node:      pod.Spec.NodeName,
+			IP:        pod.Status.PodIP,
+		})
+	}
+
+	// Sort by creation time (newest first), then by name for stable sort
+	sortByCreationTime(pods, func(p Pod) time.Time { return p.CreatedAt }, func(p Pod) string { return p.Name })
+
+	return pods, nil
+}
+
+// GetPodsForStatefulSet returns pods owned by a specific statefulset (uses indexed lookups)
+func (r *InformerRepository) GetPodsForStatefulSet(namespace, name string) ([]Pod, error) {
+	// Get statefulset to find its UID
+	statefulSet, err := r.statefulSetLister.StatefulSets(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get statefulset: %w", err)
+	}
+
+	// Use indexed lookup for pods owned by this StatefulSet
+	r.mu.RLock()
+	pods := r.podsByOwnerUID[string(statefulSet.UID)]
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
+// GetPodsForDaemonSet returns pods owned by a specific daemonset (uses indexed lookups)
+func (r *InformerRepository) GetPodsForDaemonSet(namespace, name string) ([]Pod, error) {
+	// Get daemonset to find its UID
+	daemonSet, err := r.daemonSetLister.DaemonSets(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get daemonset: %w", err)
+	}
+
+	// Use indexed lookup for pods owned by this DaemonSet
+	r.mu.RLock()
+	pods := r.podsByOwnerUID[string(daemonSet.UID)]
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
+// GetPodsForJob returns pods owned by a specific job (uses indexed lookups)
+func (r *InformerRepository) GetPodsForJob(namespace, name string) ([]Pod, error) {
+	// Get job from dynamic lister to find its UID
+	jobGVR := schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}
+	lister, ok := r.dynamicListers[jobGVR]
+	if !ok {
+		return nil, fmt.Errorf("job informer not initialized")
+	}
+
+	obj, err := lister.ByNamespace(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get job: %w", err)
+	}
+
+	unstr, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, fmt.Errorf("unexpected object type: %T", obj)
+	}
+
+	// Use indexed lookup for pods owned by this Job
+	r.mu.RLock()
+	pods := r.podsByOwnerUID[string(unstr.GetUID())]
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
+// GetJobsForCronJob returns jobs owned by a specific cronjob (uses indexed lookups)
+func (r *InformerRepository) GetJobsForCronJob(namespace, name string) ([]Job, error) {
+	// Get cronjob from dynamic lister to find its UID
+	cronJobGVR := schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "cronjobs"}
+	lister, ok := r.dynamicListers[cronJobGVR]
+	if !ok {
+		return nil, fmt.Errorf("cronjob informer not initialized")
+	}
+
+	obj, err := lister.ByNamespace(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cronjob: %w", err)
+	}
+
+	unstr, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, fmt.Errorf("unexpected object type: %T", obj)
+	}
+
+	// Use indexed lookup for jobs owned by this CronJob
+	r.mu.RLock()
+	jobKeys := r.jobsByOwnerUID[string(unstr.GetUID())]
+	r.mu.RUnlock()
+
+	// Fetch jobs from dynamic lister
+	jobGVR := schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}
+	jobLister, ok := r.dynamicListers[jobGVR]
+	if !ok {
+		return nil, fmt.Errorf("job informer not initialized")
+	}
+
+	jobs := make([]Job, 0, len(jobKeys))
+
+	for _, jobKey := range jobKeys {
+		// Parse namespace/name from key
+		parts := strings.Split(jobKey, "/")
+		if len(parts) != 2 {
+			continue
+		}
+		jobNamespace, jobName := parts[0], parts[1]
+
+		obj, err := jobLister.ByNamespace(jobNamespace).Get(jobName)
+		if err != nil {
+			// Job may have been deleted, skip
+			continue
+		}
+
+		jobUnstr, ok := obj.(*unstructured.Unstructured)
+		if !ok {
+			continue
+		}
+
+		// Extract common fields
+		common := extractCommonFields(jobUnstr)
+
+		// Transform to Job type
+		transformed, err := transformJob(jobUnstr, common)
+		if err != nil {
+			continue
+		}
+
+		job, ok := transformed.(Job)
+		if !ok {
+			continue
+		}
+
+		jobs = append(jobs, job)
+	}
+
+	// Sort by creation time (newest first)
+	sortByCreationTime(jobs, func(j Job) time.Time { return j.CreatedAt }, func(j Job) string { return j.Name })
+
+	return jobs, nil
+}
+
+// GetPodsForNamespace returns all pods in a specific namespace (uses indexed lookups)
+func (r *InformerRepository) GetPodsForNamespace(namespace string) ([]Pod, error) {
+	r.mu.RLock()
+	pods := r.podsByNamespace[namespace]
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
+// GetPodsUsingConfigMap returns pods that use a specific ConfigMap (uses indexed lookups)
+func (r *InformerRepository) GetPodsUsingConfigMap(namespace, name string) ([]Pod, error) {
+	r.mu.RLock()
+	var pods []*corev1.Pod
+	if r.podsByConfigMap[namespace] != nil {
+		pods = r.podsByConfigMap[namespace][name]
+	}
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
+// GetPodsUsingSecret returns pods that use a specific Secret (uses indexed lookups)
+func (r *InformerRepository) GetPodsUsingSecret(namespace, name string) ([]Pod, error) {
+	r.mu.RLock()
+	var pods []*corev1.Pod
+	if r.podsBySecret[namespace] != nil {
+		pods = r.podsBySecret[namespace][name]
+	}
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
 }
 
 // GetResourceYAML returns YAML representation of a resource using kubectl YAMLPrinter
@@ -565,6 +884,221 @@ func (r *InformerRepository) Close() {
 	}
 }
 
+// setupPodIndexes registers event handlers to maintain pod indexes
+func (r *InformerRepository) setupPodIndexes() {
+	podInformer := r.factory.Core().V1().Pods().Informer()
+
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*corev1.Pod)
+			r.updatePodIndexes(pod, nil)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldPod := oldObj.(*corev1.Pod)
+			newPod := newObj.(*corev1.Pod)
+			r.updatePodIndexes(newPod, oldPod)
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod := obj.(*corev1.Pod)
+			r.removePodFromIndexes(pod)
+		},
+	})
+}
+
+// updatePodIndexes updates all indexes for a pod (call with nil oldPod for adds)
+func (r *InformerRepository) updatePodIndexes(newPod, oldPod *corev1.Pod) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Remove old pod from indexes if updating
+	if oldPod != nil {
+		r.removePodFromIndexesLocked(oldPod)
+	}
+
+	// Add to node index
+	if newPod.Spec.NodeName != "" {
+		r.podsByNode[newPod.Spec.NodeName] = append(
+			r.podsByNode[newPod.Spec.NodeName],
+			newPod,
+		)
+	}
+
+	// Add to namespace index
+	r.podsByNamespace[newPod.Namespace] = append(
+		r.podsByNamespace[newPod.Namespace],
+		newPod,
+	)
+
+	// Add to owner index
+	for _, ownerRef := range newPod.OwnerReferences {
+		r.podsByOwnerUID[string(ownerRef.UID)] = append(
+			r.podsByOwnerUID[string(ownerRef.UID)],
+			newPod,
+		)
+	}
+
+	// Add to ConfigMap index (inspect volumes)
+	for _, volume := range newPod.Spec.Volumes {
+		if volume.ConfigMap != nil {
+			cmName := volume.ConfigMap.Name
+			ns := newPod.Namespace
+			if r.podsByConfigMap[ns] == nil {
+				r.podsByConfigMap[ns] = make(map[string][]*corev1.Pod)
+			}
+			r.podsByConfigMap[ns][cmName] = append(r.podsByConfigMap[ns][cmName], newPod)
+		}
+	}
+
+	// Add to Secret index (inspect volumes)
+	for _, volume := range newPod.Spec.Volumes {
+		if volume.Secret != nil {
+			secretName := volume.Secret.SecretName
+			ns := newPod.Namespace
+			if r.podsBySecret[ns] == nil {
+				r.podsBySecret[ns] = make(map[string][]*corev1.Pod)
+			}
+			r.podsBySecret[ns][secretName] = append(r.podsBySecret[ns][secretName], newPod)
+		}
+	}
+}
+
+// removePodFromIndexes removes a pod from all indexes (acquires lock)
+func (r *InformerRepository) removePodFromIndexes(pod *corev1.Pod) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.removePodFromIndexesLocked(pod)
+}
+
+// removePodFromIndexesLocked removes a pod from all indexes (assumes lock held)
+func (r *InformerRepository) removePodFromIndexesLocked(pod *corev1.Pod) {
+	// Remove from node index
+	if pod.Spec.NodeName != "" {
+		r.podsByNode[pod.Spec.NodeName] = removePodFromSlice(
+			r.podsByNode[pod.Spec.NodeName],
+			pod,
+		)
+		if len(r.podsByNode[pod.Spec.NodeName]) == 0 {
+			delete(r.podsByNode, pod.Spec.NodeName)
+		}
+	}
+
+	// Remove from namespace index
+	r.podsByNamespace[pod.Namespace] = removePodFromSlice(
+		r.podsByNamespace[pod.Namespace],
+		pod,
+	)
+	if len(r.podsByNamespace[pod.Namespace]) == 0 {
+		delete(r.podsByNamespace, pod.Namespace)
+	}
+
+	// Remove from owner index
+	for _, ownerRef := range pod.OwnerReferences {
+		ownerUID := string(ownerRef.UID)
+		r.podsByOwnerUID[ownerUID] = removePodFromSlice(
+			r.podsByOwnerUID[ownerUID],
+			pod,
+		)
+		if len(r.podsByOwnerUID[ownerUID]) == 0 {
+			delete(r.podsByOwnerUID, ownerUID)
+		}
+	}
+
+	// Remove from ConfigMap index
+	for _, volume := range pod.Spec.Volumes {
+		if volume.ConfigMap != nil {
+			cmName := volume.ConfigMap.Name
+			ns := pod.Namespace
+			if r.podsByConfigMap[ns] != nil {
+				r.podsByConfigMap[ns][cmName] = removePodFromSlice(
+					r.podsByConfigMap[ns][cmName],
+					pod,
+				)
+				if len(r.podsByConfigMap[ns][cmName]) == 0 {
+					delete(r.podsByConfigMap[ns], cmName)
+				}
+				if len(r.podsByConfigMap[ns]) == 0 {
+					delete(r.podsByConfigMap, ns)
+				}
+			}
+		}
+	}
+
+	// Remove from Secret index
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Secret != nil {
+			secretName := volume.Secret.SecretName
+			ns := pod.Namespace
+			if r.podsBySecret[ns] != nil {
+				r.podsBySecret[ns][secretName] = removePodFromSlice(
+					r.podsBySecret[ns][secretName],
+					pod,
+				)
+				if len(r.podsBySecret[ns][secretName]) == 0 {
+					delete(r.podsBySecret[ns], secretName)
+				}
+				if len(r.podsBySecret[ns]) == 0 {
+					delete(r.podsBySecret, ns)
+				}
+			}
+		}
+	}
+}
+
+// removePodFromSlice removes a pod from a slice by comparing UIDs
+func removePodFromSlice(pods []*corev1.Pod, target *corev1.Pod) []*corev1.Pod {
+	result := make([]*corev1.Pod, 0, len(pods))
+	for _, p := range pods {
+		if p.UID != target.UID {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// transformPods converts []*corev1.Pod to []Pod (our app type)
+func (r *InformerRepository) transformPods(podList []*corev1.Pod) ([]Pod, error) {
+	pods := make([]Pod, 0, len(podList))
+	now := time.Now()
+
+	for _, pod := range podList {
+		// Calculate age
+		age := now.Sub(pod.CreationTimestamp.Time)
+
+		// Calculate ready containers
+		readyContainers := 0
+		totalContainers := len(pod.Status.ContainerStatuses)
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Ready {
+				readyContainers++
+			}
+		}
+		readyStatus := fmt.Sprintf("%d/%d", readyContainers, totalContainers)
+
+		// Calculate total restarts
+		totalRestarts := int32(0)
+		for _, cs := range pod.Status.ContainerStatuses {
+			totalRestarts += cs.RestartCount
+		}
+
+		pods = append(pods, Pod{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			Ready:     readyStatus,
+			Status:    string(pod.Status.Phase),
+			Restarts:  totalRestarts,
+			Age:       age,
+			CreatedAt: pod.CreationTimestamp.Time,
+			Node:      pod.Spec.NodeName,
+			IP:        pod.Status.PodIP,
+		})
+	}
+
+	// Sort by creation time (newest first), then by name for stable sort
+	sortByCreationTime(pods, func(p Pod) time.Time { return p.CreatedAt }, func(p Pod) string { return p.Name })
+
+	return pods, nil
+}
+
 // GetKubeconfig returns the kubeconfig path
 func (r *InformerRepository) GetKubeconfig() string {
 	return r.kubeconfig
@@ -573,6 +1107,103 @@ func (r *InformerRepository) GetKubeconfig() string {
 // GetContext returns the context name
 func (r *InformerRepository) GetContext() string {
 	return r.contextName
+}
+
+// setupJobIndexes registers event handlers to maintain job indexes for CronJob → Jobs navigation
+func (r *InformerRepository) setupJobIndexes() {
+	// Get job informer from dynamic factory
+	jobGVR := schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}
+	jobInformer := r.dynamicFactory.ForResource(jobGVR).Informer()
+
+	jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			unstr, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				return
+			}
+			r.updateJobIndexes(unstr, nil)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldUnstr, _ := oldObj.(*unstructured.Unstructured)
+			newUnstr, ok := newObj.(*unstructured.Unstructured)
+			if !ok {
+				return
+			}
+			r.updateJobIndexes(newUnstr, oldUnstr)
+		},
+		DeleteFunc: func(obj interface{}) {
+			unstr, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				return
+			}
+			r.removeJobFromIndexes(unstr)
+		},
+	})
+}
+
+// updateJobIndexes updates all indexes for a job
+func (r *InformerRepository) updateJobIndexes(newJob, oldJob *unstructured.Unstructured) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Remove old job from indexes if updating
+	if oldJob != nil {
+		r.removeJobFromIndexesLocked(oldJob)
+	}
+
+	// Create job namespaced name
+	namespace := newJob.GetNamespace()
+	name := newJob.GetName()
+	jobKey := namespace + "/" + name
+
+	// Add to namespace index
+	r.jobsByNamespace[namespace] = append(r.jobsByNamespace[namespace], jobKey)
+
+	// Add to owner index
+	for _, ownerRef := range newJob.GetOwnerReferences() {
+		ownerUID := string(ownerRef.UID)
+		r.jobsByOwnerUID[ownerUID] = append(r.jobsByOwnerUID[ownerUID], jobKey)
+	}
+}
+
+// removeJobFromIndexes removes a job from all indexes (acquires lock)
+func (r *InformerRepository) removeJobFromIndexes(job *unstructured.Unstructured) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.removeJobFromIndexesLocked(job)
+}
+
+// removeJobFromIndexesLocked removes a job from all indexes (assumes lock held)
+func (r *InformerRepository) removeJobFromIndexesLocked(job *unstructured.Unstructured) {
+	namespace := job.GetNamespace()
+	name := job.GetName()
+	jobKey := namespace + "/" + name
+
+	// Remove from namespace index
+	r.jobsByNamespace[namespace] = removeStringFromSlice(r.jobsByNamespace[namespace], jobKey)
+	if len(r.jobsByNamespace[namespace]) == 0 {
+		delete(r.jobsByNamespace, namespace)
+	}
+
+	// Remove from owner index
+	for _, ownerRef := range job.GetOwnerReferences() {
+		ownerUID := string(ownerRef.UID)
+		r.jobsByOwnerUID[ownerUID] = removeStringFromSlice(r.jobsByOwnerUID[ownerUID], jobKey)
+		if len(r.jobsByOwnerUID[ownerUID]) == 0 {
+			delete(r.jobsByOwnerUID, ownerUID)
+		}
+	}
+}
+
+// removeStringFromSlice removes a string from a slice
+func removeStringFromSlice(slice []string, target string) []string {
+	result := make([]string, 0, len(slice))
+	for _, s := range slice {
+		if s != target {
+			result = append(result, s)
+		}
+	}
+	return result
 }
 
 // GetResources returns all resources of the specified type using dynamic informers

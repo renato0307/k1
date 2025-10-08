@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -73,9 +74,44 @@ type AppState struct {
 	Height        int
 }
 
+// FilterContext defines filtering to apply on screen switch
+type FilterContext struct {
+	Field    string            // "owner", "node", "selector"
+	Value    string            // Resource name (deployment, node, service)
+	Metadata map[string]string // namespace, kind, etc.
+}
+
+// Description returns a human-readable description of the filter
+func (f *FilterContext) Description() string {
+	if f == nil {
+		return ""
+	}
+
+	kind := strings.ToLower(f.Metadata["kind"])
+	switch f.Field {
+	case "owner":
+		return "filtered by " + kind + ": " + f.Value
+	case "node":
+		return "filtered by " + kind + ": " + f.Value
+	case "selector":
+		return "filtered by " + kind + ": " + f.Value
+	case "namespace":
+		return "filtered by " + kind + ": " + f.Value
+	case "configmap":
+		return "filtered by " + kind + ": " + f.Value
+	case "secret":
+		return "filtered by " + kind + ": " + f.Value
+	default:
+		return "filtered by " + f.Value
+	}
+}
+
 // Messages
 type ScreenSwitchMsg struct {
-	ScreenID string
+	ScreenID         string
+	FilterContext    *FilterContext // Optional filter for contextual navigation
+	CommandBarFilter string         // Optional command bar fuzzy filter to restore
+	IsBackNav        bool           // True if navigating back via ESC
 }
 
 type RefreshCompleteMsg struct {
@@ -123,7 +159,7 @@ type ClearFilterMsg struct{}
 
 // ShowFullScreenMsg triggers display of full-screen content
 type ShowFullScreenMsg struct {
-	ViewType     int    // 0=YAML, 1=Describe, 2=Logs
+	ViewType     int // 0=YAML, 1=Describe, 2=Logs
 	ResourceName string
 	Content      string
 }

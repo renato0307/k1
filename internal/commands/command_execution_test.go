@@ -33,6 +33,36 @@ func (m *mockRepository) GetDeployments() ([]k8s.Deployment, error) {
 func (m *mockRepository) GetServices() ([]k8s.Service, error) {
 	return nil, nil
 }
+func (m *mockRepository) GetPodsForDeployment(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsOnNode(nodeName string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsForService(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsForStatefulSet(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsForDaemonSet(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsForJob(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetJobsForCronJob(namespace, name string) ([]k8s.Job, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsForNamespace(namespace string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsUsingConfigMap(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
+func (m *mockRepository) GetPodsUsingSecret(namespace, name string) ([]k8s.Pod, error) {
+	return nil, nil
+}
 func (m *mockRepository) GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
 	return "", nil
 }

@@ -18,20 +18,31 @@ const (
 	// StatusBarDisplayDuration is how long status messages (success, error,
 	// info) are displayed before automatically clearing.
 	StatusBarDisplayDuration = 5 * time.Second
+
+	// MaxNavigationHistorySize limits the navigation history stack
+	MaxNavigationHistorySize = 50
 )
 
+// NavigationState represents a point in navigation history
+type NavigationState struct {
+	ScreenID         string
+	FilterContext    *types.FilterContext
+	CommandBarFilter string // Fuzzy search filter from command bar
+}
+
 type Model struct {
-	state          types.AppState
-	registry       *types.ScreenRegistry
-	currentScreen  types.Screen
-	header         *components.Header
-	layout         *components.Layout
-	statusBar      *components.StatusBar
-	commandBar     *commandbar.CommandBar
-	fullScreen     *components.FullScreen
-	fullScreenMode bool
-	repo           k8s.Repository
-	theme          *ui.Theme
+	state             types.AppState
+	registry          *types.ScreenRegistry
+	currentScreen     types.Screen
+	header            *components.Header
+	layout            *components.Layout
+	statusBar         *components.StatusBar
+	commandBar        *commandbar.CommandBar
+	fullScreen        *components.FullScreen
+	fullScreenMode    bool
+	navigationHistory []NavigationState
+	repo              k8s.Repository
+	theme             *ui.Theme
 }
 
 func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
@@ -83,14 +94,15 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 			Width:         80,
 			Height:        24,
 		},
-		registry:      registry,
-		currentScreen: initialScreen,
-		header:        header,
-		layout:        layout,
-		statusBar:     statusBar,
-		commandBar:    cmdBar,
-		repo:          repo,
-		theme:         theme,
+		registry:          registry,
+		currentScreen:     initialScreen,
+		header:            header,
+		layout:            layout,
+		statusBar:         statusBar,
+		commandBar:        cmdBar,
+		navigationHistory: make([]NavigationState, 0, MaxNavigationHistorySize),
+		repo:              repo,
+		theme:             theme,
 	}
 }
 
@@ -174,6 +186,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, fsCmd
 		}
 
+		// Handle ESC for back navigation (only when command bar is hidden)
+		if msg.Type == tea.KeyEsc && m.commandBar.GetState() == commandbar.StateHidden {
+			if len(m.navigationHistory) > 0 {
+				return m, m.popNavigationHistory()
+			}
+		}
+
 		// Update command bar with current selection context
 		if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
 			m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
@@ -202,8 +221,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.ScreenSwitchMsg:
 		if screen, ok := m.registry.Get(msg.ScreenID); ok {
+			// Push current state to history if this is contextual navigation
+			// (FilterContext present and not a back navigation)
+			if !msg.IsBackNav && msg.FilterContext != nil {
+				m.pushNavigationHistory()
+			}
+
 			m.currentScreen = screen
 			m.state.CurrentScreen = msg.ScreenID
+
+			// Apply FilterContext (or clear it if nil)
+			if configScreen, ok := screen.(*screens.ConfigScreen); ok {
+				configScreen.ApplyFilterContext(msg.FilterContext)
+			}
 
 			// Update command bar with current screen context for command filtering
 			m.commandBar.SetScreen(msg.ScreenID)
@@ -211,12 +241,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Update header with screen title
 			m.header.SetScreenTitle(screen.Title())
 
+			// Update header with filter text if FilterContext is present
+			if msg.FilterContext != nil {
+				m.header.SetFilterText(msg.FilterContext.Description())
+			} else {
+				m.header.SetFilterText("")
+			}
+
+			// Restore command bar filter if this is back navigation
+			var restoreFilterCmd tea.Cmd
+			if msg.IsBackNav && msg.CommandBarFilter != "" {
+				restoreFilterCmd = m.commandBar.RestoreFilter(msg.CommandBarFilter)
+			}
+
 			bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
 			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
 				screenWithSize.SetSize(m.state.Width, bodyHeight)
 			}
 
-			return m, screen.Init()
+			return m, tea.Batch(screen.Init(), restoreFilterCmd)
 		}
 
 	case types.RefreshCompleteMsg:
@@ -259,6 +302,54 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	model, cmd := m.currentScreen.Update(msg)
 	m.currentScreen = model.(types.Screen)
 	return m, cmd
+}
+
+// pushNavigationHistory saves the current screen state to history
+func (m *Model) pushNavigationHistory() {
+	// Get current filter context if available
+	var filterContext *types.FilterContext
+	if configScreen, ok := m.currentScreen.(*screens.ConfigScreen); ok {
+		filterContext = configScreen.GetFilterContext()
+	}
+
+	// Capture command bar filter (input may exist even if not in filter mode anymore,
+	// since Enter key exits filter mode before we reach this code)
+	commandBarFilter := m.commandBar.GetInput()
+
+	state := NavigationState{
+		ScreenID:         m.state.CurrentScreen,
+		FilterContext:    filterContext,
+		CommandBarFilter: commandBarFilter,
+	}
+
+	// Add to history, respecting max size
+	if len(m.navigationHistory) >= MaxNavigationHistorySize {
+		// Remove oldest entry
+		m.navigationHistory = m.navigationHistory[1:]
+	}
+	m.navigationHistory = append(m.navigationHistory, state)
+}
+
+// popNavigationHistory returns a command to navigate to the previous screen
+func (m *Model) popNavigationHistory() tea.Cmd {
+	if len(m.navigationHistory) == 0 {
+		return nil
+	}
+
+	// Pop the last state
+	lastIdx := len(m.navigationHistory) - 1
+	prevState := m.navigationHistory[lastIdx]
+	m.navigationHistory = m.navigationHistory[:lastIdx]
+
+	// Return navigation command with IsBackNav set to true
+	return func() tea.Msg {
+		return types.ScreenSwitchMsg{
+			ScreenID:         prevState.ScreenID,
+			FilterContext:    prevState.FilterContext,
+			CommandBarFilter: prevState.CommandBarFilter,
+			IsBackNav:        true,
+		}
+	}
 }
 
 func (m Model) View() string {

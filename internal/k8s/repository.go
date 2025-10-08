@@ -77,6 +77,18 @@ type Repository interface {
 	GetDeployments() ([]Deployment, error)
 	GetServices() ([]Service, error)
 
+	// Filtered queries for contextual navigation
+	GetPodsForDeployment(namespace, name string) ([]Pod, error)
+	GetPodsOnNode(nodeName string) ([]Pod, error)
+	GetPodsForService(namespace, name string) ([]Pod, error)
+	GetPodsForStatefulSet(namespace, name string) ([]Pod, error)
+	GetPodsForDaemonSet(namespace, name string) ([]Pod, error)
+	GetPodsForJob(namespace, name string) ([]Pod, error)
+	GetJobsForCronJob(namespace, name string) ([]Job, error)
+	GetPodsForNamespace(namespace string) ([]Pod, error)
+	GetPodsUsingConfigMap(namespace, name string) ([]Pod, error)
+	GetPodsUsingSecret(namespace, name string) ([]Pod, error)
+
 	// Resource detail commands (using kubectl libraries)
 	GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error)
 	DescribeResource(gvr schema.GroupVersionResource, namespace, name string) (string, error)

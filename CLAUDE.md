@@ -249,9 +249,9 @@ The project has moved beyond prototyping into a structured application:
 - **design/DDR-06.md**: Describe and YAML commands implementation (on-demand events)
 - **design/DDR-07.md**: Scalable multi-resource architecture with config-driven design
 - **design/DDR-08.md**: Pragmatic command implementation strategy (kubectl subprocess vs pure Go)
-- **plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
-- **plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
-- **plans/PLAN-05.md**: YAML and Describe commands implementation (Complete)
+- **thoughts/shared/plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
+- **thoughts/shared/plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
+- **thoughts/shared/plans/PLAN-05.md**: YAML and Describe commands implementation (Complete)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
@@ -431,6 +431,51 @@ func Format(format string, args ...interface{}) string
 - Use `fmt.Errorf()` not custom error builders
 - Use `strconv.Itoa()` not custom number formatters
 
+### Method Encapsulation
+
+**Pattern**: Functions that operate on a type's data should be methods of that type.
+
+**Example from FilterContext**:
+```go
+// BEFORE (package-level function):
+func getFilterContextDescription(ctx *FilterContext) string {
+    if ctx == nil {
+        return ""
+    }
+    kind := ctx.Metadata["kind"]
+    return "filtered by " + kind + ": " + ctx.Value
+}
+
+// Usage: filterText := getFilterContextDescription(msg.FilterContext)
+
+// AFTER (method on type):
+func (f *FilterContext) Description() string {
+    if f == nil {
+        return ""
+    }
+    kind := f.Metadata["kind"]
+    return "filtered by " + kind + ": " + f.Value
+}
+
+// Usage: filterText := msg.FilterContext.Description()
+```
+
+**Benefits**:
+- More intuitive API (`ctx.Description()` vs `getFilterContextDescription(ctx)`)
+- Better discoverability (shows up in IDE autocomplete for the type)
+- Clearer ownership (the type owns its behavior)
+- More reusable (can be called from any package that imports the type)
+
+**When to use**:
+- Function operates primarily on the type's data
+- Function doesn't need to operate on multiple types
+- Function is a natural behavior of the type
+
+**When NOT to use**:
+- Function operates on multiple types equally
+- Function is a factory/constructor (use `New` prefix instead)
+- Function has side effects beyond the type
+
 ### Performance Optimization Patterns
 
 **Extract common operations to the caller, not the callee**:
@@ -533,6 +578,157 @@ func PodsCommand() ExecuteFunc { return NavigationCommand("pods") }
 - Each case needs custom error handling or validation
 - The abstraction makes the code harder to understand
 
+### Config-Driven Pattern for Extensibility
+
+**Problem**: Component knows about all concrete types (N-way switch statement).
+
+**Solution**: Use function pointers in config to delegate behavior to each type.
+
+**Example from navigation refactoring** (2025-10-08):
+
+```go
+// BEFORE (God Object - knows all types)
+func (s *ConfigScreen) handleEnterKey() tea.Cmd {
+    switch s.config.ID {
+    case "deployments": return s.navigateToPodsForDeployment()
+    case "services": return s.navigateToPodsForService()
+    case "nodes": return s.navigateToPodsForNode()
+    // ... 11 cases total
+    }
+}
+
+// 11 navigation methods embedded in ConfigScreen
+func (s *ConfigScreen) navigateToPodsForDeployment() tea.Cmd { ... }
+func (s *ConfigScreen) navigateToPodsForService() tea.Cmd { ... }
+// ... 9 more methods
+
+// AFTER (Config-Driven - delegates)
+type NavigationFunc func(*ConfigScreen) tea.Cmd
+
+type ScreenConfig struct {
+    NavigationHandler NavigationFunc  // Optional function pointer
+}
+
+func (s *ConfigScreen) handleEnterKey() tea.Cmd {
+    if s.config.NavigationHandler != nil {
+        return s.config.NavigationHandler(s)
+    }
+    return nil  // 5 lines total, from 30+
+}
+
+// Each screen configures itself
+func GetDeploymentsScreenConfig() ScreenConfig {
+    return ScreenConfig{
+        NavigationHandler: navigateToPodsForOwner("Deployment"),
+        // ... other config
+    }
+}
+
+// Factory functions in separate file (navigation.go)
+func navigateToPodsForOwner(kind string) NavigationFunc {
+    return func(s *ConfigScreen) tea.Cmd {
+        resource := s.GetSelectedResource()
+        // ... navigation logic
+    }
+}
+```
+
+**Benefits**:
+- ✅ Open/Closed Principle satisfied (new types don't modify core component)
+- ✅ Each type configures its own behavior
+- ✅ No switch statements or coupling
+- ✅ Easy to test navigation strategies independently
+- ✅ Reduced file size (800+ lines → 597 lines)
+
+**When to apply**:
+- Component has N-way switch based on types (N > 5)
+- Each case has similar structure but different behavior
+- Want to add new types without modifying core component
+- Each type should own its behavior
+
+**When NOT to apply**:
+- Only 2-3 cases (switch is fine)
+- Cases have wildly different signatures
+- Behavior changes frequently across all types (centralized is better)
+
+### Visibility Rules: Private by Default
+
+**Pattern**: Functions within a package should be private (lowercase) unless they need to be exported.
+
+**User will catch this**: If you make something public unnecessarily, user will ask "why is this public?"
+
+**Example from navigation refactoring** (2025-10-08):
+```go
+// WRONG (public, but only used within screens package)
+func NavigateToPodsForOwner(kind string) NavigationFunc { ... }
+
+// RIGHT (private, internal to screens package)
+func navigateToPodsForOwner(kind string) NavigationFunc { ... }
+```
+
+**Rules**:
+- Factory functions used only within package → private
+- Helper functions → private
+- Only export (uppercase) what needs to be called from other packages
+- When in doubt, start private (easier to make public later)
+
+### Complete Test Coverage for New Files
+
+**Pattern**: When creating a new file with functionality, ALWAYS create corresponding test file immediately.
+
+**User will catch this**: If you create a new file without tests, user will ask "don't we need to add tests?"
+
+**Example from navigation refactoring** (2025-10-08):
+- Created `navigation.go` but forgot tests
+- User: "don't we need to add tests to navigation.go?"
+- Created `navigation_test.go`, but missed testing configuration
+- User: "don't we need to add tests to screens_test.go?"
+
+**Complete test coverage requires**:
+1. **Implementation tests**: Test the functions themselves
+   - New file: `internal/screens/navigation.go` (factory functions)
+   - Need: `internal/screens/navigation_test.go` (test factories)
+2. **Configuration tests**: Test that it's wired correctly
+   - Also need: Update `internal/screens/screens_test.go` (test configs use factories)
+
+**Process**:
+1. Create the test file IMMEDIATELY when creating implementation file
+2. Test both implementation AND configuration/wiring
+3. Run tests before claiming "done"
+4. Don't wait for user to ask
+
+### User Intent: "Do It Now"
+
+**Pattern**: When user says variations of "do it now", they want immediate implementation, not planning.
+
+**User signals**:
+- "do it now"
+- "now"
+- "i want you to refactor the code too"
+- Repeating the request after you've only documented it
+
+**This means**: Implement immediately, not plan for later.
+
+**Example from navigation refactoring** (2025-10-08):
+- User: "about the internal/screens/config.go I'm concern that we are creating a god file"
+- Me: Started to document as "Future Refactoring" in plan
+- User: "no, do it now, update the plan to reflect this for future researches"
+- User: "i want you to refactor the code too"
+- User: "now"
+- User: "when you finish, review the plan again as something done, not something to do in the future"
+
+**Right response**:
+1. Implement the refactoring immediately
+2. Test it thoroughly
+3. Mark as COMPLETE in plan (not future work)
+4. Update documentation to reflect what was DONE
+
+**Wrong response**:
+- Add to "Future Refactoring" section
+- Add to "TODO" list
+- Ask if they want it done now
+- Assume user wants planning when they clearly want action
+
 ## Quick Reference
 
 ### Global Keybindings
@@ -613,30 +809,12 @@ Store design decisions in `design/` folder:
 
 ## Implementation plan documents
 
-- Store implementation plans in `plans/` folder
-- Implementation plans should be named `PLAN-XX-YYYYMMDD-<short-description>.md`
+- Store implementation plans in `thoughts/shared/plans/` folder
+- Use `/create_plan_generic` slash command to create plans (see `.claude/commands/create_plan_generic.md` for instructions)
 - Plans should be **high-level and strategic**, not detailed step-by-step instructions
-- Focus on:
-  - Overall goals and outcomes
-  - Major phases or milestones (3-7 key steps maximum)
-  - Critical architectural/design decisions
-  - Key risks or considerations
-  - Success criteria
-  - TODO list with phase-level checkboxes for progress tracking (ALWAYS INCLUDE A TODO LIST)
-- Avoid:
-  - Line-by-line code changes
-  - Exhaustive file-by-file checklists
-  - Over-specifying implementation details
-  - Micro-tasks that restrict adaptation
-- Plans should be reviewable in 2-3 minutes
-- Leave room for discovery and adaptation during implementation
 - **Progress Tracking**:
   - Update the plan's TODO section after completing significant work (phase completion, major features)
   - Mark items as complete `[x]` when done
   - Add new items discovered during implementation
   - DO NOT use TodoWrite tool - track progress directly in the plan markdown file
   - Update plan status at top of file to reflect current phase
-- Keep claude authoring stuff of of generated code or commit messages
-- Keep track of golang patterns or approaches we use
-- Each time we do changes, please review the README.md to ensure we keep it updated
-- don't forget go mod tidy
