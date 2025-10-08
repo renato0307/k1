@@ -7,6 +7,26 @@ and create a system resources monitoring screen to track resource counts,
 memory usage, and update activity. This implements Issue #3 with guidance
 from the scaling research document.
 
+## Lessons Learned (Phase 2)
+
+**Issue**: Sorting was broken for new resources (lists constantly changing)
+
+**Root Cause**: Type switch helper functions (`extractCreatedAt`,
+`extractAge`, `extractName`) weren't updated with new resource types.
+
+**Why Missed**:
+- Helper functions buried deep in file (~1600+ lines)
+- Not part of obvious "transform → register → screen" flow
+- Tests focused on transforms, not full `GetResources()` flow
+- No compile error, only runtime behavior issue
+
+**Prevention for Future Phases**:
+1. Search for ALL type switches: `grep -n "case.*:" file.go | grep -B5
+   "default:"`
+2. Add to checklist: "Update type-dependent helper functions"
+3. Test full resource listing flow, not just transforms
+4. Manual verification catches what unit tests miss
+
 ## Current State Analysis
 
 **Supported Resources (11)**:
@@ -1139,14 +1159,30 @@ func TestTransformPVC(t *testing.T) {
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] Build succeeds: `make build`
-- [ ] All tests pass: `make test`
+- [x] Build succeeds: `make build`
+- [x] All tests pass: `make test` (106/106 passing)
+- [x] Test coverage maintained (k8s: 76.9%, screens: 69.8%)
 - [ ] Linting passes: `golangci-lint run`
 - [ ] Integration tests pass with envtest
 
-#### Manual Verification:
+#### Implementation Checklist:
+- [x] Add resource type constants
+- [x] Define typed structs (5 new types)
+- [x] Write transform functions (5 functions, 12 test cases)
+- [x] Add registry entries (5 entries)
+- [x] Implement navigation methods (3 new methods)
+- [x] Add indexes (replicaSetsByOwnerUID, podsByPVC)
+- [x] Create screen configs (5 configs, tested)
+- [x] Register screens in app
+- [x] **Update type switch helpers** (extractCreatedAt, extractAge,
+  extractName) - **Fixed after user report**
+- [x] Add navigation commands to registry (7 commands including aliases)
+- [x] Add tests (transforms, screens, navigation)
+
+#### Manual Verification (User Testing):
 - [ ] Navigate to all 5 new screens via `:` palette
 - [ ] Verify data displays correctly for each resource
+- [ ] Verify sorting is stable (not constantly changing) - **Fixed**
 - [ ] Test Enter key navigation for each resource type:
   - ReplicaSet → Pods
   - Deployment → ReplicaSets (new relationship)
@@ -1159,9 +1195,9 @@ func TestTransformPVC(t *testing.T) {
 - [ ] Confirm 1-second refresh updates data in real-time
 - [ ] No regressions in existing 11 screens
 
-**Implementation Note**: After completing this phase and all automated
-verification passes, pause for manual testing confirmation before
-proceeding to Phase 3.
+**Implementation Status**: Phase 2 implementation complete. All automated
+tests pass. Sorting issue discovered and fixed during user testing.
+Ready for full manual verification before proceeding to Phase 3.
 
 ---
 
@@ -1176,6 +1212,20 @@ and advanced troubleshooting.
 ### Changes Required
 
 [Follow same pattern as Phase 2 for each of 7 resources]:
+
+**CRITICAL CHECKLIST** (Learned from Phase 2):
+- [ ] Add resource type constants
+- [ ] Define typed structs
+- [ ] Write transform functions
+- [ ] Add registry entries
+- [ ] Implement navigation methods and indexes
+- [ ] Create screen configs
+- [ ] Register screens in app
+- [ ] **Update type switch helpers** (`extractCreatedAt`, `extractAge`,
+  `extractName`)
+- [ ] Add navigation commands to registry
+- [ ] Add tests (transforms, screens, navigation)
+- [ ] Manual verification of sorting and display
 
 #### Resources to Add:
 1. **ServiceAccounts** - Identity for pods, links to RBAC
@@ -1242,6 +1292,20 @@ bringing total from 23 to 31 resources. This achieves 100% user-facing
 resource coverage.
 
 ### Changes Required
+
+**CRITICAL CHECKLIST** (Learned from Phase 2):
+- [ ] Add resource type constants
+- [ ] Define typed structs
+- [ ] Write transform functions
+- [ ] Add registry entries
+- [ ] Implement navigation methods and indexes
+- [ ] Create screen configs
+- [ ] Register screens in app
+- [ ] **Update type switch helpers** (`extractCreatedAt`, `extractAge`,
+  `extractName`)
+- [ ] Add navigation commands to registry
+- [ ] Add tests (transforms, screens, navigation)
+- [ ] Manual verification of sorting and display
 
 #### Resources to Add:
 1. **MutatingWebhookConfigurations** - Admission control mutations
