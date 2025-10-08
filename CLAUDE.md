@@ -578,6 +578,157 @@ func PodsCommand() ExecuteFunc { return NavigationCommand("pods") }
 - Each case needs custom error handling or validation
 - The abstraction makes the code harder to understand
 
+### Config-Driven Pattern for Extensibility
+
+**Problem**: Component knows about all concrete types (N-way switch statement).
+
+**Solution**: Use function pointers in config to delegate behavior to each type.
+
+**Example from navigation refactoring** (2025-10-08):
+
+```go
+// BEFORE (God Object - knows all types)
+func (s *ConfigScreen) handleEnterKey() tea.Cmd {
+    switch s.config.ID {
+    case "deployments": return s.navigateToPodsForDeployment()
+    case "services": return s.navigateToPodsForService()
+    case "nodes": return s.navigateToPodsForNode()
+    // ... 11 cases total
+    }
+}
+
+// 11 navigation methods embedded in ConfigScreen
+func (s *ConfigScreen) navigateToPodsForDeployment() tea.Cmd { ... }
+func (s *ConfigScreen) navigateToPodsForService() tea.Cmd { ... }
+// ... 9 more methods
+
+// AFTER (Config-Driven - delegates)
+type NavigationFunc func(*ConfigScreen) tea.Cmd
+
+type ScreenConfig struct {
+    NavigationHandler NavigationFunc  // Optional function pointer
+}
+
+func (s *ConfigScreen) handleEnterKey() tea.Cmd {
+    if s.config.NavigationHandler != nil {
+        return s.config.NavigationHandler(s)
+    }
+    return nil  // 5 lines total, from 30+
+}
+
+// Each screen configures itself
+func GetDeploymentsScreenConfig() ScreenConfig {
+    return ScreenConfig{
+        NavigationHandler: navigateToPodsForOwner("Deployment"),
+        // ... other config
+    }
+}
+
+// Factory functions in separate file (navigation.go)
+func navigateToPodsForOwner(kind string) NavigationFunc {
+    return func(s *ConfigScreen) tea.Cmd {
+        resource := s.GetSelectedResource()
+        // ... navigation logic
+    }
+}
+```
+
+**Benefits**:
+- ✅ Open/Closed Principle satisfied (new types don't modify core component)
+- ✅ Each type configures its own behavior
+- ✅ No switch statements or coupling
+- ✅ Easy to test navigation strategies independently
+- ✅ Reduced file size (800+ lines → 597 lines)
+
+**When to apply**:
+- Component has N-way switch based on types (N > 5)
+- Each case has similar structure but different behavior
+- Want to add new types without modifying core component
+- Each type should own its behavior
+
+**When NOT to apply**:
+- Only 2-3 cases (switch is fine)
+- Cases have wildly different signatures
+- Behavior changes frequently across all types (centralized is better)
+
+### Visibility Rules: Private by Default
+
+**Pattern**: Functions within a package should be private (lowercase) unless they need to be exported.
+
+**User will catch this**: If you make something public unnecessarily, user will ask "why is this public?"
+
+**Example from navigation refactoring** (2025-10-08):
+```go
+// WRONG (public, but only used within screens package)
+func NavigateToPodsForOwner(kind string) NavigationFunc { ... }
+
+// RIGHT (private, internal to screens package)
+func navigateToPodsForOwner(kind string) NavigationFunc { ... }
+```
+
+**Rules**:
+- Factory functions used only within package → private
+- Helper functions → private
+- Only export (uppercase) what needs to be called from other packages
+- When in doubt, start private (easier to make public later)
+
+### Complete Test Coverage for New Files
+
+**Pattern**: When creating a new file with functionality, ALWAYS create corresponding test file immediately.
+
+**User will catch this**: If you create a new file without tests, user will ask "don't we need to add tests?"
+
+**Example from navigation refactoring** (2025-10-08):
+- Created `navigation.go` but forgot tests
+- User: "don't we need to add tests to navigation.go?"
+- Created `navigation_test.go`, but missed testing configuration
+- User: "don't we need to add tests to screens_test.go?"
+
+**Complete test coverage requires**:
+1. **Implementation tests**: Test the functions themselves
+   - New file: `internal/screens/navigation.go` (factory functions)
+   - Need: `internal/screens/navigation_test.go` (test factories)
+2. **Configuration tests**: Test that it's wired correctly
+   - Also need: Update `internal/screens/screens_test.go` (test configs use factories)
+
+**Process**:
+1. Create the test file IMMEDIATELY when creating implementation file
+2. Test both implementation AND configuration/wiring
+3. Run tests before claiming "done"
+4. Don't wait for user to ask
+
+### User Intent: "Do It Now"
+
+**Pattern**: When user says variations of "do it now", they want immediate implementation, not planning.
+
+**User signals**:
+- "do it now"
+- "now"
+- "i want you to refactor the code too"
+- Repeating the request after you've only documented it
+
+**This means**: Implement immediately, not plan for later.
+
+**Example from navigation refactoring** (2025-10-08):
+- User: "about the internal/screens/config.go I'm concern that we are creating a god file"
+- Me: Started to document as "Future Refactoring" in plan
+- User: "no, do it now, update the plan to reflect this for future researches"
+- User: "i want you to refactor the code too"
+- User: "now"
+- User: "when you finish, review the plan again as something done, not something to do in the future"
+
+**Right response**:
+1. Implement the refactoring immediately
+2. Test it thoroughly
+3. Mark as COMPLETE in plan (not future work)
+4. Update documentation to reflect what was DONE
+
+**Wrong response**:
+- Add to "Future Refactoring" section
+- Add to "TODO" list
+- Ask if they want it done now
+- Assume user wants planning when they clearly want action
+
 ## Quick Reference
 
 ### Global Keybindings

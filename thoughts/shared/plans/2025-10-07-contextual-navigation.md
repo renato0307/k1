@@ -520,17 +520,122 @@ Add cases for remaining screen types in handleEnterKey().
 - [ ] Write race detection tests
 - [ ] Load test with 10K+ pods, verify sub-second response
 
-### Phase 4: Full Coverage
-- [ ] Add repository methods for remaining 8 resource types
-- [ ] Extend indexes for volume references (ConfigMaps, Secrets)
-- [ ] Add handleEnterKey() cases for all resource types
-- [ ] Implement CronJob→Job multi-level navigation
-- [ ] Write tests for all new relationships
-- [ ] Manual testing: verify all 11 resource types
-- [ ] Refactor screen IDs to use constants instead of string literals
+### Phase 4: Full Coverage ✅ COMPLETE (automated verification done, ready for manual testing)
+- [x] Add repository methods for remaining 7 relationships (StatefulSet/DaemonSet/Job→Pods, CronJob→Jobs, Namespace→Pods, ConfigMap/Secret→Pods)
+- [x] Extend indexes for volume references (podsByConfigMap, podsBySecret)
+- [x] Add jobsByOwnerUID index for CronJob→Jobs navigation
+- [x] Add handleEnterKey() cases for all 7 new resource types
+- [x] Implement CronJob→Job multi-level navigation
+- [x] Update refreshWithFilterContext() to handle all new filter types (owner+kind, namespace, configmap, secret)
+- [x] Update mockRepository in tests to implement new interface methods
+- [x] All tests pass: `make test` ✅
+- [x] Build succeeds: `make build` ✅
+- [ ] Manual testing: verify all 11 resource types work correctly (ready for user testing)
+- [ ] Refactor screen IDs to use constants instead of string literals (deferred to future refactoring)
 
 ### Documentation & Polish
 - [ ] Update README.md with contextual navigation feature
 - [ ] Add help text showing Enter key functionality
 - [ ] Consider adding visual hint (e.g., "Press Enter to view pods")
 - [ ] Update screen Operations() to show contextual navigation option
+
+---
+
+## Completed Refactoring: Config-Driven Navigation ✅
+**Status:** COMPLETE (2025-10-08)
+
+### Problem Identified
+
+`internal/screens/config.go` had become a "god file" that knew about all 11
+resource types and their navigation rules (800+ lines). This violated the
+Open/Closed Principle - adding new resources required modifying this central
+file.
+
+**Issues:**
+- handleEnterKey() had 11-way switch statement
+- 11 navigation methods (navigateToPodsForX) embedded in ConfigScreen
+- Tight coupling to all resource types
+- Couldn't add new resources without modifying ConfigScreen
+- Hard to test individual navigation strategies
+- Violated Single Responsibility Principle
+
+### Solution Implemented
+
+Extended the existing `ScreenConfig` pattern to include navigation:
+
+**New types added** (`internal/screens/config.go`):
+```go
+// NavigationFunc defines a function that handles Enter key navigation
+type NavigationFunc func(screen *ConfigScreen) tea.Cmd
+
+type ScreenConfig struct {
+    // ... existing fields
+    NavigationHandler NavigationFunc  // Optional, per-screen navigation
+}
+```
+
+**Simplified handleEnterKey** (5 lines, from 30+):
+```go
+func (s *ConfigScreen) handleEnterKey() tea.Cmd {
+    if s.config.NavigationHandler != nil {
+        return s.config.NavigationHandler(s)
+    }
+    return nil
+}
+```
+
+**Created navigation.go** with factory functions:
+- `navigateToPodsForOwner(kind)` - Deployment/StatefulSet/DaemonSet/Job → Pods
+- `navigateToJobsForCronJob()` - CronJob → Jobs
+- `navigateToPodsForNode()` - Node → Pods
+- `navigateToPodsForService()` - Service → Pods
+- `navigateToPodsForNamespace()` - Namespace → Pods
+- `navigateToPodsForVolumeSource(kind)` - ConfigMap/Secret → Pods
+
+**Updated screen configs** (`internal/screens/screens.go`):
+```go
+func GetDeploymentsScreenConfig() ScreenConfig {
+    return ScreenConfig{
+        // ... other config
+        NavigationHandler: navigateToPodsForOwner("Deployment"),
+        // ... rest of config
+    }
+}
+```
+
+### Results Achieved
+
+- ✅ ConfigScreen reduced from 800+ lines to 597 lines
+- ✅ Each resource defines its own navigation (config-driven)
+- ✅ Easy to add new resources (just configure them)
+- ✅ Open/Closed Principle satisfied
+- ✅ Easy to test navigation strategies independently (updated 10 tests)
+- ✅ No switch statements or coupling
+- ✅ All tests pass (make test)
+- ✅ Build succeeds (make build)
+- ✅ Navigation functions are private (internal to screens package)
+
+### Alternative Considered
+
+Navigation Registry (global registry pattern) was considered but rejected:
+- More decoupled but adds global state
+- Overkill for current needs
+- Config-driven approach is more consistent with existing architecture
+
+### Files Modified
+
+- `internal/screens/config.go` - Added NavigationFunc type, NavigationHandler
+  field, simplified handleEnterKey(), removed 11 navigateToX methods
+- `internal/screens/navigation.go` - NEW: 6 factory functions for navigation
+- `internal/screens/navigation_test.go` - NEW: Comprehensive tests for all
+  navigation handlers (7 test functions, 19 test cases)
+- `internal/screens/screens.go` - Updated 10 screen configs with
+  NavigationHandler
+- `internal/screens/config_test.go` - Updated 10 navigation tests to use new
+  pattern
+
+### References
+
+- Implementation: `internal/screens/config.go`, `internal/screens/navigation.go`
+- Discussion: `thoughts/shared/performance/mutex-vs-channels-for-index-cache.md`
+- Related: PLAN-04 config-driven architecture pattern
