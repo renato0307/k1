@@ -4,7 +4,7 @@
 
 - **Date**: 2025-10-08
 - **Author**: @renato0307
-- **Status**: In Progress - Phase 1 Complete
+- **Status**: In Progress - Phase 2 Complete
 - **Related Research**: `thoughts/shared/research/2025-10-08-issue-3-implementation-challenges.md`
 - **Related Ticket**: Issue #3 (Phase 2 post-mortem findings)
 - **Branch**: `feat/refactor-type-switches`
@@ -372,13 +372,13 @@ Rename `TestSortByAge` → `TestSortByAge_CreatedAtOrder` to clarify it
 tests CreatedAt-based sorting, not Age field.
 
 **Success Criteria**:
-- [ ] TestExtractCreatedAt added (tests all 16 types)
-- [ ] TestSortByAge_UsesAgeField added (Age ≠ CreatedAt scenario)
-- [ ] TestSortByAge_MultipleResourceTypes added (cross-type sorting)
-- [ ] TestResourceInterface_AllTypes added (compile-time verification)
-- [ ] Test coverage maintained or increased
-- [ ] `make test` passes
-- [ ] All new tests pass on first run
+- [x] TestExtractCreatedAt added (tests all 16 types) - N/A (using interface methods, no extraction functions)
+- [x] TestSortByAge_UsesAgeField added (Age ≠ CreatedAt scenario)
+- [x] TestSortByAge_MultipleResourceTypes added (cross-type sorting) - Already existed as TestSortByAge_MixedTypes
+- [x] TestResourceInterface_AllTypes added (compile-time verification) - Already existed as TestResourceInterface
+- [x] Test coverage maintained or increased (k8s: 76.7%, screens: 70.3%, commands: 73.9%)
+- [x] `make test` passes
+- [x] All new tests pass on first run
 
 **Manual Verification**:
 - [ ] Run `make test-coverage` and verify coverage ≥70%

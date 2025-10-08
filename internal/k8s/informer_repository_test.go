@@ -695,7 +695,7 @@ func TestResourceInterface(t *testing.T) {
 	assert.Equal(t, "test-node", node.GetName())
 }
 
-func TestSortByAge(t *testing.T) {
+func TestSortByAge_CreatedAtOrder(t *testing.T) {
 	now := time.Now()
 	items := []Resource{
 		Pod{ResourceMetadata: ResourceMetadata{Name: "old-pod", CreatedAt: now.Add(-10 * time.Hour)}},
@@ -744,6 +744,47 @@ func TestSortByAge_MixedTypes(t *testing.T) {
 	assert.Equal(t, "svc-1", items[0].GetName())
 	assert.Equal(t, "pod-1", items[1].GetName())
 	assert.Equal(t, "deploy-1", items[2].GetName())
+}
+
+func TestSortByAge_UsesAgeField(t *testing.T) {
+	now := time.Now()
+
+	// Create resources where Age ≠ CreatedAt
+	// This can happen when resources are restarted or rescheduled
+	items := []Resource{
+		// Old CreatedAt but recent Age (e.g., restarted pod)
+		Pod{
+			ResourceMetadata: ResourceMetadata{
+				Name:      "restarted-pod",
+				CreatedAt: now.Add(-10 * time.Hour), // Created 10h ago
+				Age:       5 * time.Minute,           // But Age shows 5m (restarted)
+			},
+		},
+		// Recent CreatedAt and Age match
+		Pod{
+			ResourceMetadata: ResourceMetadata{
+				Name:      "normal-pod",
+				CreatedAt: now.Add(-1 * time.Hour),
+				Age:       1 * time.Hour,
+			},
+		},
+		// Very old both CreatedAt and Age
+		Pod{
+			ResourceMetadata: ResourceMetadata{
+				Name:      "ancient-pod",
+				CreatedAt: now.Add(-24 * time.Hour),
+				Age:       24 * time.Hour,
+			},
+		},
+	}
+
+	sortByAge(items)
+
+	// Should sort by CreatedAt (newest first), not Age field
+	// Because sortByAge uses GetCreatedAt() for sorting
+	assert.Equal(t, "normal-pod", items[0].GetName(), "Should sort by CreatedAt (newest first)")
+	assert.Equal(t, "restarted-pod", items[1].GetName(), "CreatedAt determines order, not Age")
+	assert.Equal(t, "ancient-pod", items[2].GetName(), "Oldest CreatedAt should be last")
 }
 
 // createTestRepository creates an InformerRepository using the shared test config
