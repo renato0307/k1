@@ -328,6 +328,48 @@ func (r *DummyRepository) GetPodsUsingSecret(namespace, name string) ([]Pod, err
 	return filteredPods, nil
 }
 
+func (r *DummyRepository) GetPodsForReplicaSet(namespace, name string) ([]Pod, error) {
+	// Return dummy pods
+	return []Pod{
+		{
+			Namespace: namespace,
+			Name:      "nginx-abc123-xyz789",
+			Status:    "Running",
+			Ready:     "1/1",
+			Restarts:  0,
+			Age:       5 * time.Hour,
+		},
+	}, nil
+}
+
+func (r *DummyRepository) GetReplicaSetsForDeployment(namespace, name string) ([]ReplicaSet, error) {
+	// Return dummy ReplicaSets
+	return []ReplicaSet{
+		{
+			Namespace: namespace,
+			Name:      name + "-abc123",
+			Desired:   3,
+			Current:   3,
+			Ready:     3,
+			Age:       10 * time.Hour,
+		},
+	}, nil
+}
+
+func (r *DummyRepository) GetPodsForPVC(namespace, name string) ([]Pod, error) {
+	// Return dummy pods
+	return []Pod{
+		{
+			Namespace: namespace,
+			Name:      "app-xyz789",
+			Status:    "Running",
+			Ready:     "1/1",
+			Restarts:  0,
+			Age:       3 * time.Hour,
+		},
+	}, nil
+}
+
 func (r *DummyRepository) GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
 	// Return dummy YAML for development
 	return `apiVersion: v1

@@ -62,10 +62,12 @@ type InformerRepository struct {
 	podsByNode       map[string][]*corev1.Pod             // nodeName → pods
 	podsByNamespace  map[string][]*corev1.Pod             // namespace → pods
 	podsByOwnerUID   map[string][]*corev1.Pod             // ownerUID → pods
-	podsByConfigMap  map[string]map[string][]*corev1.Pod // namespace/configMapName → pods
-	podsBySecret     map[string]map[string][]*corev1.Pod // namespace/secretName → pods
-	jobsByOwnerUID   map[string][]string                  // ownerUID → job namespaced names
-	jobsByNamespace  map[string][]string                  // namespace → job names
+	podsByConfigMap       map[string]map[string][]*corev1.Pod // namespace/configMapName → pods
+	podsBySecret          map[string]map[string][]*corev1.Pod // namespace/secretName → pods
+	jobsByOwnerUID        map[string][]string                  // ownerUID → job namespaced names
+	jobsByNamespace       map[string][]string                  // namespace → job names
+	replicaSetsByOwnerUID map[string][]string                  // deploymentUID → RS keys
+	podsByPVC             map[string][]*corev1.Pod             // ns/pvcName → pods
 
 	// Statistics tracking (channel-based, no locks needed)
 	resourceStats map[schema.GroupVersionResource]*ResourceStats
@@ -250,14 +252,16 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		dynamicListers:    dynamicListers,
 		kubeconfig:        kubeconfig,
 		contextName:       contextName,
-		podsByNode:        make(map[string][]*corev1.Pod),
-		podsByNamespace:   make(map[string][]*corev1.Pod),
-		podsByOwnerUID:    make(map[string][]*corev1.Pod),
-		podsByConfigMap:   make(map[string]map[string][]*corev1.Pod),
-		podsBySecret:      make(map[string]map[string][]*corev1.Pod),
-		jobsByOwnerUID:    make(map[string][]string),
-		jobsByNamespace:   make(map[string][]string),
-		resourceStats:     resourceStats,
+		podsByNode:            make(map[string][]*corev1.Pod),
+		podsByNamespace:       make(map[string][]*corev1.Pod),
+		podsByOwnerUID:        make(map[string][]*corev1.Pod),
+		podsByConfigMap:       make(map[string]map[string][]*corev1.Pod),
+		podsBySecret:          make(map[string]map[string][]*corev1.Pod),
+		jobsByOwnerUID:        make(map[string][]string),
+		jobsByNamespace:       make(map[string][]string),
+		replicaSetsByOwnerUID: make(map[string][]string),
+		podsByPVC:             make(map[string][]*corev1.Pod),
+		resourceStats:         resourceStats,
 		statsUpdateCh:     make(chan statsUpdateMsg, 1000), // Buffered channel for high-frequency events
 		ctx:               ctx,
 		cancel:            cancel,
@@ -269,6 +273,7 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	// Setup pod indexes with event handlers
 	repo.setupPodIndexes()
 	repo.setupJobIndexes()
+	repo.setupReplicaSetIndexes()
 	repo.setupDynamicInformersEventTracking(dynamicInformers)
 
 	return repo, nil
@@ -712,6 +717,112 @@ func (r *InformerRepository) GetPodsUsingSecret(namespace, name string) ([]Pod, 
 	return r.transformPods(pods)
 }
 
+// GetPodsForReplicaSet returns pods owned by a specific ReplicaSet (uses indexed lookups)
+func (r *InformerRepository) GetPodsForReplicaSet(namespace, name string) ([]Pod, error) {
+	// Get ReplicaSet to extract UID
+	rsGVR := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "replicasets"}
+	rsLister, ok := r.dynamicListers[rsGVR]
+	if !ok {
+		return nil, fmt.Errorf("replicaset informer not initialized")
+	}
+
+	rsObj, err := rsLister.ByNamespace(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("replicaset not found: %w", err)
+	}
+
+	rsUnstr, ok := rsObj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, fmt.Errorf("invalid replicaset object")
+	}
+
+	// Use existing podsByOwnerUID index
+	r.mu.RLock()
+	pods := r.podsByOwnerUID[string(rsUnstr.GetUID())]
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
+// GetReplicaSetsForDeployment returns ReplicaSets owned by a specific Deployment (uses indexed lookups)
+func (r *InformerRepository) GetReplicaSetsForDeployment(namespace, name string) ([]ReplicaSet, error) {
+	// Get Deployment to extract UID
+	deployGVR := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	deployLister, ok := r.dynamicListers[deployGVR]
+	if !ok {
+		return nil, fmt.Errorf("deployment informer not initialized")
+	}
+
+	deployObj, err := deployLister.ByNamespace(namespace).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("deployment not found: %w", err)
+	}
+
+	deployUnstr, ok := deployObj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, fmt.Errorf("invalid deployment object")
+	}
+
+	// Use replicaSetsByOwnerUID index
+	r.mu.RLock()
+	rsKeys := r.replicaSetsByOwnerUID[string(deployUnstr.GetUID())]
+	r.mu.RUnlock()
+
+	// Fetch ReplicaSets by keys
+	rsGVR := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "replicasets"}
+	rsLister, ok := r.dynamicListers[rsGVR]
+	if !ok {
+		return nil, fmt.Errorf("replicaset informer not initialized")
+	}
+
+	results := make([]ReplicaSet, 0, len(rsKeys))
+	for _, key := range rsKeys {
+		keyNamespace, keyName, err := cache.SplitMetaNamespaceKey(key)
+		if err != nil {
+			continue
+		}
+
+		rsObj, err := rsLister.ByNamespace(keyNamespace).Get(keyName)
+		if err != nil {
+			continue
+		}
+
+		rsUnstr, ok := rsObj.(*unstructured.Unstructured)
+		if !ok {
+			continue
+		}
+
+		common := extractCommonFields(rsUnstr)
+		transformed, err := transformReplicaSet(rsUnstr, common)
+		if err != nil {
+			continue
+		}
+
+		rs, ok := transformed.(ReplicaSet)
+		if !ok {
+			continue
+		}
+
+		results = append(results, rs)
+	}
+
+	// Sort by creation time (newest first)
+	sortByCreationTime(results, func(r ReplicaSet) time.Time { return r.CreatedAt }, func(r ReplicaSet) string { return r.Name })
+
+	return results, nil
+}
+
+// GetPodsForPVC returns pods that use a specific PersistentVolumeClaim (uses indexed lookups)
+func (r *InformerRepository) GetPodsForPVC(namespace, name string) ([]Pod, error) {
+	key := namespace + "/" + name
+
+	r.mu.RLock()
+	pods := r.podsByPVC[key]
+	r.mu.RUnlock()
+
+	return r.transformPods(pods)
+}
+
 // GetResourceYAML returns YAML representation of a resource using kubectl YAMLPrinter
 func (r *InformerRepository) GetResourceYAML(gvr schema.GroupVersionResource, namespace, name string) (string, error) {
 	// Get resource from dynamic informer cache
@@ -1040,6 +1151,14 @@ func (r *InformerRepository) updatePodIndexes(newPod, oldPod *corev1.Pod) {
 			r.podsBySecret[ns][secretName] = append(r.podsBySecret[ns][secretName], newPod)
 		}
 	}
+
+	// Add to PVC index (inspect volumes)
+	for _, volume := range newPod.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcKey := newPod.Namespace + "/" + volume.PersistentVolumeClaim.ClaimName
+			r.podsByPVC[pvcKey] = append(r.podsByPVC[pvcKey], newPod)
+		}
+	}
 }
 
 // removePodFromIndexes removes a pod from all indexes (acquires lock)
@@ -1119,6 +1238,17 @@ func (r *InformerRepository) removePodFromIndexesLocked(pod *corev1.Pod) {
 				if len(r.podsBySecret[ns]) == 0 {
 					delete(r.podsBySecret, ns)
 				}
+			}
+		}
+	}
+
+	// Remove from PVC index
+	for _, volume := range pod.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcKey := pod.Namespace + "/" + volume.PersistentVolumeClaim.ClaimName
+			r.podsByPVC[pvcKey] = removePodFromSlice(r.podsByPVC[pvcKey], pod)
+			if len(r.podsByPVC[pvcKey]) == 0 {
+				delete(r.podsByPVC, pvcKey)
 			}
 		}
 	}
@@ -1221,6 +1351,85 @@ func (r *InformerRepository) setupJobIndexes() {
 			r.trackStats(jobGVR, eventTypeDelete)
 		},
 	})
+}
+
+// setupReplicaSetIndexes sets up event handlers for ReplicaSet index maintenance
+func (r *InformerRepository) setupReplicaSetIndexes() {
+	// Get ReplicaSet informer from dynamic factory
+	rsGVR := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "replicasets"}
+	rsInformer := r.dynamicFactory.ForResource(rsGVR).Informer()
+
+	rsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			unstr, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				return
+			}
+			r.updateReplicaSetIndexes(unstr, nil)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			// Owner references are immutable, no update needed for indexes
+			// But we still track the event for statistics
+		},
+		DeleteFunc: func(obj interface{}) {
+			unstr, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				return
+			}
+			r.removeReplicaSetFromIndexes(unstr)
+		},
+	})
+}
+
+// updateReplicaSetIndexes updates all indexes for a ReplicaSet
+func (r *InformerRepository) updateReplicaSetIndexes(newRS, oldRS *unstructured.Unstructured) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Remove old RS from indexes if updating
+	if oldRS != nil {
+		r.removeReplicaSetFromIndexesLocked(oldRS)
+	}
+
+	// Create RS namespaced name key
+	rsKey, err := cache.MetaNamespaceKeyFunc(newRS)
+	if err != nil {
+		return
+	}
+
+	// Add to owner index (Deployment → ReplicaSet)
+	for _, ownerRef := range newRS.GetOwnerReferences() {
+		if ownerRef.Kind == "Deployment" {
+			ownerUID := string(ownerRef.UID)
+			r.replicaSetsByOwnerUID[ownerUID] = append(r.replicaSetsByOwnerUID[ownerUID], rsKey)
+		}
+	}
+}
+
+// removeReplicaSetFromIndexes removes a ReplicaSet from all indexes (acquires lock)
+func (r *InformerRepository) removeReplicaSetFromIndexes(rs *unstructured.Unstructured) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.removeReplicaSetFromIndexesLocked(rs)
+}
+
+// removeReplicaSetFromIndexesLocked removes a ReplicaSet from all indexes (assumes lock held)
+func (r *InformerRepository) removeReplicaSetFromIndexesLocked(rs *unstructured.Unstructured) {
+	rsKey, err := cache.MetaNamespaceKeyFunc(rs)
+	if err != nil {
+		return
+	}
+
+	// Remove from owner index
+	for _, ownerRef := range rs.GetOwnerReferences() {
+		if ownerRef.Kind == "Deployment" {
+			ownerUID := string(ownerRef.UID)
+			r.replicaSetsByOwnerUID[ownerUID] = removeStringFromSlice(r.replicaSetsByOwnerUID[ownerUID], rsKey)
+			if len(r.replicaSetsByOwnerUID[ownerUID]) == 0 {
+				delete(r.replicaSetsByOwnerUID, ownerUID)
+			}
+		}
+	}
 }
 
 // updateJobIndexes updates all indexes for a job
@@ -1427,7 +1636,7 @@ func sortByAge(items []any) {
 
 // sortByCreationTime is a generic helper for sorting typed slices by CreatedAt (newest first)
 type resourceWithTimestamp interface {
-	Pod | Deployment | Service | ConfigMap | Secret | Namespace | StatefulSet | DaemonSet | Job | CronJob | Node
+	Pod | Deployment | Service | ConfigMap | Secret | Namespace | StatefulSet | DaemonSet | Job | CronJob | Node | ReplicaSet | PersistentVolumeClaim | Ingress | Endpoints | HorizontalPodAutoscaler
 }
 
 func sortByCreationTime[T resourceWithTimestamp](items []T, getCreatedAt func(T) time.Time, getName func(T) string) {
@@ -1469,6 +1678,16 @@ func extractCreatedAt(item any) time.Time {
 		return v.CreatedAt
 	case Node:
 		return v.CreatedAt
+	case ReplicaSet:
+		return v.CreatedAt
+	case PersistentVolumeClaim:
+		return v.CreatedAt
+	case Ingress:
+		return v.CreatedAt
+	case Endpoints:
+		return v.CreatedAt
+	case HorizontalPodAutoscaler:
+		return v.CreatedAt
 	default:
 		return time.Time{} // Zero time
 	}
@@ -1499,6 +1718,16 @@ func extractAge(item any) time.Duration {
 		return v.Age
 	case Node:
 		return v.Age
+	case ReplicaSet:
+		return v.Age
+	case PersistentVolumeClaim:
+		return v.Age
+	case Ingress:
+		return v.Age
+	case Endpoints:
+		return v.Age
+	case HorizontalPodAutoscaler:
+		return v.Age
 	default:
 		return 0
 	}
@@ -1528,6 +1757,16 @@ func extractName(item any) string {
 	case CronJob:
 		return v.Name
 	case Node:
+		return v.Name
+	case ReplicaSet:
+		return v.Name
+	case PersistentVolumeClaim:
+		return v.Name
+	case Ingress:
+		return v.Name
+	case Endpoints:
+		return v.Name
+	case HorizontalPodAutoscaler:
 		return v.Name
 	default:
 		return ""

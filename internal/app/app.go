@@ -66,6 +66,13 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), repo, theme))
 	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), repo, theme))
 
+	// Tier 1 (Phase 2): Additional high-value resources
+	registry.Register(screens.NewConfigScreen(screens.GetReplicaSetsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetPVCsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetIngressesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetEndpointsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetHPAsScreenConfig(), repo, theme))
+
 	// System screen
 	registry.Register(screens.NewSystemScreen(repo, theme))
 

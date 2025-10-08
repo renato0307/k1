@@ -130,6 +130,56 @@ func TestScreenConfigs(t *testing.T) {
 			minSearchFields:  3,
 			minOperations:    2,
 		},
+		{
+			name:             "ReplicaSets",
+			getConfig:        GetReplicaSetsScreenConfig,
+			expectedID:       "replicasets",
+			expectedTitle:    "ReplicaSets",
+			expectedResource: k8s.ResourceTypeReplicaSet,
+			minColumns:       5,
+			minSearchFields:  2,
+			minOperations:    2,
+		},
+		{
+			name:             "PersistentVolumeClaims",
+			getConfig:        GetPVCsScreenConfig,
+			expectedID:       "persistentvolumeclaims",
+			expectedTitle:    "PersistentVolumeClaims",
+			expectedResource: k8s.ResourceTypePersistentVolumeClaim,
+			minColumns:       6,
+			minSearchFields:  3,
+			minOperations:    2,
+		},
+		{
+			name:             "Ingresses",
+			getConfig:        GetIngressesScreenConfig,
+			expectedID:       "ingresses",
+			expectedTitle:    "Ingresses",
+			expectedResource: k8s.ResourceTypeIngress,
+			minColumns:       5,
+			minSearchFields:  3,
+			minOperations:    2,
+		},
+		{
+			name:             "Endpoints",
+			getConfig:        GetEndpointsScreenConfig,
+			expectedID:       "endpoints",
+			expectedTitle:    "Endpoints",
+			expectedResource: k8s.ResourceTypeEndpoints,
+			minColumns:       3,
+			minSearchFields:  3,
+			minOperations:    2,
+		},
+		{
+			name:             "HorizontalPodAutoscalers",
+			getConfig:        GetHPAsScreenConfig,
+			expectedID:       "horizontalpodautoscalers",
+			expectedTitle:    "HorizontalPodAutoscalers",
+			expectedResource: k8s.ResourceTypeHPA,
+			minColumns:       6,
+			minSearchFields:  3,
+			minOperations:    2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -260,6 +310,36 @@ func TestScreenConfigs_NavigationHandlers(t *testing.T) {
 			shouldHaveNav:   true,
 			expectedNavType: "node",
 		},
+		{
+			name:            "ReplicaSets should navigate to pods",
+			getConfig:       GetReplicaSetsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "owner",
+		},
+		{
+			name:            "PVCs should navigate to pods",
+			getConfig:       GetPVCsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "pvc",
+		},
+		{
+			name:            "Ingresses should navigate to services",
+			getConfig:       GetIngressesScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "ingress",
+		},
+		{
+			name:            "Endpoints should navigate to pods",
+			getConfig:       GetEndpointsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "endpoints",
+		},
+		{
+			name:            "HPAs should navigate to target",
+			getConfig:       GetHPAsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "hpa",
+		},
 	}
 
 	for _, tt := range tests {
@@ -289,6 +369,14 @@ func TestScreenConfigs_NavigationHandlers(t *testing.T) {
 					screen.items = []interface{}{k8s.ConfigMap{Namespace: "test", Name: "test-cm"}}
 				case "cronjob":
 					screen.items = []interface{}{k8s.CronJob{Namespace: "test", Name: "test-cron"}}
+				case "pvc":
+					screen.items = []interface{}{k8s.PersistentVolumeClaim{Namespace: "test", Name: "test-pvc"}}
+				case "ingress":
+					screen.items = []interface{}{k8s.Ingress{Namespace: "test", Name: "test-ingress"}}
+				case "endpoints":
+					screen.items = []interface{}{k8s.Endpoints{Namespace: "test", Name: "test-ep"}}
+				case "hpa":
+					screen.items = []interface{}{k8s.HorizontalPodAutoscaler{Namespace: "test", Name: "test-hpa", Reference: "Deployment/nginx"}}
 				}
 				screen.applyFilter()
 				screen.table.SetCursor(0)
