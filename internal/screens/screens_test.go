@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -185,4 +186,119 @@ func TestTickCmd(t *testing.T) {
 	// Execute the command to verify it returns a tickMsg
 	msg := cmd()
 	assert.NotNil(t, msg, "tickCmd should produce a message")
+}
+
+func TestScreenConfigs_NavigationHandlers(t *testing.T) {
+	tests := []struct {
+		name            string
+		getConfig       func() ScreenConfig
+		shouldHaveNav   bool
+		expectedNavType string // "owner", "node", "service", "namespace", "volume", "cronjob"
+	}{
+		{
+			name:          "Pods should not have navigation handler",
+			getConfig:     GetPodsScreenConfig,
+			shouldHaveNav: false,
+		},
+		{
+			name:            "Deployments should navigate to pods",
+			getConfig:       GetDeploymentsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "owner",
+		},
+		{
+			name:            "Services should navigate to pods",
+			getConfig:       GetServicesScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "service",
+		},
+		{
+			name:            "ConfigMaps should navigate to pods",
+			getConfig:       GetConfigMapsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "volume",
+		},
+		{
+			name:            "Secrets should navigate to pods",
+			getConfig:       GetSecretsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "volume",
+		},
+		{
+			name:            "Namespaces should navigate to pods",
+			getConfig:       GetNamespacesScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "namespace",
+		},
+		{
+			name:            "StatefulSets should navigate to pods",
+			getConfig:       GetStatefulSetsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "owner",
+		},
+		{
+			name:            "DaemonSets should navigate to pods",
+			getConfig:       GetDaemonSetsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "owner",
+		},
+		{
+			name:            "Jobs should navigate to pods",
+			getConfig:       GetJobsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "owner",
+		},
+		{
+			name:            "CronJobs should navigate to jobs",
+			getConfig:       GetCronJobsScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "cronjob",
+		},
+		{
+			name:            "Nodes should navigate to pods",
+			getConfig:       GetNodesScreenConfig,
+			shouldHaveNav:   true,
+			expectedNavType: "node",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := tt.getConfig()
+
+			if tt.shouldHaveNav {
+				assert.NotNil(t, config.NavigationHandler, "Screen should have navigation handler")
+
+				// Verify the handler works by testing with a mock screen
+				// We can't easily test the exact type, but we can verify it returns a command
+				repo := k8s.NewDummyRepository()
+				theme := ui.GetTheme("charm")
+				screen := NewConfigScreen(config, repo, theme)
+
+				// Add mock data based on screen type
+				switch tt.expectedNavType {
+				case "owner":
+					screen.items = []interface{}{k8s.Deployment{Namespace: "test", Name: "test-deploy"}}
+				case "node":
+					screen.items = []interface{}{k8s.Node{Name: "test-node"}}
+				case "service":
+					screen.items = []interface{}{k8s.Service{Namespace: "test", Name: "test-svc"}}
+				case "namespace":
+					screen.items = []interface{}{k8s.Namespace{Name: "test-ns"}}
+				case "volume":
+					screen.items = []interface{}{k8s.ConfigMap{Namespace: "test", Name: "test-cm"}}
+				case "cronjob":
+					screen.items = []interface{}{k8s.CronJob{Namespace: "test", Name: "test-cron"}}
+				}
+				screen.applyFilter()
+				screen.table.SetCursor(0)
+
+				// Call the handler
+				cmd := config.NavigationHandler(screen)
+				assert.NotNil(t, cmd, "Navigation handler should return a command")
+			} else {
+				assert.Nil(t, config.NavigationHandler, "Screen should not have navigation handler")
+			}
+		})
+	}
 }
