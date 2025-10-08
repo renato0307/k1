@@ -804,8 +804,8 @@ Store design decisions in `design/` folder:
 - Update `design/README.md` index table with new entries
 - See existing examples: DDR-01 (Architecture), DDR-02 (Theming)
 - The author should not be @claude and by default should be @renato0307
-- Designs should be formated to less than 80 characters per line
-- Designs should not include implementations plans
+- IMPORTANT: Designs, research and plans should be formated to less than 80 characters per line
+- CRITICAL: Designs and research should not include implementations plans
 
 ## Implementation plan documents
 
