@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -86,13 +87,19 @@ func (f *FilterContext) Description() string {
 		return ""
 	}
 
-	kind := f.Metadata["kind"]
+	kind := strings.ToLower(f.Metadata["kind"])
 	switch f.Field {
 	case "owner":
 		return "filtered by " + kind + ": " + f.Value
 	case "node":
 		return "filtered by " + kind + ": " + f.Value
 	case "selector":
+		return "filtered by " + kind + ": " + f.Value
+	case "namespace":
+		return "filtered by " + kind + ": " + f.Value
+	case "configmap":
+		return "filtered by " + kind + ": " + f.Value
+	case "secret":
 		return "filtered by " + kind + ": " + f.Value
 	default:
 		return "filtered by " + f.Value
@@ -152,7 +159,7 @@ type ClearFilterMsg struct{}
 
 // ShowFullScreenMsg triggers display of full-screen content
 type ShowFullScreenMsg struct {
-	ViewType     int    // 0=YAML, 1=Describe, 2=Logs
+	ViewType     int // 0=YAML, 1=Describe, 2=Logs
 	ResourceName string
 	Content      string
 }

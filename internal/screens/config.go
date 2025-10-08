@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
@@ -19,10 +20,10 @@ type tickMsg time.Time
 
 // ColumnConfig defines a column in the resource list table
 type ColumnConfig struct {
-	Field  string                      // Field name in resource struct
-	Title  string                      // Column display title
-	Width  int                         // 0 = dynamic (fills remaining space)
-	Format func(interface{}) string   // Optional custom formatter
+	Field  string                   // Field name in resource struct
+	Title  string                   // Column display title
+	Width  int                      // 0 = dynamic (fills remaining space)
+	Format func(interface{}) string // Optional custom formatter
 }
 
 // OperationConfig defines an operation that can be executed
@@ -32,6 +33,9 @@ type OperationConfig struct {
 	Description string
 	Shortcut    string
 }
+
+// NavigationFunc defines a function that handles Enter key navigation for a screen
+type NavigationFunc func(screen *ConfigScreen) tea.Cmd
 
 // ScreenConfig defines configuration for a generic resource screen
 type ScreenConfig struct {
@@ -46,6 +50,9 @@ type ScreenConfig struct {
 	EnablePeriodicRefresh bool
 	RefreshInterval       time.Duration
 	TrackSelection        bool
+
+	// Optional navigation handler (contextual navigation on Enter key)
+	NavigationHandler NavigationFunc
 
 	// Optional custom overrides (Level 2 customization)
 	CustomRefresh func(*ConfigScreen) tea.Cmd
@@ -195,7 +202,46 @@ func (s *ConfigScreen) View() string {
 		return s.config.CustomView(s)
 	}
 
+	// Check if we have a filter context and no results
+	if s.filterContext != nil && len(s.table.Rows()) == 0 {
+		return s.renderEmptyFilteredView()
+	}
+
 	return s.table.View()
+}
+
+// renderEmptyFilteredView shows a helpful message when filter returns no results
+func (s *ConfigScreen) renderEmptyFilteredView() string {
+	// Create styled message
+	titleStyle := lipgloss.NewStyle().
+		Foreground(s.theme.Muted).
+		Bold(true).
+		Align(lipgloss.Center)
+
+	hintStyle := lipgloss.NewStyle().
+		Foreground(s.theme.Muted).
+		Align(lipgloss.Center)
+
+	title := titleStyle.Render("No resources found")
+	hint := hintStyle.Render("Press ESC to go back")
+
+	// Center content vertically
+	content := lipgloss.JoinVertical(
+		lipgloss.Center,
+		"",
+		title,
+		"",
+		hint,
+	)
+
+	// Center horizontally and vertically in available space
+	return lipgloss.Place(
+		s.width,
+		s.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		content,
+	)
 }
 
 // SetSize updates dimensions and recalculates dynamic column widths
@@ -271,26 +317,61 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 
 // refreshWithFilterContext fetches resources using filtered repository methods
 func (s *ConfigScreen) refreshWithFilterContext() ([]interface{}, error) {
-	// Only pods screen supports filtering for now
+	// Handle CronJob → Jobs navigation (target is jobs, not pods)
+	if s.config.ResourceType == k8s.ResourceTypeJob && s.filterContext.Field == "owner" {
+		namespace := s.filterContext.Metadata["namespace"]
+		jobs, err := s.repo.GetJobsForCronJob(namespace, s.filterContext.Value)
+		if err != nil {
+			return nil, err
+		}
+		// Convert []Job to []interface{}
+		items := make([]interface{}, len(jobs))
+		for i, job := range jobs {
+			items[i] = job
+		}
+		return items, nil
+	}
+
+	// All other filtering targets pods
 	if s.config.ResourceType != k8s.ResourceTypePod {
 		return s.repo.GetResources(s.config.ResourceType)
 	}
 
 	var pods []k8s.Pod
 	var err error
+	namespace := s.filterContext.Metadata["namespace"]
+	kind := s.filterContext.Metadata["kind"]
 
 	switch s.filterContext.Field {
 	case "owner":
-		// Deployment → Pods
-		namespace := s.filterContext.Metadata["namespace"]
-		pods, err = s.repo.GetPodsForDeployment(namespace, s.filterContext.Value)
+		// Deployment/StatefulSet/DaemonSet/Job → Pods
+		switch kind {
+		case "Deployment":
+			pods, err = s.repo.GetPodsForDeployment(namespace, s.filterContext.Value)
+		case "StatefulSet":
+			pods, err = s.repo.GetPodsForStatefulSet(namespace, s.filterContext.Value)
+		case "DaemonSet":
+			pods, err = s.repo.GetPodsForDaemonSet(namespace, s.filterContext.Value)
+		case "Job":
+			pods, err = s.repo.GetPodsForJob(namespace, s.filterContext.Value)
+		default:
+			return s.repo.GetResources(s.config.ResourceType)
+		}
 	case "node":
 		// Node → Pods
 		pods, err = s.repo.GetPodsOnNode(s.filterContext.Value)
 	case "selector":
 		// Service → Pods
-		namespace := s.filterContext.Metadata["namespace"]
 		pods, err = s.repo.GetPodsForService(namespace, s.filterContext.Value)
+	case "namespace":
+		// Namespace → Pods
+		pods, err = s.repo.GetPodsForNamespace(s.filterContext.Value)
+	case "configmap":
+		// ConfigMap → Pods
+		pods, err = s.repo.GetPodsUsingConfigMap(namespace, s.filterContext.Value)
+	case "secret":
+		// Secret → Pods
+		pods, err = s.repo.GetPodsUsingSecret(namespace, s.filterContext.Value)
 	default:
 		return s.repo.GetResources(s.config.ResourceType)
 	}
@@ -433,99 +514,11 @@ func (s *ConfigScreen) GetSelectedResource() map[string]interface{} {
 
 // handleEnterKey handles contextual navigation when Enter is pressed
 func (s *ConfigScreen) handleEnterKey() tea.Cmd {
-	// Only handle contextual navigation for certain screen types
-	switch s.config.ID {
-	case "deployments":
-		return s.navigateToPodsForDeployment()
-	case "nodes":
-		return s.navigateToPodsForNode()
-	case "services":
-		return s.navigateToPodsForService()
-	default:
-		return nil
+	// Delegate to configured navigation handler
+	if s.config.NavigationHandler != nil {
+		return s.config.NavigationHandler(s)
 	}
-}
-
-// navigateToPodsForDeployment creates navigation command for Deployment → Pods
-func (s *ConfigScreen) navigateToPodsForDeployment() tea.Cmd {
-	resource := s.GetSelectedResource()
-	if resource == nil {
-		return nil
-	}
-
-	namespace, _ := resource["namespace"].(string)
-	name, _ := resource["name"].(string)
-	if namespace == "" || name == "" {
-		return nil
-	}
-
-	return func() tea.Msg {
-		return types.ScreenSwitchMsg{
-			ScreenID: "pods",
-			FilterContext: &types.FilterContext{
-				Field: "owner",
-				Value: name,
-				Metadata: map[string]string{
-					"namespace": namespace,
-					"kind":      "Deployment",
-				},
-			},
-		}
-	}
-}
-
-// navigateToPodsForNode creates navigation command for Node → Pods
-func (s *ConfigScreen) navigateToPodsForNode() tea.Cmd {
-	resource := s.GetSelectedResource()
-	if resource == nil {
-		return nil
-	}
-
-	name, _ := resource["name"].(string)
-	if name == "" {
-		return nil
-	}
-
-	return func() tea.Msg {
-		return types.ScreenSwitchMsg{
-			ScreenID: "pods",
-			FilterContext: &types.FilterContext{
-				Field: "node",
-				Value: name,
-				Metadata: map[string]string{
-					"kind": "Node",
-				},
-			},
-		}
-	}
-}
-
-// navigateToPodsForService creates navigation command for Service → Pods
-func (s *ConfigScreen) navigateToPodsForService() tea.Cmd {
-	resource := s.GetSelectedResource()
-	if resource == nil {
-		return nil
-	}
-
-	namespace, _ := resource["namespace"].(string)
-	name, _ := resource["name"].(string)
-	if namespace == "" || name == "" {
-		return nil
-	}
-
-	return func() tea.Msg {
-		return types.ScreenSwitchMsg{
-			ScreenID: "pods",
-			FilterContext: &types.FilterContext{
-				Field: "selector",
-				Value: name,
-				Metadata: map[string]string{
-					"namespace": namespace,
-					"kind":      "Service",
-				},
-			},
-		}
-	}
+	return nil
 }
 
 // Helper functions
@@ -546,7 +539,7 @@ func getFieldValue(obj interface{}, fieldName string) interface{} {
 }
 
 // makeOperationHandler creates an Execute function for an operation
-func (s *ConfigScreen) makeOperationHandler(opCfg OperationConfig) func() tea.Cmd {
+func (s *ConfigScreen) makeOperationHandler(_ OperationConfig) func() tea.Cmd {
 	return func() tea.Cmd {
 		// Default: no-op
 		// Custom operation handlers can be added when needed
