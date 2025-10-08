@@ -26,7 +26,7 @@ func TestTransformConfigMap(t *testing.T) {
 		},
 	}
 
-	common := extractCommonFields(u)
+	common := extractMetadata(u)
 	result, err := transformConfigMap(u, common)
 	require.NoError(t, err)
 
@@ -54,7 +54,7 @@ func TestTransformSecret(t *testing.T) {
 		},
 	}
 
-	common := extractCommonFields(u)
+	common := extractMetadata(u)
 	result, err := transformSecret(u, common)
 	require.NoError(t, err)
 
@@ -304,7 +304,7 @@ func TestTransformService(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformService(u, common)
 			require.NoError(t, err)
 
@@ -334,7 +334,7 @@ func TestTransformNamespace(t *testing.T) {
 		},
 	}
 
-	common := extractCommonFields(u)
+	common := extractMetadata(u)
 	result, err := transformNamespace(u, common)
 	require.NoError(t, err)
 
@@ -362,7 +362,7 @@ func TestTransformStatefulSet(t *testing.T) {
 		},
 	}
 
-	common := extractCommonFields(u)
+	common := extractMetadata(u)
 	result, err := transformStatefulSet(u, common)
 	require.NoError(t, err)
 
@@ -392,7 +392,7 @@ func TestTransformDaemonSet(t *testing.T) {
 		},
 	}
 
-	common := extractCommonFields(u)
+	common := extractMetadata(u)
 	result, err := transformDaemonSet(u, common)
 	require.NoError(t, err)
 
@@ -478,7 +478,7 @@ func TestTransformJob(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformJob(u, common)
 			require.NoError(t, err)
 
@@ -578,7 +578,7 @@ func TestTransformCronJob(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformCronJob(u, common)
 			require.NoError(t, err)
 
@@ -598,19 +598,19 @@ func TestTransformNode(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name                  string
-		labels                map[string]interface{}
-		conditionStatus       string
-		kubeletVersion        string
-		osImage               string
-		expectedStatus        string
-		expectedRoles         string
-		expectedHostname      string
-		expectedInstanceType  string
-		expectedZone          string
-		expectedNodePool      string
-		expectedOSImage       string
-		rolesContains         []string // For multiple roles (order-independent)
+		name                 string
+		labels               map[string]interface{}
+		conditionStatus      string
+		kubeletVersion       string
+		osImage              string
+		expectedStatus       string
+		expectedRoles        string
+		expectedHostname     string
+		expectedInstanceType string
+		expectedZone         string
+		expectedNodePool     string
+		expectedOSImage      string
+		rolesContains        []string // For multiple roles (order-independent)
 	}{
 		{
 			name: "ready node with all labels",
@@ -677,7 +677,7 @@ func TestTransformNode(t *testing.T) {
 			name: "node with older zone label",
 			labels: map[string]interface{}{
 				"failure-domain.beta.kubernetes.io/zone": "us-west-2b",
-				"kubernetes.io/hostname":                  "node-5",
+				"kubernetes.io/hostname":                 "node-5",
 			},
 			conditionStatus:  "True",
 			kubeletVersion:   "v1.28.0",
@@ -686,8 +686,8 @@ func TestTransformNode(t *testing.T) {
 			expectedZone:     "us-west-2b",
 		},
 		{
-			name: "node with no labels",
-			labels: map[string]interface{}{},
+			name:                 "node with no labels",
+			labels:               map[string]interface{}{},
 			conditionStatus:      "True",
 			kubeletVersion:       "v1.28.0",
 			expectedStatus:       "Ready",
@@ -723,7 +723,7 @@ func TestTransformNode(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformNode(u, common)
 			require.NoError(t, err)
 
@@ -763,7 +763,7 @@ func TestTransformNode(t *testing.T) {
 
 func TestTransformReplicaSet(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name            string
 		spec            map[string]interface{}
@@ -814,7 +814,7 @@ func TestTransformReplicaSet(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformReplicaSet(u, common)
 			require.NoError(t, err)
 
@@ -831,7 +831,7 @@ func TestTransformReplicaSet(t *testing.T) {
 
 func TestTransformPVC(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name                 string
 		spec                 map[string]interface{}
@@ -892,7 +892,7 @@ func TestTransformPVC(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformPVC(u, common)
 			require.NoError(t, err)
 
@@ -911,7 +911,7 @@ func TestTransformPVC(t *testing.T) {
 
 func TestTransformIngress(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name            string
 		spec            map[string]interface{}
@@ -996,7 +996,7 @@ func TestTransformIngress(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformIngress(u, common)
 			require.NoError(t, err)
 
@@ -1014,7 +1014,7 @@ func TestTransformIngress(t *testing.T) {
 
 func TestTransformEndpoints(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name              string
 		subsets           []interface{}
@@ -1070,7 +1070,7 @@ func TestTransformEndpoints(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformEndpoints(u, common)
 			require.NoError(t, err)
 
@@ -1085,7 +1085,7 @@ func TestTransformEndpoints(t *testing.T) {
 
 func TestTransformHPA(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name              string
 		spec              map[string]interface{}
@@ -1162,7 +1162,7 @@ func TestTransformHPA(t *testing.T) {
 				},
 			}
 
-			common := extractCommonFields(u)
+			common := extractMetadata(u)
 			result, err := transformHPA(u, common)
 			require.NoError(t, err)
 
