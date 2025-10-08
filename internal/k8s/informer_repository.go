@@ -58,16 +58,16 @@ type InformerRepository struct {
 	contextName string
 
 	// Performance indexes (built on informer updates)
-	mu               sync.RWMutex
-	podsByNode       map[string][]*corev1.Pod             // nodeName → pods
-	podsByNamespace  map[string][]*corev1.Pod             // namespace → pods
-	podsByOwnerUID   map[string][]*corev1.Pod             // ownerUID → pods
+	mu                    sync.RWMutex
+	podsByNode            map[string][]*corev1.Pod            // nodeName → pods
+	podsByNamespace       map[string][]*corev1.Pod            // namespace → pods
+	podsByOwnerUID        map[string][]*corev1.Pod            // ownerUID → pods
 	podsByConfigMap       map[string]map[string][]*corev1.Pod // namespace/configMapName → pods
 	podsBySecret          map[string]map[string][]*corev1.Pod // namespace/secretName → pods
-	jobsByOwnerUID        map[string][]string                  // ownerUID → job namespaced names
-	jobsByNamespace       map[string][]string                  // namespace → job names
-	replicaSetsByOwnerUID map[string][]string                  // deploymentUID → RS keys
-	podsByPVC             map[string][]*corev1.Pod             // ns/pvcName → pods
+	jobsByOwnerUID        map[string][]string                 // ownerUID → job namespaced names
+	jobsByNamespace       map[string][]string                 // namespace → job names
+	replicaSetsByOwnerUID map[string][]string                 // deploymentUID → RS keys
+	podsByPVC             map[string][]*corev1.Pod            // ns/pvcName → pods
 
 	// Statistics tracking (channel-based, no locks needed)
 	resourceStats map[schema.GroupVersionResource]*ResourceStats
@@ -238,20 +238,20 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 
 	// Create repository with initialized indexes
 	repo := &InformerRepository{
-		clientset:         clientset,
-		factory:           factory,
-		podLister:         podLister,
-		deploymentLister:  deploymentLister,
-		serviceLister:     serviceLister,
-		replicaSetLister:  replicaSetLister,
-		statefulSetLister: statefulSetLister,
-		daemonSetLister:   daemonSetLister,
-		dynamicClient:     dynamicClient,
-		dynamicFactory:    dynamicFactory,
-		resources:         resourceRegistry,
-		dynamicListers:    dynamicListers,
-		kubeconfig:        kubeconfig,
-		contextName:       contextName,
+		clientset:             clientset,
+		factory:               factory,
+		podLister:             podLister,
+		deploymentLister:      deploymentLister,
+		serviceLister:         serviceLister,
+		replicaSetLister:      replicaSetLister,
+		statefulSetLister:     statefulSetLister,
+		daemonSetLister:       daemonSetLister,
+		dynamicClient:         dynamicClient,
+		dynamicFactory:        dynamicFactory,
+		resources:             resourceRegistry,
+		dynamicListers:        dynamicListers,
+		kubeconfig:            kubeconfig,
+		contextName:           contextName,
 		podsByNode:            make(map[string][]*corev1.Pod),
 		podsByNamespace:       make(map[string][]*corev1.Pod),
 		podsByOwnerUID:        make(map[string][]*corev1.Pod),
@@ -262,9 +262,9 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 		replicaSetsByOwnerUID: make(map[string][]string),
 		podsByPVC:             make(map[string][]*corev1.Pod),
 		resourceStats:         resourceStats,
-		statsUpdateCh:     make(chan statsUpdateMsg, 1000), // Buffered channel for high-frequency events
-		ctx:               ctx,
-		cancel:            cancel,
+		statsUpdateCh:         make(chan statsUpdateMsg, 1000), // Buffered channel for high-frequency events
+		ctx:                   ctx,
+		cancel:                cancel,
 	}
 
 	// Start statistics updater goroutine
@@ -317,15 +317,17 @@ func (r *InformerRepository) GetPods() ([]Pod, error) {
 		ip := pod.Status.PodIP
 
 		pods = append(pods, Pod{
-			Namespace: pod.Namespace,
-			Name:      pod.Name,
-			Ready:     readyStatus,
-			Status:    status,
-			Restarts:  totalRestarts,
-			Age:       age,
-			CreatedAt: pod.CreationTimestamp.Time,
-			Node:      node,
-			IP:        ip,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: pod.Namespace,
+				Name:      pod.Name,
+				Age:       age,
+				CreatedAt: pod.CreationTimestamp.Time,
+			},
+			Ready:    readyStatus,
+			Status:   status,
+			Restarts: totalRestarts,
+			Node:     node,
+			IP:       ip,
 		})
 	}
 
@@ -365,13 +367,15 @@ func (r *InformerRepository) GetDeployments() ([]Deployment, error) {
 		available := deploy.Status.AvailableReplicas
 
 		deployments = append(deployments, Deployment{
-			Namespace: deploy.Namespace,
-			Name:      deploy.Name,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: deploy.Namespace,
+				Name:      deploy.Name,
+				Age:       age,
+				CreatedAt: deploy.CreationTimestamp.Time,
+			},
 			Ready:     readyStatus,
 			UpToDate:  upToDate,
 			Available: available,
-			Age:       age,
-			CreatedAt: deploy.CreationTimestamp.Time,
 		})
 	}
 
@@ -429,14 +433,16 @@ func (r *InformerRepository) GetServices() ([]Service, error) {
 		}
 
 		services = append(services, Service{
-			Namespace:  svc.Namespace,
-			Name:       svc.Name,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: svc.Namespace,
+				Name:      svc.Name,
+				Age:       age,
+				CreatedAt: svc.CreationTimestamp.Time,
+			},
 			Type:       string(svc.Spec.Type),
 			ClusterIP:  clusterIP,
 			ExternalIP: externalIP,
 			Ports:      portsStr,
-			Age:        age,
-			CreatedAt:  svc.CreationTimestamp.Time,
 		})
 	}
 
@@ -534,15 +540,17 @@ func (r *InformerRepository) GetPodsForService(namespace, name string) ([]Pod, e
 		}
 
 		pods = append(pods, Pod{
-			Namespace: pod.Namespace,
-			Name:      pod.Name,
-			Ready:     readyStatus,
-			Status:    string(pod.Status.Phase),
-			Restarts:  totalRestarts,
-			Age:       age,
-			CreatedAt: pod.CreationTimestamp.Time,
-			Node:      pod.Spec.NodeName,
-			IP:        pod.Status.PodIP,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: pod.Namespace,
+				Name:      pod.Name,
+				Age:       age,
+				CreatedAt: pod.CreationTimestamp.Time,
+			},
+			Ready:    readyStatus,
+			Status:   string(pod.Status.Phase),
+			Restarts: totalRestarts,
+			Node:     pod.Spec.NodeName,
+			IP:       pod.Status.PodIP,
 		})
 	}
 
@@ -662,7 +670,7 @@ func (r *InformerRepository) GetJobsForCronJob(namespace, name string) ([]Job, e
 		}
 
 		// Extract common fields
-		common := extractCommonFields(jobUnstr)
+		common := extractMetadata(jobUnstr)
 
 		// Transform to Job type
 		transformed, err := transformJob(jobUnstr, common)
@@ -792,7 +800,7 @@ func (r *InformerRepository) GetReplicaSetsForDeployment(namespace, name string)
 			continue
 		}
 
-		common := extractCommonFields(rsUnstr)
+		common := extractMetadata(rsUnstr)
 		transformed, err := transformReplicaSet(rsUnstr, common)
 		if err != nil {
 			continue
@@ -1291,15 +1299,17 @@ func (r *InformerRepository) transformPods(podList []*corev1.Pod) ([]Pod, error)
 		}
 
 		pods = append(pods, Pod{
-			Namespace: pod.Namespace,
-			Name:      pod.Name,
-			Ready:     readyStatus,
-			Status:    string(pod.Status.Phase),
-			Restarts:  totalRestarts,
-			Age:       age,
-			CreatedAt: pod.CreationTimestamp.Time,
-			Node:      pod.Spec.NodeName,
-			IP:        pod.Status.PodIP,
+			ResourceMetadata: ResourceMetadata{
+				Namespace: pod.Namespace,
+				Name:      pod.Name,
+				Age:       age,
+				CreatedAt: pod.CreationTimestamp.Time,
+			},
+			Ready:    readyStatus,
+			Status:   string(pod.Status.Phase),
+			Restarts: totalRestarts,
+			Node:     pod.Spec.NodeName,
+			IP:       pod.Status.PodIP,
 		})
 	}
 
@@ -1592,7 +1602,7 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]any, err
 	}
 
 	// Transform unstructured objects to typed structs
-	results := make([]any, 0, len(objList))
+	resources := make([]Resource, 0, len(objList))
 	for _, obj := range objList {
 		unstr, ok := obj.(*unstructured.Unstructured)
 		if !ok {
@@ -1600,37 +1610,58 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]any, err
 		}
 
 		// Extract common fields once per resource (optimization)
-		common := extractCommonFields(unstr)
+		common := extractMetadata(unstr)
 
 		transformed, err := config.Transform(unstr, common)
 		if err != nil {
 			// Log error but continue (partial results better than nothing)
 			continue
 		}
-		results = append(results, transformed)
+
+		// Type assert to Resource interface for sorting
+		resource, ok := transformed.(Resource)
+		if !ok {
+			// Skip non-Resource types (shouldn't happen)
+			continue
+		}
+		resources = append(resources, resource)
 	}
 
-	// Sort results by age (newest first) if they have Age field
-	sortByAge(results)
+	// Sort resources by age using Resource interface (newest first)
+	sortByAge(resources)
+
+	// Convert back to []any for existing API compatibility
+	results := make([]any, len(resources))
+	for i, r := range resources {
+		results[i] = r
+	}
 
 	return results, nil
 }
 
-// sortByAge sorts resources by CreatedAt field if present (newest first)
-func sortByAge(items []any) {
-	sort.Slice(items, func(i, j int) bool {
-		// Try to extract CreatedAt from both items
-		createdI := extractCreatedAt(items[i])
-		createdJ := extractCreatedAt(items[j])
+// sortByAge sorts resources by CreatedAt field using Resource interface (newest first)
+// Note: Despite the name "sortByAge", we sort by CreatedAt (stable timestamp) not Age (recalculated each time)
+// This ensures stable sorting - Age field changes every second which causes list instability
+// Uses SliceStable with name as secondary sort key for deterministic ordering
+func sortByAge(items []Resource) {
+	sort.SliceStable(items, func(i, j int) bool {
+		createdI := items[i].GetCreatedAt()
+		createdJ := items[j].GetCreatedAt()
 
+		// Primary sort: by creation time (newest first)
 		if !createdI.Equal(createdJ) {
-			return createdI.After(createdJ) // Newer first
+			return createdI.After(createdJ)
 		}
 
-		// Fall back to name comparison
-		nameI := extractName(items[i])
-		nameJ := extractName(items[j])
-		return nameI < nameJ
+		// Secondary sort: by name (alphabetically) for deterministic ordering
+		nameI := items[i].GetName()
+		nameJ := items[j].GetName()
+		if nameI != nameJ {
+			return nameI < nameJ
+		}
+
+		// Tertiary sort: by namespace for cluster-wide views with same names
+		return items[i].GetNamespace() < items[j].GetNamespace()
 	})
 }
 
@@ -1651,124 +1682,4 @@ func sortByCreationTime[T resourceWithTimestamp](items []T, getCreatedAt func(T)
 		// Fall back to name comparison for stable sort
 		return getName(items[i]) < getName(items[j])
 	})
-}
-
-// extractCreatedAt tries to extract CreatedAt field from any
-func extractCreatedAt(item any) time.Time {
-	switch v := item.(type) {
-	case Pod:
-		return v.CreatedAt
-	case Deployment:
-		return v.CreatedAt
-	case Service:
-		return v.CreatedAt
-	case ConfigMap:
-		return v.CreatedAt
-	case Secret:
-		return v.CreatedAt
-	case Namespace:
-		return v.CreatedAt
-	case StatefulSet:
-		return v.CreatedAt
-	case DaemonSet:
-		return v.CreatedAt
-	case Job:
-		return v.CreatedAt
-	case CronJob:
-		return v.CreatedAt
-	case Node:
-		return v.CreatedAt
-	case ReplicaSet:
-		return v.CreatedAt
-	case PersistentVolumeClaim:
-		return v.CreatedAt
-	case Ingress:
-		return v.CreatedAt
-	case Endpoints:
-		return v.CreatedAt
-	case HorizontalPodAutoscaler:
-		return v.CreatedAt
-	default:
-		return time.Time{} // Zero time
-	}
-}
-
-// extractAge tries to extract Age field from any
-func extractAge(item any) time.Duration {
-	switch v := item.(type) {
-	case Pod:
-		return v.Age
-	case Deployment:
-		return v.Age
-	case Service:
-		return v.Age
-	case ConfigMap:
-		return v.Age
-	case Secret:
-		return v.Age
-	case Namespace:
-		return v.Age
-	case StatefulSet:
-		return v.Age
-	case DaemonSet:
-		return v.Age
-	case Job:
-		return v.Age
-	case CronJob:
-		return v.Age
-	case Node:
-		return v.Age
-	case ReplicaSet:
-		return v.Age
-	case PersistentVolumeClaim:
-		return v.Age
-	case Ingress:
-		return v.Age
-	case Endpoints:
-		return v.Age
-	case HorizontalPodAutoscaler:
-		return v.Age
-	default:
-		return 0
-	}
-}
-
-// extractName tries to extract Name field from any
-func extractName(item any) string {
-	switch v := item.(type) {
-	case Pod:
-		return v.Name
-	case Deployment:
-		return v.Name
-	case Service:
-		return v.Name
-	case ConfigMap:
-		return v.Name
-	case Secret:
-		return v.Name
-	case Namespace:
-		return v.Name
-	case StatefulSet:
-		return v.Name
-	case DaemonSet:
-		return v.Name
-	case Job:
-		return v.Name
-	case CronJob:
-		return v.Name
-	case Node:
-		return v.Name
-	case ReplicaSet:
-		return v.Name
-	case PersistentVolumeClaim:
-		return v.Name
-	case Ingress:
-		return v.Name
-	case Endpoints:
-		return v.Name
-	case HorizontalPodAutoscaler:
-		return v.Name
-	default:
-		return ""
-	}
 }

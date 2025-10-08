@@ -527,9 +527,23 @@ func (s *ConfigScreen) GetSelectedResource() map[string]interface{} {
 
 	t := v.Type()
 	for i := 0; i < v.NumField(); i++ {
-		fieldName := t.Field(i).Name
-		fieldValue := v.Field(i).Interface()
-		result[strings.ToLower(fieldName)] = fieldValue
+		field := t.Field(i)
+		fieldName := field.Name
+		fieldValue := v.Field(i)
+
+		// Handle embedded structs (like ResourceMetadata)
+		if field.Anonymous && fieldValue.Kind() == reflect.Struct {
+			// Flatten embedded struct fields into result map
+			embeddedType := fieldValue.Type()
+			for j := 0; j < fieldValue.NumField(); j++ {
+				embeddedFieldName := embeddedType.Field(j).Name
+				embeddedFieldValue := fieldValue.Field(j).Interface()
+				result[strings.ToLower(embeddedFieldName)] = embeddedFieldValue
+			}
+		} else {
+			// Normal field
+			result[strings.ToLower(fieldName)] = fieldValue.Interface()
+		}
 	}
 
 	return result
