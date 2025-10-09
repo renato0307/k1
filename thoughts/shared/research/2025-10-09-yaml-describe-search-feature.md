@@ -361,25 +361,45 @@ No conversion, no position mapping, no complexity!
 
 ### Search Mode State Machine
 
-**Proposed states for FullScreen component**:
+**Proposed approach: Integrate Command Bar into FullScreen**
+
+Instead of using `/` or `:` directly (which conflicts with command/screen
+navigation), **add the command bar component to YAML/describe screens**:
+
+**States**:
 
 1. **Normal** - Default viewing mode (current state)
    - Arrow keys scroll content
+   - Typing activates filter mode (fuzzy search on visible content)
+   - `/` opens command palette
    - ESC exits full-screen
 
-2. **TextSearch** - Simple text search mode
-   - `/` enters search mode
-   - Type query to search
-   - n/N navigate matches
-   - ESC returns to Normal
-   - Highlights all matches in visible content
+2. **FilterMode** - Real-time fuzzy search (like list screens)
+   - Type characters to filter visible content
+   - Highlights all matches in real-time
+   - ESC clears filter and returns to Normal
+   - Reuses existing command bar filter pattern
 
-3. **YAMLPathSearch** - Structured query mode
-   - `:` enters YAMLPath mode
-   - Type YAMLPath query (e.g., `$.spec.containers[*].image`)
-   - Shows matching values with context
-   - Highlights matching paths in YAML
+3. **CommandMode** - Command palette (triggered by `/`)
+   - Shows available commands:
+     - `/search` - Text search with n/N navigation
+     - `/yamlpath` - YAMLPath structured queries
+     - `/copy` - Copy to clipboard
+     - `/export-json` - Export as JSON
+     - `/edit` - Edit YAML (future)
    - ESC returns to Normal
+
+4. **SearchActive** - After executing `/search` command
+   - Input field for search term
+   - n/N navigate between matches
+   - Highlights current match differently
+   - ESC exits search, returns to Normal
+
+5. **YAMLPathActive** - After executing `/yamlpath` command
+   - Input field for YAMLPath query
+   - Shows matching nodes with line numbers
+   - Highlights matching sections
+   - ESC exits query mode, returns to Normal
 
 ### Message Flow Extension
 
@@ -458,14 +478,26 @@ column := token.Position.Column // Direct column
 ### Integration Points
 
 **FullScreen component** (`fullscreen.go`):
+- **Add command bar instance** (reuse existing CommandBar component)
 - Add search state fields (mode, query, matches, currentMatch)
-- Extend Update() to handle search keys (/, :, n, N, ESC)
-- Modify View() to render search input and match count
+- Extend Update() to route messages to command bar
+- Forward filter messages to search logic
+- Handle command execution (ExecuteSearch, ExecuteYAMLPath)
+- Modify View() to include command bar at bottom
 - Extend content rendering to apply highlighting
 
-**Command bar pattern** (optional):
-- Could reuse command bar component for search input
-- But simpler to embed search input in FullScreen header
+**Command registry** (`commands/registry.go`):
+- Register YAML/describe-specific commands:
+  - `/search` - Text search command
+  - `/yamlpath` - YAMLPath query command
+  - `/copy` - Copy content to clipboard
+  - `/export-json` - Export as JSON
+- Commands only available when in full-screen mode
+
+**CommandBar component** (reuse existing):
+- No changes needed - already supports filter and command modes
+- FilterUpdateMsg already exists
+- Command execution pattern already implemented
 
 **Repository layer** (no changes):
 - Search operates on already-fetched content
@@ -473,12 +505,100 @@ column := token.Position.Column // Direct column
 
 ## Implementation Recommendations
 
-### Phase 1: Text Search with Highlighting
+### Phase 0: Add Command Bar to FullScreen
 
-**Scope**: Add simple text search to YAML/describe screens
+**Scope**: Integrate command bar component into YAML/describe screens
 
 **Changes**:
-1. Extend FullScreen struct with search state:
+1. Add CommandBar instance to FullScreen:
+   ```go
+   type FullScreen struct {
+       // ... existing fields
+       commandBar *commandbar.CommandBar
+   }
+   ```
+
+2. Initialize command bar in NewFullScreen():
+   ```go
+   commandBar := commandbar.NewCommandBar(theme, width)
+   ```
+
+3. Route messages to command bar in Update():
+   ```go
+   func (fs *FullScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+       switch msg := msg.(type) {
+       case tea.KeyMsg:
+           // Check if command bar should handle
+           if fs.commandBar.IsActive() {
+               // Route to command bar
+           }
+           // Otherwise handle scrolling
+       case types.FilterUpdateMsg:
+           // Apply filter to content
+       }
+   }
+   ```
+
+4. Render command bar in View():
+   ```go
+   content := fs.renderContent()
+   commandBarView := fs.commandBar.View()
+   return lipgloss.JoinVertical(lipgloss.Left, content, commandBarView)
+   ```
+
+5. Register full-screen commands in command registry
+
+**Estimated complexity**: Low (1 day)
+
+**Dependencies**: Existing CommandBar component
+
+### Phase 1: Fuzzy Filter on Content
+
+**Scope**: Add real-time fuzzy search (typing activates filter)
+
+**Changes**:
+1. Handle FilterUpdateMsg in FullScreen:
+   ```go
+   case types.FilterUpdateMsg:
+       fs.filterQuery = msg.Filter
+       fs.applyFilter()
+   ```
+
+2. Implement fuzzy matching on visible lines:
+   ```go
+   func (fs *FullScreen) applyFilter() {
+       lines := strings.Split(fs.content, "\n")
+       matches := fuzzy.Find(fs.filterQuery, lines)
+       // Store matched line numbers for highlighting
+   }
+   ```
+
+3. Highlight matching lines in rendering:
+   - Apply subtle background to matched lines
+   - Or highlight matched characters within lines
+
+**Estimated complexity**: Low-Medium (1-2 days)
+
+**Dependencies**: Existing fuzzy library (github.com/sahilm/fuzzy)
+
+### Phase 2: Text Search Command (/search)
+
+**Scope**: Add persistent search with n/N navigation
+
+**Changes**:
+1. Register `/search` command:
+   ```go
+   func SearchCommand() ExecuteFunc {
+       return func(ctx CommandContext) tea.Cmd {
+           // Transition to search input mode
+           return func() tea.Msg {
+               return types.EnterSearchModeMsg{Mode: "text"}
+           }
+       }
+   }
+   ```
+
+2. Extend FullScreen with search state:
    ```go
    type FullScreen struct {
        // ... existing fields
@@ -489,39 +609,28 @@ column := token.Position.Column // Direct column
    }
    ```
 
-2. Add search key handlers in Update():
-   - `/` enters text search mode
-   - Characters update query
-   - `n` / `N` navigate matches
-   - ESC exits search
-
-3. Implement text matching:
+3. Handle search navigation (n/N):
    ```go
-   func (fs *FullScreen) findTextMatches(query string) []SearchMatch
+   func (fs *FullScreen) nextMatch() {
+       fs.currentMatch = (fs.currentMatch + 1) % len(fs.searchMatches)
+       fs.scrollToMatch()
+   }
    ```
 
-4. Modify rendering to highlight matches:
-   ```go
-   func (fs *FullScreen) renderLineWithHighlights(
-       line string,
-       lineNum int
-   ) string
-   ```
-
-5. Add search input display to header
+4. Highlight current match differently than other matches
 
 **Estimated complexity**: Medium (2-3 days)
 
-**Dependencies**: None (uses existing patterns)
+**Dependencies**: Phase 0 complete
 
-### Phase 2: YAMLPath Query Support
+### Phase 3: YAMLPath Query Command (/yamlpath)
 
 **Scope**: Add structured queries for Kubernetes resources
 
 **Changes**:
 1. Add dependency: `go get github.com/goccy/go-yaml`
 
-2. Add YAMLPath mode triggered by `:`
+2. Register `/yamlpath` command (executes from command palette)
 
 3. Implement query execution:
    ```go
@@ -557,9 +666,23 @@ column := token.Position.Column // Direct column
 
 **Estimated complexity**: Medium (3-4 days, native position support!)
 
-**Dependencies**: goccy/go-yaml library
+**Dependencies**: Phase 0 complete, goccy/go-yaml library
 
-### Phase 3: Advanced Features
+### Phase 4: Additional Commands
+
+**Scope**: Add utility commands for YAML/describe screens
+
+**Commands to implement**:
+1. `/copy` - Copy entire content to clipboard
+2. `/copy-selection` - Copy current match/selection
+3. `/export-json` - Convert YAML to JSON and copy
+4. `/goto-line` - Jump to specific line number
+
+**Estimated complexity**: Low-Medium (2-3 days)
+
+**Dependencies**: Clipboard library (e.g., atotto/clipboard)
+
+### Phase 5: Advanced Features
 
 **Optional enhancements**:
 - Search history (remember recent queries)
@@ -610,39 +733,45 @@ column := token.Position.Column // Direct column
 
 ## Open Questions
 
-1. **Search mode activation**: Use different triggers for different modes:
-   - `/` for text search (vim-like)
-   - `:` for YAMLPath queries (structured)
-   - Recommend: Keep them separate for clear mental model
+1. **Command bar integration**: How to handle command bar state?
+   - Should FullScreen own command bar instance?
+   - Or should app manage command bar and route to FullScreen?
+   - Recommend: FullScreen owns instance for encapsulation
 
-2. **Search scope**: Should search work across:
+2. **Filter vs Search distinction**:
+   - Filter (typing): Real-time fuzzy match, shows all matches
+   - Search (/search): Persistent, navigate with n/N, shows current match
+   - Is this distinction clear to users?
+   - Recommend: Show different indicators for filter vs search mode
+
+3. **Search scope**: Should search work across:
    - Only visible lines (current viewport)?
    - All content (scroll to matches)?
    - Recommend: All content with auto-scroll to first match
 
-3. **Highlighting conflicts**: How to combine YAML syntax highlighting with
+4. **Highlighting conflicts**: How to combine YAML syntax highlighting with
    search match highlighting?
    - Syntax highlighting uses Primary/Success/Muted
    - Search highlighting should use Warning/Accent + Bold
    - Apply search highlighting on top of syntax highlighting
 
-4. **Performance**: For very large YAML files (10,000+ lines), should we:
+5. **Performance**: For very large YAML files (10,000+ lines), should we:
    - Parse AST on full-screen entry (one-time cost)?
-   - Lazy parse only when YAMLPath mode activated?
+   - Lazy parse only when /yamlpath command executed?
    - Show progress indicator for slow queries?
-   - Recommend: Parse on YAMLPath activation, cache AST
+   - Recommend: Parse on /yamlpath execution, cache AST
 
-5. **User experience**: Should search input be:
-   - In header (like current filter in command bar)?
-   - As overlay (like command palette)?
-   - Inline at bottom (like vim search)?
-   - Recommend: Header input similar to command bar pattern
+6. **Command availability**: Should full-screen commands show in main
+   command palette?
+   - Show all commands always (with context indicators)?
+   - Only show full-screen commands when in full-screen?
+   - Recommend: Context-aware command filtering in registry
 
-6. **YAMLPath syntax**: goccy/go-yaml uses JSONPath-like `$` notation:
+7. **YAMLPath syntax**: goccy/go-yaml uses JSONPath-like `$` notation:
    - Should we display syntax examples/help?
-   - Provide common query templates?
-   - Show query validation errors?
-   - Recommend: Display example queries in help text
+   - Provide common query templates (e.g., containers, labels)?
+   - Show query validation errors inline?
+   - Recommend: Show examples in command description
 
 ## Related Research
 
