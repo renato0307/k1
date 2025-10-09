@@ -241,17 +241,6 @@ The project has moved beyond prototyping into a structured application:
 - Log streaming for pods
 
 ### 📚 Reference Documentation
-- **design/DDR-01.md**: Bubble Tea architecture patterns and best practices
-- **design/DDR-02.md**: Theming system implementation and styling guidelines
-- **design/DDR-03.md**: Kubernetes informer-based repository design
-- **design/DDR-04.md**: Testing strategy with envtest (shared TestMain pattern)
-- **design/DDR-05.md**: Command-enhanced list browser UI/UX design
-- **design/DDR-06.md**: Describe and YAML commands implementation (on-demand events)
-- **design/DDR-07.md**: Scalable multi-resource architecture with config-driven design
-- **design/DDR-08.md**: Pragmatic command implementation strategy (kubectl subprocess vs pure Go)
-- **thoughts/shared/plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
-- **thoughts/shared/plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
-- **thoughts/shared/plans/PLAN-05.md**: YAML and Describe commands implementation (Complete)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
