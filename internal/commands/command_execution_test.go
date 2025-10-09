@@ -83,6 +83,20 @@ func (m *mockRepository) GetResourceStats() []k8s.ResourceStats {
 }
 func (m *mockRepository) Close() {}
 
+// Context management methods (stub implementations for testing)
+func (m *mockRepository) SwitchContext(contextName string, progress chan<- k8s.ContextLoadProgress) error {
+	return nil
+}
+func (m *mockRepository) GetAllContexts() []k8s.ContextWithStatus {
+	return []k8s.ContextWithStatus{}
+}
+func (m *mockRepository) GetActiveContext() string {
+	return m.context
+}
+func (m *mockRepository) RetryFailedContext(contextName string, progress chan<- k8s.ContextLoadProgress) error {
+	return nil
+}
+
 func TestScaleCommand_ArgParsing(t *testing.T) {
 	repo := &mockRepository{}
 	scaleCmd := ScaleCommand(repo)

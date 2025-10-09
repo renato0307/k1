@@ -85,8 +85,18 @@ type statsUpdateMsg struct {
 	eventType string
 }
 
-// NewInformerRepository creates a new informer-based repository
-func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository, error) {
+// NewInformerRepositoryWithProgress creates a new informer-based repository with progress reporting
+func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress chan<- ContextLoadProgress) (*InformerRepository, error) {
+	// Report connection phase
+	if progress != nil {
+		progress <- ContextLoadProgress{
+			Context: contextName,
+			Message: "Connecting to API server...",
+			Phase:   PhaseConnecting,
+		}
+	}
+
+
 	// Build kubeconfig path
 	if kubeconfig == "" {
 		if home := os.Getenv("HOME"); home != "" {
@@ -174,6 +184,15 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	factory.Start(ctx.Done())
 	dynamicFactory.Start(ctx.Done())
 
+	// Report core sync phase
+	if progress != nil {
+		progress <- ContextLoadProgress{
+			Context: contextName,
+			Message: "Syncing core resources...",
+			Phase:   PhaseSyncingCore,
+		}
+	}
+
 	// Wait for caches to sync with timeout (graceful handling of RBAC errors)
 	// Try to sync each informer individually, continue on failures
 	syncCtx, syncCancel := context.WithTimeout(ctx, InformerSyncTimeout)
@@ -193,6 +212,15 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	)
 	if !typedSynced {
 		fmt.Fprintf(os.Stderr, "Warning: Some core resources (pods/deployments/services) failed to sync - may have permission issues\n")
+	}
+
+	// Report dynamic sync phase
+	if progress != nil {
+		progress <- ContextLoadProgress{
+			Context: contextName,
+			Message: "Syncing dynamic resources...",
+			Phase:   PhaseSyncingDynamic,
+		}
 	}
 
 	// Try each dynamic informer individually
@@ -271,7 +299,21 @@ func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository,
 	repo.setupReplicaSetIndexes()
 	repo.setupDynamicInformersEventTracking(dynamicInformers)
 
+	// Report completion
+	if progress != nil {
+		progress <- ContextLoadProgress{
+			Context: contextName,
+			Message: "Context loaded successfully",
+			Phase:   PhaseComplete,
+		}
+	}
+
 	return repo, nil
+}
+
+// NewInformerRepository creates a new informer-based repository (backward compatible)
+func NewInformerRepository(kubeconfig, contextName string) (*InformerRepository, error) {
+	return NewInformerRepositoryWithProgress(kubeconfig, contextName, nil)
 }
 
 // GetPods returns all pods from the informer cache
@@ -465,6 +507,28 @@ func (r *InformerRepository) Close() {
 	if r.statsUpdateCh != nil {
 		close(r.statsUpdateCh) // Goroutine will exit when channel is drained
 	}
+}
+
+// Context management methods (not supported by single repository, use RepositoryPool)
+
+// SwitchContext is not supported by InformerRepository (use RepositoryPool)
+func (r *InformerRepository) SwitchContext(contextName string, progress chan<- ContextLoadProgress) error {
+	return fmt.Errorf("context switching not supported by InformerRepository, use RepositoryPool")
+}
+
+// GetAllContexts is not supported by InformerRepository (use RepositoryPool)
+func (r *InformerRepository) GetAllContexts() []ContextWithStatus {
+	return []ContextWithStatus{}
+}
+
+// GetActiveContext returns the current context name
+func (r *InformerRepository) GetActiveContext() string {
+	return r.contextName
+}
+
+// RetryFailedContext is not supported by InformerRepository (use RepositoryPool)
+func (r *InformerRepository) RetryFailedContext(contextName string, progress chan<- ContextLoadProgress) error {
+	return fmt.Errorf("retry failed context not supported by InformerRepository, use RepositoryPool")
 }
 
 // GetResources returns all resources of the specified type using dynamic informers

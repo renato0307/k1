@@ -601,3 +601,21 @@ func (r *DummyRepository) GetResourceStats() []ResourceStats {
 		},
 	}
 }
+
+// Context management methods (stub implementations for testing)
+
+func (r *DummyRepository) SwitchContext(contextName string, progress chan<- ContextLoadProgress) error {
+	return nil // Stub for testing
+}
+
+func (r *DummyRepository) GetAllContexts() []ContextWithStatus {
+	return []ContextWithStatus{} // Stub for testing
+}
+
+func (r *DummyRepository) GetActiveContext() string {
+	return "dummy-context" // Stub for testing
+}
+
+func (r *DummyRepository) RetryFailedContext(contextName string, progress chan<- ContextLoadProgress) error {
+	return nil // Stub for testing
+}

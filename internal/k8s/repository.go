@@ -111,6 +111,12 @@ type Repository interface {
 	// Statistics (for system resources screen)
 	GetResourceStats() []ResourceStats
 
+	// Context management (for repository pool)
+	SwitchContext(contextName string, progress chan<- ContextLoadProgress) error
+	GetAllContexts() []ContextWithStatus
+	GetActiveContext() string
+	RetryFailedContext(contextName string, progress chan<- ContextLoadProgress) error
+
 	Close()
 }
 
