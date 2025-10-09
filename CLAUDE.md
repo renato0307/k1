@@ -123,7 +123,7 @@ go test -v ./... -timeout 60s
 - First run downloads Kubernetes binaries (~50MB, then cached)
 - Test suite runs in ~5-10 seconds total
 
-See `design/DDR-04.md` for detailed testing architecture.
+See design documents in `design/` folder for detailed testing architecture.
 
 ## Key Dependencies
 
@@ -241,17 +241,6 @@ The project has moved beyond prototyping into a structured application:
 - Log streaming for pods
 
 ### 📚 Reference Documentation
-- **design/DDR-01.md**: Bubble Tea architecture patterns and best practices
-- **design/DDR-02.md**: Theming system implementation and styling guidelines
-- **design/DDR-03.md**: Kubernetes informer-based repository design
-- **design/DDR-04.md**: Testing strategy with envtest (shared TestMain pattern)
-- **design/DDR-05.md**: Command-enhanced list browser UI/UX design
-- **design/DDR-06.md**: Describe and YAML commands implementation (on-demand events)
-- **design/DDR-07.md**: Scalable multi-resource architecture with config-driven design
-- **design/DDR-08.md**: Pragmatic command implementation strategy (kubectl subprocess vs pure Go)
-- **thoughts/shared/plans/PLAN-03.md**: Command-enhanced UI implementation plan (Phase 1 complete)
-- **thoughts/shared/plans/PLAN-04.md**: Config-driven multi-resource architecture (All phases complete)
-- **thoughts/shared/plans/PLAN-05.md**: YAML and Describe commands implementation (Complete)
 - **CLAUDE.md**: This file - development guidelines and project overview
 
 ## Development Guidelines
@@ -799,10 +788,9 @@ feat: add hat wobble
 ## Design Documents
 
 Store design decisions in `design/` folder:
-- Follow the `design/TEMPLATE.md` structure
-- Create files incrementally named `DDR-XX.md` (Design Decision Record)
-- Update `design/README.md` index table with new entries
-- See existing examples: DDR-01 (Architecture), DDR-02 (Theming)
+- Follow the `design/TEMPLATE.md` structure if it exists
+- Use descriptive filenames that explain the design topic
+- Update `design/README.md` index if it exists
 - The author should not be @claude and by default should be @renato0307
 - IMPORTANT: Designs, research and plans should be formated to less than 80 characters per line
 - CRITICAL: Designs and research should not include implementations plans

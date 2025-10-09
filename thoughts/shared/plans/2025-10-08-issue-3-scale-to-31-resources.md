@@ -47,9 +47,9 @@ from the scaling research document.
 - Informer sync status discarded after initialization
 - No system metrics dashboard screen
 
-**Key Constraint**: Research shows memory is NOT a constraint. 71
-informers on 1000-pod cluster would use <5MB (vs 8GB etcd limit). The
-challenge is organization and user value, not technical limits.
+**Key Constraint**: Research shows memory is NOT a constraint. Informers
+on large clusters use minimal memory. The challenge is organization and
+user value, not technical limits.
 
 ## Desired End State
 
@@ -1931,8 +1931,8 @@ Phase 2.
 - Original ticket: `thoughts/shared/tickets/issue_3.md`
 - Scaling research:
   `thoughts/shared/research/2025-10-08-scaling-to-71-api-resources.md`
-- Config-driven architecture: `design/DDR-07.md`
-- Testing architecture: `design/DDR-04.md`
+- Config-driven architecture: See design documents in `design/` folder
+- Testing architecture: See design documents in `design/` folder
 - Navigation patterns: `thoughts/shared/plans/2025-10-07-contextual-navigation.md`
 - Existing 11 resource implementations:
   - `internal/k8s/transforms.go:422-546` (registry)
