@@ -12,21 +12,23 @@ import (
 
 // Palette manages command palette filtering, rendering, and navigation.
 type Palette struct {
-	items    []commands.Command
-	index    int
-	registry *commands.Registry
-	theme    *ui.Theme
-	width    int
+	items        []commands.Command
+	index        int
+	scrollOffset int // First visible item index
+	registry     *commands.Registry
+	theme        *ui.Theme
+	width        int
 }
 
 // NewPalette creates a new palette manager.
 func NewPalette(registry *commands.Registry, theme *ui.Theme, width int) *Palette {
 	return &Palette{
-		items:    []commands.Command{},
-		index:    0,
-		registry: registry,
-		theme:    theme,
-		width:    width,
+		items:        []commands.Command{},
+		index:        0,
+		scrollOffset: 0,
+		registry:     registry,
+		theme:        theme,
+		width:        width,
 	}
 }
 
@@ -74,19 +76,32 @@ func (p *Palette) Filter(query string, cmdType CommandType, screenID string) {
 
 	p.items = items
 	p.index = 0
+	p.scrollOffset = 0
 }
 
 // NavigateUp moves selection up in palette.
+// Scrolls viewport if cursor moves above visible range.
 func (p *Palette) NavigateUp() {
 	if p.index > 0 {
 		p.index--
+		// If cursor moved above viewport, scroll up
+		if p.index < p.scrollOffset {
+			p.scrollOffset = p.index
+		}
 	}
 }
 
 // NavigateDown moves selection down in palette.
+// Scrolls viewport if cursor moves below visible range.
 func (p *Palette) NavigateDown() {
 	if p.index < len(p.items)-1 {
 		p.index++
+		// Calculate bottom of viewport
+		maxVisibleIndex := p.scrollOffset + MaxPaletteItems - 1
+		// If cursor moved below viewport, scroll down
+		if p.index > maxVisibleIndex {
+			p.scrollOffset = p.index - MaxPaletteItems + 1
+		}
 	}
 }
 
@@ -112,6 +127,7 @@ func (p *Palette) Size() int {
 func (p *Palette) Reset() {
 	p.items = []commands.Command{}
 	p.index = 0
+	p.scrollOffset = 0
 }
 
 // GetHeight returns the height needed to display the palette.
@@ -132,12 +148,13 @@ func (p *Palette) View(prefix string) string {
 
 	sections := []string{}
 
-	// Show up to MaxPaletteItems
-	maxItems := min(MaxPaletteItems, len(p.items))
+	// Calculate visible range
+	visibleCount := min(MaxPaletteItems, len(p.items)-p.scrollOffset)
+	visibleEnd := p.scrollOffset + visibleCount
 
 	// First pass: find longest description to align shortcuts
 	longestMainText := 0
-	for i := 0; i < maxItems; i++ {
+	for i := p.scrollOffset; i < visibleEnd; i++ {
 		cmd := p.items[i]
 		mainText := prefix + cmd.Name
 		if cmd.ArgPattern != "" {
@@ -153,7 +170,7 @@ func (p *Palette) View(prefix string) string {
 	shortcutColumn := longestMainText + 10
 
 	// Second pass: render items with aligned shortcuts
-	for i := 0; i < maxItems; i++ {
+	for i := p.scrollOffset; i < visibleEnd; i++ {
 		cmd := p.items[i]
 		mainText := prefix + cmd.Name
 		if cmd.ArgPattern != "" {
