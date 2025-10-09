@@ -781,7 +781,7 @@ column := token.Position.Column // Direct column
 
 ## Next Steps
 
-1. **Create design document**: DDR-09 for search feature architecture
+1. **Create design document** for search feature architecture
 2. **Prototype text search**: Implement Phase 1 in feature branch
 3. **Evaluate YAMLPath**: Test goccy/go-yaml with real Kubernetes YAML
 4. **Test position tracking**: Verify line/column accuracy for highlighting

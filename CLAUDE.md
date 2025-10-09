@@ -123,7 +123,7 @@ go test -v ./... -timeout 60s
 - First run downloads Kubernetes binaries (~50MB, then cached)
 - Test suite runs in ~5-10 seconds total
 
-See `design/DDR-04.md` for detailed testing architecture.
+See design documents in `design/` folder for detailed testing architecture.
 
 ## Key Dependencies
 
@@ -788,10 +788,9 @@ feat: add hat wobble
 ## Design Documents
 
 Store design decisions in `design/` folder:
-- Follow the `design/TEMPLATE.md` structure
-- Create files incrementally named `DDR-XX.md` (Design Decision Record)
-- Update `design/README.md` index table with new entries
-- See existing examples: DDR-01 (Architecture), DDR-02 (Theming)
+- Follow the `design/TEMPLATE.md` structure if it exists
+- Use descriptive filenames that explain the design topic
+- Update `design/README.md` index if it exists
 - The author should not be @claude and by default should be @renato0307
 - IMPORTANT: Designs, research and plans should be formated to less than 80 characters per line
 - CRITICAL: Designs and research should not include implementations plans

@@ -655,7 +655,7 @@ k1 -llm-model llama3.2:3b
 
 ## Related Research
 
-- Design documents in `design/DDR-*.md` cover architecture patterns
+- Design documents in `design/` cover architecture patterns
 - Plans in `thoughts/shared/plans/` detail feature implementation
 - `thoughts/shared/plans/2025-10-07-contextual-navigation.md` - Related
   to context-aware commands
