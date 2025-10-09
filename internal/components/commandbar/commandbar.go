@@ -160,6 +160,14 @@ func (cb *CommandBar) handleKeyMsg(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 
 // handleHiddenState handles input when command bar is hidden.
 func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
+	// Handle ESC when there's an active filter (clear it)
+	if msg.String() == "esc" && cb.input.Get() != "" {
+		cb.input.Clear()
+		return cb, func() tea.Msg {
+			return types.ClearFilterMsg{}
+		}
+	}
+
 	// Handle paste events
 	if msg.Paste {
 		pastedText := string(msg.Runes)
@@ -235,6 +243,7 @@ func (cb *CommandBar) handleFilterState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 		}
 
 	case "enter":
+		// Accept filter - keep it active but hide the input
 		cb.state = StateHidden
 		cb.height = 1
 		return cb, nil
