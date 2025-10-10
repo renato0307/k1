@@ -422,6 +422,11 @@ func (s *ConfigScreen) GetFilterContext() *types.FilterContext {
 	return s.filterContext
 }
 
+// GetRefreshInterval returns the screen's refresh interval
+func (s *ConfigScreen) GetRefreshInterval() time.Duration {
+	return s.config.RefreshInterval
+}
+
 // SetFilter applies a filter to the resource list
 func (s *ConfigScreen) SetFilter(filter string) {
 	s.filter = filter

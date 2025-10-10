@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"fmt"
+	"sort"
 
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -32,6 +33,12 @@ func parseKubeconfig(kubeconfigPath string) ([]*ContextInfo, error) {
 			Namespace: ctx.Namespace,
 		})
 	}
+
+	// Sort alphabetically by name to ensure stable order
+	// This prevents context list position shifts caused by Go map iteration non-determinism
+	sort.Slice(contexts, func(i, j int) bool {
+		return contexts[i].Name < contexts[j].Name
+	})
 
 	return contexts, nil
 }

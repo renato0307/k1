@@ -210,9 +210,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		statefulSetInformer.HasSynced,
 		daemonSetInformer.HasSynced,
 	)
-	if !typedSynced {
-		fmt.Fprintf(os.Stderr, "Warning: Some core resources (pods/deployments/services) failed to sync - may have permission issues\n")
-	}
+	// Note: If typedSynced is false, we'll return an error below after checking pods
 
 	// Report dynamic sync phase
 	if progress != nil {
@@ -231,8 +229,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		} else {
 			// Informer failed to sync (likely RBAC), remove from listers
 			delete(dynamicListers, gvr)
-			fmt.Fprintf(os.Stderr, "Warning: Resource %s/%s failed to sync - you may not have permission to watch this resource\n",
-				gvr.Group, gvr.Resource)
+			// Silently skip - RBAC failures are expected in some clusters
 		}
 		informerCancel()
 	}
@@ -529,6 +526,11 @@ func (r *InformerRepository) GetActiveContext() string {
 // RetryFailedContext is not supported by InformerRepository (use RepositoryPool)
 func (r *InformerRepository) RetryFailedContext(contextName string, progress chan<- ContextLoadProgress) error {
 	return fmt.Errorf("retry failed context not supported by InformerRepository, use RepositoryPool")
+}
+
+// GetContexts is not supported by InformerRepository (use RepositoryPool)
+func (r *InformerRepository) GetContexts() ([]Context, error) {
+	return []Context{}, fmt.Errorf("get contexts not supported by InformerRepository, use RepositoryPool")
 }
 
 // GetResources returns all resources of the specified type using dynamic informers

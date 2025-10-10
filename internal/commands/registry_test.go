@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,9 +11,45 @@ import (
 	"github.com/renato0307/k1/internal/k8s"
 )
 
+// createTestPool creates a repository pool for testing
+func createTestPool(t *testing.T) *k8s.RepositoryPool {
+	t.Helper()
+
+	// Create a temporary kubeconfig for testing
+	kubeconfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+	kubeconfigContent := `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://localhost:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: test-token
+`
+	err := os.WriteFile(kubeconfigPath, []byte(kubeconfigContent), 0600)
+	require.NoError(t, err, "Failed to create test kubeconfig")
+
+	// Create pool
+	pool, err := k8s.NewRepositoryPool(kubeconfigPath, 10)
+	require.NoError(t, err, "Failed to create repository pool")
+
+	// Note: We don't load contexts in tests because LoadContext tries to connect
+	// to a real API server. Tests use the pool structure without loading.
+
+	return pool
+}
+
 func TestNewRegistry(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := NewRegistry(pool)
 
 	require.NotNil(t, registry)
 	assert.NotEmpty(t, registry.commands)
@@ -32,8 +70,8 @@ func TestNewRegistry(t *testing.T) {
 }
 
 func TestRegistry_GetByCategory(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := NewRegistry(pool)
 
 	tests := []struct {
 		name     string
@@ -83,8 +121,8 @@ func TestRegistry_GetByCategory(t *testing.T) {
 }
 
 func TestRegistry_Filter(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := NewRegistry(pool)
 
 	tests := []struct {
 		name     string
@@ -141,8 +179,8 @@ func TestRegistry_Filter(t *testing.T) {
 }
 
 func TestRegistry_FilterByResourceType(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := NewRegistry(pool)
 
 	allActions := registry.GetByCategory(CategoryAction)
 
@@ -194,8 +232,8 @@ func TestRegistry_FilterByResourceType(t *testing.T) {
 }
 
 func TestRegistry_Get(t *testing.T) {
-	repo := &mockRepository{}
-	registry := NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := NewRegistry(pool)
 
 	tests := []struct {
 		name     string

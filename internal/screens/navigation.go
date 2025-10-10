@@ -352,3 +352,24 @@ func navigateToTargetForHPA() NavigationFunc {
 		}
 	}
 }
+
+// navigateToContextSwitch creates handler for context switching
+func navigateToContextSwitch() NavigationFunc {
+	return func(s *ConfigScreen) tea.Cmd {
+		resource := s.GetSelectedResource()
+		if resource == nil {
+			return nil
+		}
+
+		contextName, ok := resource["name"].(string)
+		if !ok || contextName == "" {
+			return nil
+		}
+
+		return func() tea.Msg {
+			return types.ContextSwitchMsg{
+				ContextName: contextName,
+			}
+		}
+	}
+}

@@ -27,6 +27,7 @@ const (
 	ResourceTypeIngress               ResourceType = "ingresses"
 	ResourceTypeEndpoints             ResourceType = "endpoints"
 	ResourceTypeHPA                   ResourceType = "horizontalpodautoscalers"
+	ResourceTypeContext               ResourceType = "contexts"
 )
 
 // GetGVRForResourceType returns the GroupVersionResource for a resource type
@@ -116,6 +117,7 @@ type Repository interface {
 	GetAllContexts() []ContextWithStatus
 	GetActiveContext() string
 	RetryFailedContext(contextName string, progress chan<- ContextLoadProgress) error
+	GetContexts() ([]Context, error)
 
 	Close()
 }

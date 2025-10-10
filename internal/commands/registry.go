@@ -13,9 +13,10 @@ type Registry struct {
 }
 
 // NewRegistry creates a new command registry with default commands
-func NewRegistry(repo k8s.Repository) *Registry {
-	return &Registry{
-		commands: []Command{
+func NewRegistry(pool *k8s.RepositoryPool) *Registry {
+	repo := pool.GetActiveRepository()
+
+	commands := []Command{
 			// Navigation commands (: prefix)
 			{
 				Name:        "pods",
@@ -288,7 +289,40 @@ func NewRegistry(repo k8s.Repository) *Registry {
 				Category:    CategoryLLMAction,
 				Execute:     LLMShowPodEventsCommand(repo),
 			},
-		},
+	}
+
+	// Context management commands
+	commands = append(commands, []Command{
+			{
+				Name:        "contexts",
+				Description: "Switch to Contexts screen",
+				Category:    CategoryResource,
+				Execute:     ContextsCommand(),
+			},
+			{
+				Name:          "context",
+				Description:   "Switch Kubernetes context",
+				Category:      CategoryAction,
+				ArgsType:      &ContextArgs{},
+				ArgPattern:    " <context-name>",
+				Execute:       ContextCommand(pool),
+			},
+			{
+				Name:        "next-context",
+				Description: "Switch to next context",
+				Category:    CategoryResource,
+				Execute:     NextContextCommand(pool),
+			},
+			{
+				Name:        "prev-context",
+				Description: "Switch to previous context",
+				Category:    CategoryResource,
+				Execute:     PrevContextCommand(pool),
+			},
+	}...)
+
+	return &Registry{
+		commands: commands,
 	}
 }
 

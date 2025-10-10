@@ -21,7 +21,7 @@ const (
 
 // RepositoryEntry wraps a repository with metadata
 type RepositoryEntry struct {
-	Repo       *InformerRepository
+	Repo       Repository // Changed from *InformerRepository to support testing
 	Status     RepositoryStatus
 	Error      error
 	LoadedAt   time.Time
@@ -86,8 +86,11 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 	defer p.mu.Unlock()
 
 	if err != nil {
-		p.repos[contextName].Status = StatusFailed
-		p.repos[contextName].Error = err
+		// Update existing entry with error
+		if entry, ok := p.repos[contextName]; ok {
+			entry.Status = StatusFailed
+			entry.Error = err
+		}
 		return err
 	}
 
@@ -96,11 +99,19 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 		p.evictLRU()
 	}
 
-	// Store repository
-	p.repos[contextName] = &RepositoryEntry{
-		Repo:     repo,
-		Status:   StatusLoaded,
-		LoadedAt: time.Now(),
+	// Update existing entry with loaded repository
+	if entry, ok := p.repos[contextName]; ok {
+		entry.Repo = repo
+		entry.Status = StatusLoaded
+		entry.LoadedAt = time.Now()
+		entry.Error = nil
+	} else {
+		// Create new entry if it doesn't exist (shouldn't happen, but defensive)
+		p.repos[contextName] = &RepositoryEntry{
+			Repo:     repo,
+			Status:   StatusLoaded,
+			LoadedAt: time.Now(),
+		}
 	}
 	p.lru.PushFront(contextName)
 
@@ -223,8 +234,22 @@ func (p *RepositoryPool) Close() {
 
 // Repository interface delegation methods (delegate to active repository)
 
-// GetResources delegates to active repository
+// GetResources delegates to active repository, except for contexts which are handled by the pool
 func (p *RepositoryPool) GetResources(resourceType ResourceType) ([]any, error) {
+	// Special handling for contexts - they come from the pool, not Kubernetes API
+	if resourceType == ResourceTypeContext {
+		contexts, err := p.GetContexts()
+		if err != nil {
+			return nil, err
+		}
+		result := make([]any, len(contexts))
+		for i, ctx := range contexts {
+			result[i] = ctx
+		}
+		return result, nil
+	}
+
+	// All other resources delegate to active repository
 	repo := p.GetActiveRepository()
 	if repo == nil {
 		return nil, fmt.Errorf("no active repository")
@@ -411,6 +436,79 @@ func (p *RepositoryPool) GetResourceStats() []ResourceStats {
 		return []ResourceStats{}
 	}
 	return repo.GetResourceStats()
+}
+
+// GetContexts returns all contexts for display, sorted with loaded contexts first
+func (p *RepositoryPool) GetContexts() ([]Context, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	allContexts := p.GetAllContexts()
+
+	// Build result list with all contexts, sorted alphabetically for stable positions
+	result := make([]Context, 0, len(allContexts))
+
+	for _, ctx := range allContexts {
+		current := ""
+		if ctx.IsCurrent {
+			current = "✓"
+		}
+
+		status := string(ctx.Status)
+		errorMsg := ""
+		if ctx.Error != nil {
+			errorMsg = ctx.Error.Error()
+		}
+
+		var loadedAt time.Time
+		if entry, ok := p.repos[ctx.Name]; ok {
+			loadedAt = entry.LoadedAt
+		}
+
+		context := Context{
+			Name:      ctx.Name,
+			Cluster:   ctx.Cluster,
+			User:      ctx.User,
+			Namespace: ctx.Namespace,
+			Status:    status,
+			Current:   current,
+			Error:     errorMsg,
+			LoadedAt:  loadedAt,
+		}
+
+		result = append(result, context)
+	}
+
+	// Sort all contexts alphabetically - status changes won't affect position
+	sortContextsByName(result)
+
+	return result, nil
+}
+
+// sortContextsByName sorts contexts alphabetically by name
+func sortContextsByName(contexts []Context) {
+	for i := 0; i < len(contexts); i++ {
+		for j := i + 1; j < len(contexts); j++ {
+			if contexts[i].Name > contexts[j].Name {
+				contexts[i], contexts[j] = contexts[j], contexts[i]
+			}
+		}
+	}
+}
+
+// SetTestRepository manually sets a repository for testing (bypasses LoadContext)
+// For tests only - allows injecting a dummy repository without connecting to API server
+func (p *RepositoryPool) SetTestRepository(contextName string, repo Repository) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.repos[contextName] = &RepositoryEntry{
+		Repo:     repo,
+		LoadedAt: time.Now(),
+		Status:   StatusLoaded,
+	}
+	p.active = contextName
+	p.lru.PushFront(contextName)
 }
 
 // Private helper methods

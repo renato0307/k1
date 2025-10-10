@@ -619,3 +619,18 @@ func (r *DummyRepository) GetActiveContext() string {
 func (r *DummyRepository) RetryFailedContext(contextName string, progress chan<- ContextLoadProgress) error {
 	return nil // Stub for testing
 }
+
+func (r *DummyRepository) GetContexts() ([]Context, error) {
+	// Return dummy contexts for testing
+	return []Context{
+		{
+			Name:      "dummy-context",
+			Cluster:   "dummy-cluster",
+			User:      "dummy-user",
+			Namespace: "default",
+			Status:    "Loaded",
+			Current:   "✓",
+			Error:     "",
+		},
+	}, nil
+}

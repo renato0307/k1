@@ -41,8 +41,11 @@ func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, t
 	return func(s *ConfigScreen, msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.(type) {
 		case tickMsg:
-			// Refresh and schedule next tick
-			return s, tea.Batch(s.Refresh(), tickCmd())
+			// Refresh and schedule next tick using screen's configured interval
+			nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
+				return tickMsg(t)
+			})
+			return s, tea.Batch(s.Refresh(), nextTick)
 		default:
 			return s.DefaultUpdate(msg)
 		}
@@ -458,9 +461,25 @@ func GetHPAsScreenConfig() ScreenConfig {
 	}
 }
 
-// tickCmd returns a command that sends a tickMsg after 1 second
-func tickCmd() tea.Cmd {
-	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
+// GetContextsScreenConfig returns config for Contexts screen
+func GetContextsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "contexts",
+		Title:        "Contexts",
+		ResourceType: k8s.ResourceTypeContext,
+		Columns: []ColumnConfig{
+			{Field: "Current", Title: "✓", Width: 5},
+			{Field: "Name", Title: "Name", Width: 30},
+			{Field: "Cluster", Title: "Cluster", Width: 0}, // Dynamic width (same as User)
+			{Field: "User", Title: "User", Width: 0},       // Dynamic width (same as Cluster)
+			{Field: "Status", Title: "Status", Width: 15},
+		},
+		SearchFields: []string{"Name", "Cluster", "User"},
+		Operations:   []OperationConfig{}, // No operations - ctrl+r is global refresh
+		NavigationHandler:     navigateToContextSwitch(),
+		TrackSelection:        true,
+		EnablePeriodicRefresh: true,                   // Auto-refresh to update loading status
+		RefreshInterval:       ContextsRefreshInterval, // Refresh every 30 seconds (contexts don't change often)
+		CustomUpdate:          getPeriodicRefreshUpdate(), // Handle tick messages for refresh
+	}
 }

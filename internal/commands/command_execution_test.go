@@ -96,6 +96,9 @@ func (m *mockRepository) GetActiveContext() string {
 func (m *mockRepository) RetryFailedContext(contextName string, progress chan<- k8s.ContextLoadProgress) error {
 	return nil
 }
+func (m *mockRepository) GetContexts() ([]k8s.Context, error) {
+	return []k8s.Context{}, nil
+}
 
 func TestScaleCommand_ArgParsing(t *testing.T) {
 	repo := &mockRepository{}

@@ -93,10 +93,10 @@ func ThemeCharm() *Theme {
 	t.Table.StatusError = lipgloss.NewStyle().Foreground(t.Error)
 	t.Table.StatusWarning = lipgloss.NewStyle().Foreground(t.Warning)
 
-	// AppTitle style with background (using subtle dark color)
+	// AppTitle style with background (using darker gray for better contrast)
 	t.AppTitle = lipgloss.NewStyle().
 		Foreground(t.Primary).
-		Background(lipgloss.Color("237")).
+		Background(lipgloss.Color("235")).
 		Bold(true)
 
 	// Header style

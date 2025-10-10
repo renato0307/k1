@@ -229,15 +229,6 @@ func TestPodsScreenConfig_PeriodicRefresh(t *testing.T) {
 	assert.Greater(t, config.RefreshInterval.Seconds(), 0.0, "Pods should have positive refresh interval")
 }
 
-func TestTickCmd(t *testing.T) {
-	cmd := tickCmd()
-	assert.NotNil(t, cmd, "tickCmd should return a command")
-
-	// Execute the command to verify it returns a tickMsg
-	msg := cmd()
-	assert.NotNil(t, msg, "tickCmd should produce a message")
-}
-
 func TestScreenConfigs_NavigationHandlers(t *testing.T) {
 	tests := []struct {
 		name            string
