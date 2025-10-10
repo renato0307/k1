@@ -207,7 +207,56 @@ func (s *ConfigScreen) View() string {
 		return s.renderEmptyFilteredView()
 	}
 
+	// For pods screen, apply row coloring at render time
+	if s.config.ID == "pods" {
+		return s.renderColoredTable()
+	}
+
 	return s.table.View()
+}
+
+// renderColoredTable renders the table with row-level coloring applied at view time
+func (s *ConfigScreen) renderColoredTable() string {
+	// Get the base table view
+	tableView := s.table.View()
+
+	// Split into lines
+	lines := strings.Split(tableView, "\n")
+	if len(lines) < 2 {
+		return tableView // Not enough lines (header + rows)
+	}
+
+	// Apply coloring to each data row by parsing the status from the line itself
+	for i := 1; i < len(lines); i++ {
+		line := lines[i]
+
+		// Extract status from the line - look for common status strings
+		var color lipgloss.AdaptiveColor
+		var needsColor bool
+
+		// Check for error states
+		if strings.Contains(line, "Failed") ||
+			strings.Contains(line, "CrashLoopBackOff") ||
+			strings.Contains(line, "ImagePullBackOff") ||
+			strings.Contains(line, "ErrImagePull") ||
+			strings.Contains(line, "Error") {
+			color = s.theme.Error
+			needsColor = true
+		} else if strings.Contains(line, "Pending") ||
+			strings.Contains(line, "Unknown") ||
+			strings.Contains(line, "ContainerCreating") {
+			color = s.theme.Warning
+			needsColor = true
+		}
+
+		// Apply color if needed
+		if needsColor {
+			style := lipgloss.NewStyle().Foreground(color)
+			lines[i] = style.Render(line)
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // renderEmptyFilteredView shows a helpful message when filter returns no results
@@ -484,15 +533,19 @@ func (s *ConfigScreen) updateTable() {
 
 	for i, item := range s.filtered {
 		row := make(table.Row, len(s.config.Columns))
+
 		for j, col := range s.config.Columns {
 			val := getFieldValue(item, col.Field)
 
 			// Apply custom formatter if provided
+			var cellValue string
 			if col.Format != nil {
-				row[j] = col.Format(val)
+				cellValue = col.Format(val)
 			} else {
-				row[j] = fmt.Sprint(val)
+				cellValue = fmt.Sprint(val)
 			}
+
+			row[j] = cellValue
 		}
 		rows[i] = row
 	}
@@ -632,3 +685,4 @@ func FormatDuration(val interface{}) string {
 	}
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
+

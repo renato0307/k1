@@ -10,9 +10,11 @@ import (
 )
 
 func TestScreenConfigs(t *testing.T) {
+	theme := ui.GetTheme("charm")
+
 	tests := []struct {
 		name             string
-		getConfig        func() ScreenConfig
+		getConfig        func(*ui.Theme) ScreenConfig
 		expectedID       string
 		expectedTitle    string
 		expectedResource k8s.ResourceType
@@ -184,7 +186,7 @@ func TestScreenConfigs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := tt.getConfig()
+			config := tt.getConfig(theme)
 
 			// Basic fields
 			assert.Equal(t, tt.expectedID, config.ID)
@@ -222,7 +224,8 @@ func TestScreenConfigs(t *testing.T) {
 }
 
 func TestPodsScreenConfig_PeriodicRefresh(t *testing.T) {
-	config := GetPodsScreenConfig()
+	theme := ui.GetTheme("charm")
+	config := GetPodsScreenConfig(theme)
 	assert.True(t, config.EnablePeriodicRefresh, "Pods should have periodic refresh enabled")
 	assert.True(t, config.TrackSelection, "Pods should track selection")
 	assert.NotNil(t, config.CustomUpdate, "Pods should have custom update function")
@@ -239,9 +242,11 @@ func TestTickCmd(t *testing.T) {
 }
 
 func TestScreenConfigs_NavigationHandlers(t *testing.T) {
+	theme := ui.GetTheme("charm")
+
 	tests := []struct {
 		name            string
-		getConfig       func() ScreenConfig
+		getConfig       func(*ui.Theme) ScreenConfig
 		shouldHaveNav   bool
 		expectedNavType string // "owner", "node", "service", "namespace", "volume", "cronjob"
 	}{
@@ -344,7 +349,7 @@ func TestScreenConfigs_NavigationHandlers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := tt.getConfig()
+			config := tt.getConfig(theme)
 
 			if tt.shouldHaveNav {
 				assert.NotNil(t, config.NavigationHandler, "Screen should have navigation handler")
@@ -352,7 +357,6 @@ func TestScreenConfigs_NavigationHandlers(t *testing.T) {
 				// Verify the handler works by testing with a mock screen
 				// We can't easily test the exact type, but we can verify it returns a command
 				repo := k8s.NewDummyRepository()
-				theme := ui.GetTheme("charm")
 				screen := NewConfigScreen(config, repo, theme)
 
 				// Add mock data based on screen type

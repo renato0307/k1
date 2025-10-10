@@ -50,28 +50,28 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 
 	// Register all screens using config-driven approach
 	// Tier 1: Critical (Pods)
-	registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(theme), repo, theme))
 
 	// Tier 2: Common resources
-	registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(theme), repo, theme))
 
 	// Tier 3: Less common resources
-	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetDaemonSetsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetJobsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetDaemonSetsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetJobsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(theme), repo, theme))
 
 	// Tier 1 (Phase 2): Additional high-value resources
-	registry.Register(screens.NewConfigScreen(screens.GetReplicaSetsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetPVCsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetIngressesScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetEndpointsScreenConfig(), repo, theme))
-	registry.Register(screens.NewConfigScreen(screens.GetHPAsScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetReplicaSetsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetPVCsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetIngressesScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetEndpointsScreenConfig(theme), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetHPAsScreenConfig(theme), repo, theme))
 
 	// System screen
 	registry.Register(screens.NewSystemScreen(repo, theme))

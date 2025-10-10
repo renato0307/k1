@@ -5,10 +5,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/ui"
 )
 
 // GetPodsScreenConfig returns the config for the Pods screen (Level 2 - with periodic refresh)
-func GetPodsScreenConfig() ScreenConfig {
+func GetPodsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "pods",
 		Title:        "Pods",
@@ -16,8 +17,8 @@ func GetPodsScreenConfig() ScreenConfig {
 		Columns: []ColumnConfig{
 			{Field: "Namespace", Title: "Namespace", Width: 40},
 			{Field: "Name", Title: "Name", Width: 0}, // Dynamic width
-			{Field: "Ready", Title: "Ready", Width: 8},
-			{Field: "Status", Title: "Status", Width: 15},
+			{Field: "Ready", Title: "Ready", Width: 8, Format: FormatPodReady(theme)},
+			{Field: "Status", Title: "Status", Width: 15, Format: FormatPodStatus(theme)},
 			{Field: "Restarts", Title: "Restarts", Width: 10},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration},
 			{Field: "Node", Title: "Node", Width: 30},
@@ -50,7 +51,7 @@ func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, t
 }
 
 // GetDeploymentsScreenConfig returns the config for the Deployments screen (Level 1 - pure config)
-func GetDeploymentsScreenConfig() ScreenConfig {
+func GetDeploymentsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "deployments",
 		Title:        "Deployments",
@@ -78,7 +79,7 @@ func GetDeploymentsScreenConfig() ScreenConfig {
 }
 
 // GetServicesScreenConfig returns the config for the Services screen (Level 1 - pure config)
-func GetServicesScreenConfig() ScreenConfig {
+func GetServicesScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "services",
 		Title:        "Services",
@@ -107,7 +108,7 @@ func GetServicesScreenConfig() ScreenConfig {
 }
 
 // GetConfigMapsScreenConfig returns the config for the ConfigMaps screen (Level 1)
-func GetConfigMapsScreenConfig() ScreenConfig {
+func GetConfigMapsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "configmaps",
 		Title:        "ConfigMaps",
@@ -132,7 +133,7 @@ func GetConfigMapsScreenConfig() ScreenConfig {
 }
 
 // GetSecretsScreenConfig returns the config for the Secrets screen (Level 1)
-func GetSecretsScreenConfig() ScreenConfig {
+func GetSecretsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "secrets",
 		Title:        "Secrets",
@@ -158,7 +159,7 @@ func GetSecretsScreenConfig() ScreenConfig {
 }
 
 // GetNamespacesScreenConfig returns the config for the Namespaces screen (Level 1)
-func GetNamespacesScreenConfig() ScreenConfig {
+func GetNamespacesScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "namespaces",
 		Title:        "Namespaces",
@@ -182,7 +183,7 @@ func GetNamespacesScreenConfig() ScreenConfig {
 }
 
 // GetStatefulSetsScreenConfig returns the config for the StatefulSets screen (Level 1)
-func GetStatefulSetsScreenConfig() ScreenConfig {
+func GetStatefulSetsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "statefulsets",
 		Title:        "StatefulSets",
@@ -208,7 +209,7 @@ func GetStatefulSetsScreenConfig() ScreenConfig {
 }
 
 // GetDaemonSetsScreenConfig returns the config for the DaemonSets screen (Level 1)
-func GetDaemonSetsScreenConfig() ScreenConfig {
+func GetDaemonSetsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "daemonsets",
 		Title:        "DaemonSets",
@@ -237,7 +238,7 @@ func GetDaemonSetsScreenConfig() ScreenConfig {
 }
 
 // GetJobsScreenConfig returns the config for the Jobs screen (Level 1)
-func GetJobsScreenConfig() ScreenConfig {
+func GetJobsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "jobs",
 		Title:        "Jobs",
@@ -262,7 +263,7 @@ func GetJobsScreenConfig() ScreenConfig {
 }
 
 // GetCronJobsScreenConfig returns the config for the CronJobs screen (Level 1)
-func GetCronJobsScreenConfig() ScreenConfig {
+func GetCronJobsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "cronjobs",
 		Title:        "CronJobs",
@@ -289,7 +290,7 @@ func GetCronJobsScreenConfig() ScreenConfig {
 }
 
 // GetNodesScreenConfig returns the config for the Nodes screen (Level 1)
-func GetNodesScreenConfig() ScreenConfig {
+func GetNodesScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "nodes",
 		Title:        "Nodes",
@@ -321,7 +322,7 @@ func GetNodesScreenConfig() ScreenConfig {
 }
 
 // GetReplicaSetsScreenConfig returns the configuration for ReplicaSets screen
-func GetReplicaSetsScreenConfig() ScreenConfig {
+func GetReplicaSetsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "replicasets",
 		Title:        "ReplicaSets",
@@ -348,7 +349,7 @@ func GetReplicaSetsScreenConfig() ScreenConfig {
 }
 
 // GetPVCsScreenConfig returns the configuration for PersistentVolumeClaims screen
-func GetPVCsScreenConfig() ScreenConfig {
+func GetPVCsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "persistentvolumeclaims",
 		Title:        "PersistentVolumeClaims",
@@ -377,7 +378,7 @@ func GetPVCsScreenConfig() ScreenConfig {
 }
 
 // GetIngressesScreenConfig returns the configuration for Ingresses screen
-func GetIngressesScreenConfig() ScreenConfig {
+func GetIngressesScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "ingresses",
 		Title:        "Ingresses",
@@ -405,7 +406,7 @@ func GetIngressesScreenConfig() ScreenConfig {
 }
 
 // GetEndpointsScreenConfig returns the configuration for Endpoints screen
-func GetEndpointsScreenConfig() ScreenConfig {
+func GetEndpointsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "endpoints",
 		Title:        "Endpoints",
@@ -430,7 +431,7 @@ func GetEndpointsScreenConfig() ScreenConfig {
 }
 
 // GetHPAsScreenConfig returns the configuration for HorizontalPodAutoscalers screen
-func GetHPAsScreenConfig() ScreenConfig {
+func GetHPAsScreenConfig(theme *ui.Theme) ScreenConfig {
 	return ScreenConfig{
 		ID:           "horizontalpodautoscalers",
 		Title:        "HorizontalPodAutoscalers",

@@ -243,6 +243,29 @@ The project has moved beyond prototyping into a structured application:
 ### 📚 Reference Documentation
 - **CLAUDE.md**: This file - development guidelines and project overview
 
+## Lessons Learned
+
+### View-Layer Rendering: Parse What You See
+
+**Context**: When working with rendered UI output (like TUI tables), sometimes you need to enhance or modify the display.
+
+**The Mistake**: Trying to maintain complex mappings between data structures and rendered output.
+
+**Example**: Status-based table coloring (2025-10-10)
+- ❌ Tried mapping line numbers back to data array with scroll calculations
+- ❌ Attempted to track cursor position and visible window offsets
+- ✅ Simply parsed status strings from rendered lines with `strings.Contains()`
+
+**The Lesson**: When the information you need is already in the rendered output, parse the output itself rather than reverse-engineering the rendering logic.
+
+**When to Apply**:
+- Information needed is visible in rendered text
+- Rendering component controls layout (bubbles table, etc.)
+- Only enhancing visual output, not modifying data
+- Data-to-view mapping is complex (scrolling, pagination)
+
+**Benefits**: Simpler, more robust, easier to maintain, works regardless of internal rendering changes.
+
 ## Development Guidelines
 
 1. **Git Workflow**: ALWAYS create a new branch from main before starting work on a new plan or feature
