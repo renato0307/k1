@@ -207,8 +207,11 @@ func (s *ConfigScreen) View() string {
 		return s.renderEmptyFilteredView()
 	}
 
-	// For pods screen, apply row coloring at render time
-	if s.config.ID == "pods" {
+	// Apply row coloring for screens with status information
+	switch s.config.ID {
+	case "pods", "namespaces", "nodes", "persistentvolumeclaims",
+		"deployments", "statefulsets", "daemonsets", "replicasets",
+		"jobs", "cronjobs":
 		return s.renderColoredTable()
 	}
 
@@ -235,17 +238,14 @@ func (s *ConfigScreen) renderColoredTable() string {
 		var needsColor bool
 
 		// Check for error states
-		if strings.Contains(line, "Failed") ||
-			strings.Contains(line, "CrashLoopBackOff") ||
-			strings.Contains(line, "ImagePullBackOff") ||
-			strings.Contains(line, "ErrImagePull") ||
-			strings.Contains(line, "Error") {
+		if s.matchesErrorState(line) {
 			color = s.theme.Error
 			needsColor = true
-		} else if strings.Contains(line, "Pending") ||
-			strings.Contains(line, "Unknown") ||
-			strings.Contains(line, "ContainerCreating") {
+		} else if s.matchesWarningState(line) {
 			color = s.theme.Warning
+			needsColor = true
+		} else if s.matchesSuccessState(line) {
+			color = s.theme.Success
 			needsColor = true
 		}
 
@@ -257,6 +257,98 @@ func (s *ConfigScreen) renderColoredTable() string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// matchesErrorState checks if a line contains error state indicators
+func (s *ConfigScreen) matchesErrorState(line string) bool {
+	// Pod error states
+	if strings.Contains(line, "Failed") ||
+		strings.Contains(line, "CrashLoopBackOff") ||
+		strings.Contains(line, "ImagePullBackOff") ||
+		strings.Contains(line, "ErrImagePull") ||
+		strings.Contains(line, "Error") {
+		return true
+	}
+
+	// Namespace error states
+	if strings.Contains(line, "Terminating") {
+		return true
+	}
+
+	// Node error states
+	if strings.Contains(line, "NotReady") {
+		return true
+	}
+
+	// PVC error states
+	if strings.Contains(line, "Lost") {
+		return true
+	}
+
+	// Ready field error states (0/n pattern for deployments, statefulsets, jobs)
+	// But NOT for Pending pods (which should be warning)
+	if strings.Contains(line, " 0/") && !strings.Contains(line, "Pending") && !strings.Contains(line, "ContainerCreating") {
+		return true
+	}
+
+	return false
+}
+
+// matchesWarningState checks if a line contains warning state indicators
+func (s *ConfigScreen) matchesWarningState(line string) bool {
+	// Pod warning states
+	if strings.Contains(line, "Pending") ||
+		strings.Contains(line, "ContainerCreating") {
+		return true
+	}
+
+	// Node warning states (just Unknown is enough - it's the status value)
+	if s.config.ID == "nodes" && strings.Contains(line, "Unknown") {
+		return true
+	}
+
+	// CronJob suspended state
+	if strings.Contains(line, "true") && s.config.ID == "cronjobs" {
+		// Check if this is in the Suspend column context
+		// For cronjobs, "true" in Suspend column is a warning
+		return true
+	}
+
+	// Ready field warning states (partial readiness: x/n where x < n and x > 0)
+	// This is a heuristic - we look for patterns like "1/3", "2/5" etc but not "3/3"
+	// We check if the line contains a fraction where numerator < denominator
+	parts := strings.Fields(line)
+	for _, part := range parts {
+		if strings.Contains(part, "/") {
+			var current, desired int
+			if _, err := fmt.Sscanf(part, "%d/%d", &current, &desired); err == nil {
+				if current > 0 && current < desired {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// matchesSuccessState checks if a line contains success state indicators
+// Note: Most "normal" states (Running, Active, Ready, Bound) should NOT be colored
+// Success state (green) is reserved for truly successful completion states
+func (s *ConfigScreen) matchesSuccessState(line string) bool {
+	// Only color Succeeded pods in green (completed jobs/tasks)
+	if strings.Contains(line, "Succeeded") {
+		return true
+	}
+
+	// Don't color normal operational states:
+	// - Running pods (normal operation)
+	// - Ready nodes (normal operation)
+	// - Bound PVCs (normal operation)
+	// - Active namespaces (normal operation)
+	// These should use default terminal color
+
+	return false
 }
 
 // renderEmptyFilteredView shows a helpful message when filter returns no results

@@ -1054,3 +1054,205 @@ func TestConfigScreen_View_WithResults(t *testing.T) {
 	view := screen.View()
 	assert.NotContains(t, view, "No resources found")
 }
+
+// TestConfigScreen_matchesErrorState tests the error state matcher
+func TestConfigScreen_matchesErrorState(t *testing.T) {
+	cfg := ScreenConfig{ID: "pods"}
+	repo := k8s.NewDummyRepository()
+	theme := ui.GetTheme("charm")
+	screen := NewConfigScreen(cfg, repo, theme)
+
+	tests := []struct {
+		name     string
+		line     string
+		expected bool
+	}{
+		// Pod error states
+		{"pod_failed", "default  my-pod  0/1  Failed  0  1h", true},
+		{"pod_crashloop", "default  my-pod  0/1  CrashLoopBackOff  5  2h", true},
+		{"pod_imagepull", "default  my-pod  0/1  ImagePullBackOff  0  30m", true},
+		{"pod_errimagepull", "default  my-pod  0/1  ErrImagePull  0  5m", true},
+		{"pod_error", "default  my-pod  0/1  Error  0  10m", true},
+
+		// Namespace error states
+		{"namespace_terminating", "my-namespace  Terminating  30d", true},
+
+		// Node error states
+		{"node_notready", "node-1  NotReady  worker  192.168.1.10", true},
+
+		// PVC error states
+		{"pvc_lost", "default  my-pvc  Lost  pv-123  10Gi", true},
+
+		// Ready field error states (0/n)
+		{"deployment_zero_ready", "default  my-deploy  0/3  3  3  5h", true},
+		{"job_zero_complete", "default  my-job  0/5  10m", true},
+
+		// Not error states
+		{"pod_running", "default  my-pod  1/1  Running  0  1h", false},
+		{"pod_pending", "default  my-pod  0/1  Pending  0  5m", false},
+		{"namespace_active", "my-namespace  Active  30d", false},
+		{"node_ready", "node-1  Ready  worker  192.168.1.10", false},
+		{"pvc_bound", "default  my-pvc  Bound  pv-123  10Gi", false},
+		{"deployment_partial", "default  my-deploy  2/3  3  2  5h", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := screen.matchesErrorState(tt.line)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestConfigScreen_matchesWarningState tests the warning state matcher
+func TestConfigScreen_matchesWarningState(t *testing.T) {
+	repo := k8s.NewDummyRepository()
+	theme := ui.GetTheme("charm")
+
+	tests := []struct {
+		name     string
+		screenID string
+		line     string
+		expected bool
+	}{
+		// Pod warning states
+		{"pod_pending", "pods", "default  my-pod  0/1  Pending  0  5m", true},
+		{"pod_containercreating", "pods", "default  my-pod  0/1  ContainerCreating  0  1m", true},
+
+		// Node warning states
+		{"node_unknown", "nodes", "node-1  Unknown  worker  192.168.1.10", true},
+
+		// CronJob suspended state
+		{"cronjob_suspended", "cronjobs", "default  my-cron  */5 * * * *  true  0  1d", true},
+		{"cronjob_not_suspended", "cronjobs", "default  my-cron  */5 * * * *  false  0  1d", false},
+
+		// Ready field warning states (partial readiness: x/n where 0 < x < n)
+		{"deployment_partial_1_3", "deployments", "default  my-deploy  1/3  3  1  5h", true},
+		{"deployment_partial_2_5", "deployments", "default  my-deploy  2/5  5  2  3h", true},
+		{"statefulset_partial", "statefulsets", "default  my-ss  4/5  2d", true},
+		{"job_partial", "jobs", "default  my-job  3/10  30m", true},
+
+		// Not warning states
+		{"pod_running", "pods", "default  my-pod  1/1  Running  0  1h", false},
+		{"pod_failed", "pods", "default  my-pod  0/1  Failed  0  5m", false},
+		{"deployment_full", "deployments", "default  my-deploy  3/3  3  3  5h", false},
+		{"deployment_zero", "deployments", "default  my-deploy  0/3  3  0  5h", false},
+		{"node_ready", "nodes", "node-1  Ready  worker  192.168.1.10", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := ScreenConfig{ID: tt.screenID}
+			screen := NewConfigScreen(cfg, repo, theme)
+			result := screen.matchesWarningState(tt.line)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestConfigScreen_matchesSuccessState tests the success state matcher
+func TestConfigScreen_matchesSuccessState(t *testing.T) {
+	repo := k8s.NewDummyRepository()
+	theme := ui.GetTheme("charm")
+
+	tests := []struct {
+		name     string
+		screenID string
+		line     string
+		expected bool
+	}{
+		// Only Succeeded pods should be colored green (completed tasks)
+		{"pod_succeeded", "pods", "default  my-job-pod  1/1  Succeeded  0  5m", true},
+
+		// Normal operational states should NOT be colored (use default color)
+		{"pod_running", "pods", "default  my-pod  1/1  Running  0  1h", false},
+		{"node_ready", "nodes", "node-1  Ready  worker  192.168.1.10", false},
+		{"pvc_bound", "persistentvolumeclaims", "default  my-pvc  Bound  pv-123  10Gi", false},
+		{"namespace_active", "namespaces", "my-namespace  Active  30d", false},
+
+		// Error/warning states should not match success
+		{"pod_failed", "pods", "default  my-pod  0/1  Failed  0  5m", false},
+		{"pod_pending", "pods", "default  my-pod  0/1  Pending  0  2m", false},
+		{"node_notready", "nodes", "node-1  NotReady  worker  192.168.1.10", false},
+		{"namespace_terminating", "namespaces", "my-namespace  Terminating  30d", false},
+		{"deployment_running", "deployments", "default  my-deploy  3/3  3  3  5h", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := ScreenConfig{ID: tt.screenID}
+			screen := NewConfigScreen(cfg, repo, theme)
+			result := screen.matchesSuccessState(tt.line)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestConfigScreen_renderColoredTable tests the full rendering with colors
+func TestConfigScreen_renderColoredTable(t *testing.T) {
+	repo := k8s.NewDummyRepository()
+	theme := ui.GetTheme("charm")
+
+	tests := []struct {
+		name     string
+		screenID string
+	}{
+		{"pods", "pods"},
+		{"namespaces", "namespaces"},
+		{"nodes", "nodes"},
+		{"persistentvolumeclaims", "persistentvolumeclaims"},
+		{"deployments", "deployments"},
+		{"statefulsets", "statefulsets"},
+		{"daemonsets", "daemonsets"},
+		{"replicasets", "replicasets"},
+		{"jobs", "jobs"},
+		{"cronjobs", "cronjobs"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Get the appropriate screen config
+			var cfg ScreenConfig
+			switch tt.screenID {
+			case "pods":
+				cfg = GetPodsScreenConfig(theme)
+			case "namespaces":
+				cfg = GetNamespacesScreenConfig(theme)
+			case "nodes":
+				cfg = GetNodesScreenConfig(theme)
+			case "persistentvolumeclaims":
+				cfg = GetPVCsScreenConfig(theme)
+			case "deployments":
+				cfg = GetDeploymentsScreenConfig(theme)
+			case "statefulsets":
+				cfg = GetStatefulSetsScreenConfig(theme)
+			case "daemonsets":
+				cfg = GetDaemonSetsScreenConfig(theme)
+			case "replicasets":
+				cfg = GetReplicaSetsScreenConfig(theme)
+			case "jobs":
+				cfg = GetJobsScreenConfig(theme)
+			case "cronjobs":
+				cfg = GetCronJobsScreenConfig(theme)
+			}
+
+			screen := NewConfigScreen(cfg, repo, theme)
+			screen.SetSize(120, 20)
+
+			// Refresh to populate data
+			cmd := screen.Refresh()
+			if cmd != nil {
+				cmd() // Execute refresh
+			}
+
+			// Render the colored table
+			view := screen.View()
+
+			// Verify we got some output
+			assert.NotEmpty(t, view, "View should not be empty")
+
+			// Verify the view contains table structure (headers, separators, data)
+			assert.Contains(t, view, "───", "Should contain table separator")
+		})
+	}
+}
