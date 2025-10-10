@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -68,6 +69,7 @@ type InformerRepository struct {
 	resourceStats map[schema.GroupVersionResource]*ResourceStats
 	statsUpdateCh chan statsUpdateMsg
 
+	closed atomic.Bool  // Atomic flag for safe close detection
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -498,12 +500,16 @@ func (r *InformerRepository) GetContext() string {
 
 // Close stops the informers and cleans up resources
 func (r *InformerRepository) Close() {
+	r.closed.Store(true)  // Set flag BEFORE closing channel
+
 	if r.cancel != nil {
 		r.cancel()
 	}
 	if r.statsUpdateCh != nil {
-		close(r.statsUpdateCh) // Goroutine will exit when channel is drained
+		close(r.statsUpdateCh)
 	}
+	// Wait briefly for goroutine to exit (defensive)
+	time.Sleep(10 * time.Millisecond)
 }
 
 // Context management methods (not supported by single repository, use RepositoryPool)

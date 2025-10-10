@@ -28,6 +28,12 @@ type RepositoryEntry struct {
 	ContextObj *ContextInfo // Parsed from kubeconfig
 }
 
+// loadingState tracks in-progress context loading operations
+type loadingState struct {
+	done chan struct{}
+	err  error
+}
+
 // RepositoryPool manages multiple Kubernetes contexts
 type RepositoryPool struct {
 	mu         sync.RWMutex
@@ -37,6 +43,7 @@ type RepositoryPool struct {
 	lru        *list.List      // LRU eviction order
 	kubeconfig string
 	contexts   []*ContextInfo  // All contexts from kubeconfig
+	loading    sync.Map        // map[string]*loadingState - coordinate concurrent loads
 }
 
 // NewRepositoryPool creates a new repository pool
@@ -62,8 +69,24 @@ func NewRepositoryPool(kubeconfig string, maxSize int) (*RepositoryPool, error) 
 
 // LoadContext loads a context into the pool (blocking operation)
 func (p *RepositoryPool) LoadContext(contextName string, progress chan<- ContextLoadProgress) error {
+	// Try to start loading - use LoadOrStore to coordinate concurrent attempts
+	state := &loadingState{done: make(chan struct{})}
+	actual, loaded := p.loading.LoadOrStore(contextName, state)
+
+	if loaded {
+		// Another goroutine is loading this context, wait for it
+		<-actual.(*loadingState).done
+		return actual.(*loadingState).err
+	}
+
+	// We're the loader - ensure cleanup
+	defer func() {
+		close(state.done)
+		p.loading.Delete(contextName)
+	}()
+
+	// Mark as loading in repos map
 	p.mu.Lock()
-	// Mark as loading
 	if _, exists := p.repos[contextName]; !exists {
 		p.repos[contextName] = &RepositoryEntry{
 			Status: StatusLoading,
@@ -79,23 +102,28 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 		}
 	}
 
-	// Create repository (5-15s operation)
+	// Create repository (5-15s operation, no lock held)
 	repo, err := NewInformerRepositoryWithProgress(p.kubeconfig, contextName, progress)
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if err != nil {
-		// Update existing entry with error
+		// Cleanup partial repository if it exists
+		if repo != nil {
+			repo.Close()
+		}
+		// Update entry with error
 		if entry, ok := p.repos[contextName]; ok {
 			entry.Status = StatusFailed
 			entry.Error = err
 		}
+		state.err = err
 		return err
 	}
 
 	// Check pool size and evict if needed
-	if len(p.repos) >= p.maxSize {
+	for len(p.repos) > p.maxSize {
 		p.evictLRU()
 	}
 
@@ -106,7 +134,7 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 		entry.LoadedAt = time.Now()
 		entry.Error = nil
 	} else {
-		// Create new entry if it doesn't exist (shouldn't happen, but defensive)
+		// Create new entry (defensive)
 		p.repos[contextName] = &RepositoryEntry{
 			Repo:     repo,
 			Status:   StatusLoaded,
@@ -139,20 +167,21 @@ func (p *RepositoryPool) GetActiveContext() string {
 
 // SwitchContext switches to a different context
 func (p *RepositoryPool) SwitchContext(contextName string, progress chan<- ContextLoadProgress) error {
-	p.mu.RLock()
+	p.mu.Lock()
 	entry, exists := p.repos[contextName]
-	p.mu.RUnlock()
 
 	// Context already loaded - instant switch
 	if exists && entry.Status == StatusLoaded {
-		p.mu.Lock()
 		p.active = contextName
 		p.markUsed(contextName)
 		p.mu.Unlock()
 		return nil
 	}
 
-	// Load new context (blocking operation)
+	// Context not loaded or in error state
+	p.mu.Unlock()
+
+	// Load new context (blocking operation, no lock held)
 	if err := p.LoadContext(contextName, progress); err != nil {
 		return err
 	}
@@ -160,16 +189,33 @@ func (p *RepositoryPool) SwitchContext(contextName string, progress chan<- Conte
 	// Switch to newly loaded context
 	p.mu.Lock()
 	p.active = contextName
+	p.markUsed(contextName)  // Update LRU
 	p.mu.Unlock()
 
 	return nil
+}
+
+// MarkAsLoading marks a context as loading (for UI feedback)
+func (p *RepositoryPool) MarkAsLoading(contextName string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if _, exists := p.repos[contextName]; !exists {
+		p.repos[contextName] = &RepositoryEntry{
+			Status: StatusLoading,
+		}
+	}
 }
 
 // GetAllContexts returns all contexts from kubeconfig with status
 func (p *RepositoryPool) GetAllContexts() []ContextWithStatus {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	return p.getAllContextsLocked()
+}
 
+// getAllContextsLocked returns all contexts (must be called with lock held)
+func (p *RepositoryPool) getAllContextsLocked() []ContextWithStatus {
 	result := make([]ContextWithStatus, 0, len(p.contexts))
 	for _, ctx := range p.contexts {
 		status := StatusNotLoaded
@@ -225,11 +271,17 @@ func (p *RepositoryPool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Close all repositories
 	for _, entry := range p.repos {
 		if entry.Repo != nil {
 			entry.Repo.Close()
 		}
 	}
+
+	// Clear all state
+	p.repos = make(map[string]*RepositoryEntry)
+	p.lru = list.New()
+	p.active = ""
 }
 
 // Repository interface delegation methods (delegate to active repository)
@@ -443,7 +495,7 @@ func (p *RepositoryPool) GetContexts() ([]Context, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	allContexts := p.GetAllContexts()
+	allContexts := p.getAllContextsLocked()
 
 	// Build result list with all contexts, sorted alphabetically for stable positions
 	result := make([]Context, 0, len(allContexts))
@@ -523,6 +575,8 @@ func (p *RepositoryPool) markUsed(contextName string) {
 			return
 		}
 	}
+	// Not found - add to front (defensive repair for LRU corruption)
+	p.lru.PushFront(contextName)
 }
 
 // evictLRU evicts the least recently used context

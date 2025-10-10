@@ -35,6 +35,9 @@ func (r *InformerRepository) setupDynamicInformersEventTracking(dynamicInformers
 // trackStats sends a statistics update to the channel (non-blocking)
 // If the channel is full, the update is skipped since stats are approximate
 func (r *InformerRepository) trackStats(gvr schema.GroupVersionResource, eventType string) {
+	if r.closed.Load() {
+		return  // Don't send on closed channel
+	}
 	select {
 	case r.statsUpdateCh <- statsUpdateMsg{gvr: gvr, eventType: eventType}:
 	default:

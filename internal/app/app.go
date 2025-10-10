@@ -369,6 +369,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 
 	case types.ContextSwitchMsg:
+		// Check if context is already loaded
+		contexts, err := m.repoPool.GetContexts()
+		if err != nil {
+			m.statusBar.SetMessage(
+				fmt.Sprintf("Failed to get contexts: %v", err),
+				types.MessageTypeError,
+			)
+			return m, nil
+		}
+
+		// Find the target context
+		var needsLoading bool
+		for _, ctx := range contexts {
+			if ctx.Name == msg.ContextName {
+				needsLoading = (ctx.Status != string(k8s.StatusLoaded))
+				break
+			}
+		}
+
+		// If needs loading, show immediate feedback
+		if needsLoading {
+			// Mark context as loading BEFORE refresh so UI shows it
+			m.repoPool.MarkAsLoading(msg.ContextName)
+
+			m.statusBar.SetMessage(
+				fmt.Sprintf("Loading context %s...", msg.ContextName),
+				types.MessageTypeInfo,
+			)
+			// Refresh current screen to show updated status
+			if m.currentScreen.ID() == "contexts" {
+				refreshCmd := m.currentScreen.(*screens.ConfigScreen).Refresh()
+				return m, tea.Batch(refreshCmd, m.switchContextCmd(msg.ContextName))
+			}
+		}
+
 		// Initiate context switch asynchronously
 		return m, m.switchContextCmd(msg.ContextName)
 
@@ -550,7 +585,7 @@ func (m Model) View() string {
 // switchContextCmd returns command to switch contexts asynchronously
 func (m Model) switchContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
-		// Switch context (blocking operation, but runs in command goroutine)
+		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE switch
 		err := m.repoPool.SwitchContext(contextName, nil)
 
 		if err != nil {
@@ -561,7 +596,7 @@ func (m Model) switchContextCmd(contextName string) tea.Cmd {
 		}
 
 		return types.ContextSwitchCompleteMsg{
-			OldContext: m.repoPool.GetActiveContext(),
+			OldContext: oldContext,  // Correct value
 			NewContext: contextName,
 		}
 	}
@@ -570,6 +605,7 @@ func (m Model) switchContextCmd(contextName string) tea.Cmd {
 // retryContextCmd returns command to retry failed context
 func (m Model) retryContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
+		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE retry
 		err := m.repoPool.RetryFailedContext(contextName, nil)
 
 		if err != nil {
@@ -579,8 +615,9 @@ func (m Model) retryContextCmd(contextName string) tea.Cmd {
 			}
 		}
 
-		return types.ContextLoadCompleteMsg{
-			Context: contextName,
+		return types.ContextSwitchCompleteMsg{
+			OldContext: oldContext,
+			NewContext: contextName,
 		}
 	}
 }
