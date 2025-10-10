@@ -10,7 +10,7 @@ import (
 
 // ContextArgs defines arguments for context switch command
 type ContextArgs struct {
-	ContextName string `inline:"0"`
+	ContextName string `form:"context" title:"Context Name"`
 }
 
 // ContextCommand creates a command to switch Kubernetes context
