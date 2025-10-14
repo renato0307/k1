@@ -202,20 +202,20 @@ next/prev-context commands)
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] Build succeeds: `make build`
-- [ ] No compilation errors
-- [ ] Keyboard handlers registered correctly
+- [x] Build succeeds: `make build`
+- [x] No compilation errors
+- [x] Keyboard handlers registered correctly
+
+**Note**: Final implementation uses F1-F10 for context switching (loaded contexts only, in load order), ctrl+p for previous context, ctrl+n for next context.
 
 #### Manual Verification:
-- [ ] ctrl+1 switches to first context in contexts screen
-- [ ] ctrl+2 switches to second context
-- [ ] ctrl+9 switches to ninth context (if exists)
-- [ ] ctrl+0 switches to tenth context (if exists)
-- [ ] ctrl+- cycles to previous loaded context
-- [ ] ctrl+= cycles to next loaded context
-- [ ] Shortcuts do nothing if position doesn't exist (no error)
-- [ ] Shortcuts work from any screen (global)
-- [ ] Already-active context doesn't trigger unnecessary switch
+- [x] F1-F10 switch to loaded contexts in load order
+- [x] ctrl+p cycles to previous loaded context
+- [x] ctrl+n cycles to next loaded context
+- [x] Shortcuts do nothing if position doesn't exist (no error)
+- [x] Shortcuts work from any screen (global)
+- [x] Shortcuts display correctly in command palette
+- [x] Already-active context doesn't trigger unnecessary switch
 
 **Implementation Note**: After completing this phase, test with a
 kubeconfig containing 12+ contexts to verify position handling.

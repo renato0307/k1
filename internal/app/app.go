@@ -27,6 +27,16 @@ const (
 	DisplayUpdateInterval = 100 * time.Millisecond
 )
 
+// prevContextKey returns the previous context shortcut
+func prevContextKey() string {
+	return "ctrl+p"
+}
+
+// nextContextKey returns the next context shortcut
+func nextContextKey() string {
+	return "ctrl+n"
+}
+
 // displayTickMsg triggers display updates (spinner animation, refresh time)
 type displayTickMsg time.Time
 
@@ -165,6 +175,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+
+		case prevContextKey():
+			// Previous context (ctrl+p)
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("prev-context", commands.CategoryResource)
+			m.commandBar = updatedBar
+			return m, barCmd
+
+		case nextContextKey():
+			// Next context (ctrl+n)
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("next-context", commands.CategoryResource)
+			m.commandBar = updatedBar
+			return m, barCmd
+
 		case "ctrl+r":
 			// Global refresh - trigger current screen refresh
 			if screen, ok := m.currentScreen.(interface{ Refresh() tea.Cmd }); ok {

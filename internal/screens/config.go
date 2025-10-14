@@ -439,6 +439,27 @@ func (s *ConfigScreen) SetFilter(filter string) {
 	s.applyFilter()
 }
 
+// strictFuzzyMatch checks if query matches as prefix of any word in text
+func strictFuzzyMatch(query, text string) bool {
+	query = strings.ToLower(query)
+	text = strings.ToLower(text)
+
+	// Check if query is prefix of entire text
+	if strings.HasPrefix(text, query) {
+		return true
+	}
+
+	// Check if query is prefix of any word
+	words := strings.Fields(text)
+	for _, word := range words {
+		if strings.HasPrefix(word, query) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // applyFilter filters items based on fuzzy search
 func (s *ConfigScreen) applyFilter() {
 	if s.filter == "" {
@@ -471,11 +492,22 @@ func (s *ConfigScreen) applyFilter() {
 				}
 			}
 		} else {
-			// Normal fuzzy search
-			matches := fuzzy.Find(s.filter, searchStrings)
-			s.filtered = make([]interface{}, len(matches))
-			for i, m := range matches {
-				s.filtered[i] = s.items[m.Index]
+			// Strict prefix matching (for contexts screen and potentially others)
+			// Check if this is the contexts screen
+			if s.config.ID == "contexts" {
+				s.filtered = make([]interface{}, 0)
+				for i, item := range s.items {
+					if strictFuzzyMatch(s.filter, searchStrings[i]) {
+						s.filtered = append(s.filtered, item)
+					}
+				}
+			} else {
+				// Normal fuzzy search for other screens
+				matches := fuzzy.Find(s.filter, searchStrings)
+				s.filtered = make([]interface{}, len(matches))
+				for i, m := range matches {
+					s.filtered[i] = s.items[m.Index]
+				}
 			}
 		}
 	}

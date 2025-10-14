@@ -12,6 +12,16 @@ type Registry struct {
 	commands []Command
 }
 
+// getNextContextShortcut returns the next context shortcut
+func getNextContextShortcut() string {
+	return "ctrl+n"
+}
+
+// getPrevContextShortcut returns the prev context shortcut
+func getPrevContextShortcut() string {
+	return "ctrl+p"
+}
+
 // NewRegistry creates a new command registry with default commands
 func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 	repo := pool.GetActiveRepository()
@@ -312,12 +322,14 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Description: "Switch to next context",
 				Category:    CategoryResource,
 				Execute:     NextContextCommand(pool),
+				Shortcut:    getNextContextShortcut(),
 			},
 			{
 				Name:        "prev-context",
 				Description: "Switch to previous context",
 				Category:    CategoryResource,
 				Execute:     PrevContextCommand(pool),
+				Shortcut:    getPrevContextShortcut(),
 			},
 	}...)
 

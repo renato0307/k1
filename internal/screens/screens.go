@@ -474,7 +474,7 @@ func GetContextsScreenConfig() ScreenConfig {
 			{Field: "User", Title: "User", Width: 0},       // Dynamic width (same as Cluster)
 			{Field: "Status", Title: "Status", Width: 15},
 		},
-		SearchFields: []string{"Name", "Cluster", "User"},
+		SearchFields: []string{"Name", "Cluster", "User", "Status"},
 		Operations:   []OperationConfig{}, // No operations - ctrl+r is global refresh
 		NavigationHandler:     navigateToContextSwitch(),
 		TrackSelection:        true,

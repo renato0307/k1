@@ -497,7 +497,7 @@ func (p *RepositoryPool) GetContexts() ([]Context, error) {
 
 	allContexts := p.getAllContextsLocked()
 
-	// Build result list with all contexts, sorted alphabetically for stable positions
+	// Build result list with all contexts
 	result := make([]Context, 0, len(allContexts))
 
 	for _, ctx := range allContexts {
@@ -531,8 +531,8 @@ func (p *RepositoryPool) GetContexts() ([]Context, error) {
 		result = append(result, context)
 	}
 
-	// Sort all contexts alphabetically - status changes won't affect position
-	sortContextsByName(result)
+	// Sort: loaded/loading/failed first (alphabetically), then not-loaded (alphabetically)
+	sortContextsByStatusThenName(result)
 
 	return result, nil
 }
@@ -543,6 +543,34 @@ func sortContextsByName(contexts []Context) {
 		for j := i + 1; j < len(contexts); j++ {
 			if contexts[i].Name > contexts[j].Name {
 				contexts[i], contexts[j] = contexts[j], contexts[i]
+			}
+		}
+	}
+}
+
+// sortContextsByStatusThenName sorts contexts with loaded/loading/failed first (alphabetically within each group), then not-loaded (alphabetical)
+func sortContextsByStatusThenName(contexts []Context) {
+	// Define status priority: Loaded=0, Loading=1, Failed=2, NotLoaded=3
+	statusPriority := map[string]int{
+		string(StatusLoaded):    0,
+		string(StatusLoading):   1,
+		string(StatusFailed):    2,
+		string(StatusNotLoaded): 3,
+	}
+
+	for i := 0; i < len(contexts); i++ {
+		for j := i + 1; j < len(contexts); j++ {
+			priorityI := statusPriority[contexts[i].Status]
+			priorityJ := statusPriority[contexts[j].Status]
+
+			// Sort by priority first
+			if priorityI > priorityJ {
+				contexts[i], contexts[j] = contexts[j], contexts[i]
+			} else if priorityI == priorityJ {
+				// Within same priority, sort alphabetically by name
+				if contexts[i].Name > contexts[j].Name {
+					contexts[i], contexts[j] = contexts[j], contexts[i]
+				}
 			}
 		}
 	}
