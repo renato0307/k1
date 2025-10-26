@@ -3,6 +3,7 @@ package screens
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,10 +21,11 @@ type tickMsg time.Time
 
 // ColumnConfig defines a column in the resource list table
 type ColumnConfig struct {
-	Field  string                   // Field name in resource struct
-	Title  string                   // Column display title
-	Width  int                      // 0 = dynamic (fills remaining space)
-	Format func(interface{}) string // Optional custom formatter
+	Field    string                   // Field name in resource struct
+	Title    string                   // Column display title
+	Width    int                      // 0 = dynamic, >0 = fixed
+	Format   func(interface{}) string // Optional custom formatter
+	Priority int                      // 1=critical, 2=important, 3=optional
 }
 
 // OperationConfig defines an operation that can be executed
@@ -78,6 +80,10 @@ type ConfigScreen struct {
 
 	// For contextual navigation filtering
 	filterContext *types.FilterContext
+
+	// Column visibility tracking (Phase 2: responsive display)
+	visibleColumns []ColumnConfig // Columns currently visible
+	hiddenCount    int             // Number of hidden columns
 }
 
 // NewConfigScreen creates a new config-driven screen
@@ -99,10 +105,12 @@ func NewConfigScreen(cfg ScreenConfig, repo k8s.Repository, theme *ui.Theme) *Co
 	t.SetStyles(theme.ToTableStyles())
 
 	return &ConfigScreen{
-		config: cfg,
-		repo:   repo,
-		table:  t,
-		theme:  theme,
+		config:         cfg,
+		repo:           repo,
+		table:          t,
+		theme:          theme,
+		visibleColumns: cfg.Columns, // Initialize with all columns
+		hiddenCount:    0,
 	}
 }
 
@@ -250,11 +258,43 @@ func (s *ConfigScreen) SetSize(width, height int) {
 	s.height = height
 	s.table.SetHeight(height)
 
-	// Calculate dynamic column widths
+	// Calculate padding
+	padding := len(s.config.Columns) * 2
+	availableWidth := width - padding
+
+	// Sort columns by priority (1 first, then 2, then 3)
+	sorted := make([]ColumnConfig, len(s.config.Columns))
+	copy(sorted, s.config.Columns)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].Priority < sorted[j].Priority
+	})
+
+	// Calculate which columns fit
+	visibleColumns := []ColumnConfig{}
+	usedWidth := 0
+
+	for _, col := range sorted {
+		if s.shouldExcludeColumn(col, availableWidth, usedWidth) {
+			continue
+		}
+
+		visibleColumns = append(visibleColumns, col)
+		colWidth := col.Width
+		if colWidth == 0 {
+			colWidth = 20 // Estimate for dynamic
+		}
+		usedWidth += colWidth
+	}
+
+	// Restore original column order
+	s.visibleColumns = s.restoreColumnOrder(visibleColumns)
+	s.hiddenCount = len(s.config.Columns) - len(visibleColumns)
+
+	// Calculate dynamic widths for visible columns only
 	fixedTotal := 0
 	dynamicCount := 0
 
-	for _, col := range s.config.Columns {
+	for _, col := range s.visibleColumns {
 		if col.Width > 0 {
 			fixedTotal += col.Width
 		} else {
@@ -262,15 +302,19 @@ func (s *ConfigScreen) SetSize(width, height int) {
 		}
 	}
 
-	// Account for cell padding: numColumns * 2
-	padding := len(s.config.Columns) * 2
-	dynamicWidth := (width - fixedTotal - padding) / dynamicCount
-	if dynamicWidth < 20 {
-		dynamicWidth = 20
+	// Recalculate padding for visible columns only
+	visiblePadding := len(s.visibleColumns) * 2
+	dynamicWidth := 20 // Default minimum
+	if dynamicCount > 0 {
+		dynamicWidth = (width - fixedTotal - visiblePadding) / dynamicCount
+		if dynamicWidth < 20 {
+			dynamicWidth = 20
+		}
 	}
 
-	columns := make([]table.Column, len(s.config.Columns))
-	for i, col := range s.config.Columns {
+	// Build table columns from visible columns only
+	columns := make([]table.Column, len(s.visibleColumns))
+	for i, col := range s.visibleColumns {
 		w := col.Width
 		if w == 0 {
 			w = dynamicWidth
@@ -281,8 +325,53 @@ func (s *ConfigScreen) SetSize(width, height int) {
 		}
 	}
 
+	// Clear rows BEFORE setting columns to prevent panic
+	// SetColumns() internally triggers rendering, so we need empty rows first
+	s.table.SetRows([]table.Row{})
+
 	s.table.SetColumns(columns)
 	s.table.SetWidth(width)
+
+	// Now rebuild rows with correct number of columns
+	s.updateTable()
+}
+
+// shouldExcludeColumn determines if a column should be hidden based on
+// priority and available width. Called during SetSize() to calculate which
+// columns fit in the terminal.
+func (s *ConfigScreen) shouldExcludeColumn(col ColumnConfig, availableWidth int, usedWidth int) bool {
+	colWidth := col.Width
+	if colWidth == 0 {
+		colWidth = 20 // Minimum for dynamic columns
+	}
+
+	// Priority 1 (critical) always shows, even if squished
+	if col.Priority == 1 {
+		return false
+	}
+
+	// Priority 2 and 3 only show if they fit
+	return usedWidth+colWidth > availableWidth
+}
+
+// restoreColumnOrder restores the original column order after sorting by
+// priority. This ensures columns appear in the same order as defined in
+// screen config, not sorted by priority.
+func (s *ConfigScreen) restoreColumnOrder(visible []ColumnConfig) []ColumnConfig {
+	result := []ColumnConfig{}
+
+	// Iterate original config order
+	for _, original := range s.config.Columns {
+		// Check if this column is in visible list
+		for _, v := range visible {
+			if v.Field == original.Field {
+				result = append(result, v)
+				break
+			}
+		}
+	}
+
+	return result
 }
 
 // Refresh fetches resources and updates the table
@@ -520,8 +609,9 @@ func (s *ConfigScreen) updateTable() {
 	rows := make([]table.Row, len(s.filtered))
 
 	for i, item := range s.filtered {
-		row := make(table.Row, len(s.config.Columns))
-		for j, col := range s.config.Columns {
+		// Use visibleColumns instead of s.config.Columns
+		row := make(table.Row, len(s.visibleColumns))
+		for j, col := range s.visibleColumns {
 			val := getFieldValue(item, col.Field)
 
 			// Apply custom formatter if provided
