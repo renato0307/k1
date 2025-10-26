@@ -16,7 +16,7 @@ type ScaleArgs struct {
 }
 
 // ScaleCommand returns execute function for scaling deployments/statefulsets
-func ScaleCommand(repo k8s.Repository) ExecuteFunc {
+func ScaleCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args
 		var args ScaleArgs
@@ -46,6 +46,10 @@ func ScaleCommand(repo k8s.Repository) ExecuteFunc {
 		// Return a command that executes kubectl asynchronously
 		// Bubble Tea will run this in a separate goroutine
 		return func() tea.Msg {
+			repo := pool.GetActiveRepository()
+			if repo == nil {
+				return messages.ErrorCmd("No active repository")()
+			}
 			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
 
 			// Debug: show the command being run
@@ -67,7 +71,7 @@ func ScaleCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // RestartCommand returns execute function for restarting deployments
-func RestartCommand(repo k8s.Repository) ExecuteFunc {
+func RestartCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Get resource info
 		resourceName := "unknown"
@@ -89,6 +93,10 @@ func RestartCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
+			repo := pool.GetActiveRepository()
+			if repo == nil {
+				return messages.ErrorCmd("No active repository")()
+			}
 			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 

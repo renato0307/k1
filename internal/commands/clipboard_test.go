@@ -19,7 +19,7 @@ func TestShellCommand_CommandGeneration(t *testing.T) {
 		kubeconfig: "/path/to/kubeconfig",
 		context:    "test-context",
 	}
-	shellCmd := ShellCommand(repo)
+	shellCmd := ShellCommand(newTestRepositoryPool(repo))
 
 	tests := []struct {
 		name      string
@@ -76,7 +76,7 @@ func TestShellCommand_CommandGeneration(t *testing.T) {
 
 func TestLogsCommand_CommandGeneration(t *testing.T) {
 	repo := &mockRepository{}
-	logsCmd := LogsCommand(repo)
+	logsCmd := LogsCommand(newTestRepositoryPool(repo))
 
 	tests := []struct {
 		name      string
@@ -129,7 +129,7 @@ func TestLogsCommand_CommandGeneration(t *testing.T) {
 
 func TestPortForwardCommand_CommandGeneration(t *testing.T) {
 	repo := &mockRepository{}
-	pfCmd := PortForwardCommand(repo)
+	pfCmd := PortForwardCommand(newTestRepositoryPool(repo))
 
 	tests := []struct {
 		name      string
@@ -193,7 +193,7 @@ func TestShellCommand_KubeconfigContext(t *testing.T) {
 		kubeconfig: "/custom/kubeconfig",
 		context:    "prod-cluster",
 	}
-	shellCmd := ShellCommand(repo)
+	shellCmd := ShellCommand(newTestRepositoryPool(repo))
 
 	ctx := CommandContext{
 		ResourceType: k8s.ResourceTypePod,
@@ -222,7 +222,7 @@ func TestShellCommand_KubeconfigContext(t *testing.T) {
 
 func TestLogsCommand_ArgParsing(t *testing.T) {
 	repo := &mockRepository{}
-	logsCmd := LogsCommand(repo)
+	logsCmd := LogsCommand(newTestRepositoryPool(repo))
 
 	tests := []struct {
 		name      string

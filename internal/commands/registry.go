@@ -24,8 +24,6 @@ func getPrevContextShortcut() string {
 
 // NewRegistry creates a new command registry with default commands
 func NewRegistry(pool *k8s.RepositoryPool) *Registry {
-	repo := pool.GetActiveRepository()
-
 	commands := []Command{
 			// Navigation commands (: prefix)
 			{
@@ -156,7 +154,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
 				Shortcut:      "ctrl+y",
-				Execute:       YamlCommand(repo),
+				Execute:       YamlCommand(pool),
 			},
 			{
 				Name:          "describe",
@@ -164,7 +162,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
 				Shortcut:      "ctrl+d",
-				Execute:       DescribeCommand(repo),
+				Execute:       DescribeCommand(pool),
 			},
 			{
 				Name:              "delete",
@@ -173,7 +171,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				ResourceTypes:     []k8s.ResourceType{}, // Applies to all resource types
 				Shortcut:          "ctrl+x",
 				NeedsConfirmation: true,
-				Execute:           DeleteCommand(repo),
+				Execute:           DeleteCommand(pool),
 			},
 			{
 				Name:          "logs",
@@ -183,14 +181,14 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Shortcut:      "ctrl+l",
 				ArgsType:      &LogsArgs{},
 				ArgPattern:    " [container] [tail] [follow]",
-				Execute:       LogsCommand(repo),
+				Execute:       LogsCommand(pool),
 			},
 			{
 				Name:          "logs-previous",
 				Description:   "View previous pod logs",
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				Execute:       LogsPreviousCommand(repo),
+				Execute:       LogsPreviousCommand(pool),
 			},
 			{
 				Name:          "port-forward",
@@ -199,7 +197,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				ArgsType:      &PortForwardArgs{},
 				ArgPattern:    " <local:remote>",
-				Execute:       PortForwardCommand(repo),
+				Execute:       PortForwardCommand(pool),
 			},
 			{
 				Name:          "shell",
@@ -208,21 +206,21 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
 				ArgsType:      &ShellArgs{},
 				ArgPattern:    " [container] [shell]",
-				Execute:       ShellCommand(repo),
+				Execute:       ShellCommand(pool),
 			},
 			{
 				Name:          "jump-owner",
 				Description:   "Jump to owner resource",
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				Execute:       JumpOwnerCommand(repo),
+				Execute:       JumpOwnerCommand(pool),
 			},
 			{
 				Name:          "show-node",
 				Description:   "Show node details",
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				Execute:       ShowNodeCommand(repo),
+				Execute:       ShowNodeCommand(pool),
 			},
 			{
 				Name:          "scale",
@@ -231,14 +229,14 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment, k8s.ResourceTypeStatefulSet}, // For deployments and statefulsets
 				ArgsType:      &ScaleArgs{},
 				ArgPattern:    " <replicas>",
-				Execute:       ScaleCommand(repo),
+				Execute:       ScaleCommand(pool),
 			},
 			{
 				Name:          "cordon",
 				Description:   "Cordon node (mark unschedulable)",
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeNode}, // Only for nodes
-				Execute:       CordonCommand(repo),
+				Execute:       CordonCommand(pool),
 			},
 			{
 				Name:              "drain",
@@ -248,21 +246,21 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				ArgsType:          &DrainArgs{},
 				ArgPattern:        " [grace] [force] [ignore-daemonsets]",
 				NeedsConfirmation: true,
-				Execute:           DrainCommand(repo),
+				Execute:           DrainCommand(pool),
 			},
 			{
 				Name:          "endpoints",
 				Description:   "Show service endpoints",
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeService}, // Only for services
-				Execute:       EndpointsCommand(repo),
+				Execute:       EndpointsCommand(pool),
 			},
 			{
 				Name:          "restart",
 				Description:   "Restart deployment",
 				Category:      CategoryAction,
 				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment}, // Only for deployments
-				Execute:       RestartCommand(repo),
+				Execute:       RestartCommand(pool),
 			},
 
 			// LLM commands (/ai prefix) - examples for natural language input
@@ -271,33 +269,33 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Description:       "Delete all pods in Failed status",
 				Category:          CategoryLLMAction,
 				NeedsConfirmation: true,
-				Execute:           LLMDeleteFailingPodsCommand(repo),
+				Execute:           LLMDeleteFailingPodsCommand(pool),
 			},
 			{
 				Name:              "scale nginx to 3",
 				Description:       "Scale nginx deployment to 3 replicas",
 				Category:          CategoryLLMAction,
 				NeedsConfirmation: true,
-				Execute:           LLMScaleNginxCommand(repo),
+				Execute:           LLMScaleNginxCommand(pool),
 			},
 			{
 				Name:        "get pod logs",
 				Description: "Show logs for the selected pod",
 				Category:    CategoryLLMAction,
-				Execute:     LLMGetPodLogsCommand(repo),
+				Execute:     LLMGetPodLogsCommand(pool),
 			},
 			{
 				Name:              "restart deployment",
 				Description:       "Restart the selected deployment",
 				Category:          CategoryLLMAction,
 				NeedsConfirmation: true,
-				Execute:           LLMRestartDeploymentCommand(repo),
+				Execute:           LLMRestartDeploymentCommand(pool),
 			},
 			{
 				Name:        "show pod events",
 				Description: "Show events for the selected pod",
 				Category:    CategoryLLMAction,
-				Execute:     LLMShowPodEventsCommand(repo),
+				Execute:     LLMShowPodEventsCommand(pool),
 			},
 	}
 

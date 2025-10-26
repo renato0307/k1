@@ -582,6 +582,14 @@ func (p *RepositoryPool) SetTestRepository(contextName string, repo Repository) 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Initialize fields if not already done (for test use)
+	if p.repos == nil {
+		p.repos = make(map[string]*RepositoryEntry)
+	}
+	if p.lru == nil {
+		p.lru = list.New()
+	}
+
 	p.repos[contextName] = &RepositoryEntry{
 		Repo:     repo,
 		LoadedAt: time.Now(),

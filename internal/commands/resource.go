@@ -23,7 +23,7 @@ func isClusterScoped(resourceType k8s.ResourceType) bool {
 }
 
 // YamlCommand returns execute function for viewing resource YAML
-func YamlCommand(repo k8s.Repository) ExecuteFunc {
+func YamlCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		namespace := ""
@@ -48,6 +48,12 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 		gvr, ok := k8s.GetGVRForResourceType(ctx.ResourceType)
 		if !ok {
 			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
+		}
+
+		// Get active repository at execution time
+		repo := pool.GetActiveRepository()
+		if repo == nil {
+			return messages.ErrorCmd("No active repository")
 		}
 
 		// Get YAML from repository using kubectl printer
@@ -67,7 +73,7 @@ func YamlCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // DescribeCommand returns execute function for viewing kubectl describe output
-func DescribeCommand(repo k8s.Repository) ExecuteFunc {
+func DescribeCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		namespace := ""
@@ -94,6 +100,12 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
 		}
 
+		// Get active repository at execution time
+		repo := pool.GetActiveRepository()
+		if repo == nil {
+			return messages.ErrorCmd("No active repository")
+		}
+
 		// Get describe output from repository
 		describeContent, err := repo.DescribeResource(gvr, namespace, resourceName)
 		if err != nil {
@@ -111,7 +123,7 @@ func DescribeCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // DeleteCommand returns execute function for deleting a resource
-func DeleteCommand(repo k8s.Repository) ExecuteFunc {
+func DeleteCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Get resource info
 		resourceName := "unknown"
@@ -142,6 +154,10 @@ func DeleteCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
+			repo := pool.GetActiveRepository()
+			if repo == nil {
+				return messages.ErrorCmd("No active repository")()
+			}
 			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
 			output, err := executor.Execute(args, ExecuteOptions{})
 
