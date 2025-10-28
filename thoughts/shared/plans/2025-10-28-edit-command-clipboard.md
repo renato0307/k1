@@ -170,30 +170,30 @@ func EditCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Code compiles: `go build ./...`
+- [x] Code compiles: `go build ./...`
 - [ ] No linting errors: `make lint` (if available)
 - [ ] Command registry tests pass: `go test
   ./internal/commands/registry_test.go`
 
 #### Manual Verification:
-- [ ] Run application: `make run` or `go run cmd/k1/main.go`
-- [ ] Navigate to Pods screen
-- [ ] Select a pod
-- [ ] Type `/edit` in command palette
-- [ ] Command appears in suggestions
-- [ ] Press Enter to execute
-- [ ] Success message shows: "Command copied to clipboard: kubectl edit pods
+- [x] Run application: `make run` or `go run cmd/k1/main.go`
+- [x] Navigate to Pods screen
+- [x] Select a pod
+- [x] Type `/edit` in command palette
+- [x] Command appears in suggestions
+- [x] Press Enter to execute
+- [x] Success message shows: "Command copied to clipboard: kubectl edit pods
   <pod-name> --namespace <ns> ..."
-- [ ] Paste in terminal and verify command is valid (do not execute, just
+- [x] Paste in terminal and verify command is valid (do not execute, just
   verify format)
-- [ ] Test keyboard shortcut: Press ctrl+e directly
-- [ ] Verify same success message appears
-- [ ] Test with Nodes screen (cluster-scoped resource):
+- [x] Test keyboard shortcut: Press ctrl+e directly
+- [x] Verify same success message appears
+- [x] Test with Nodes screen (cluster-scoped resource):
   - Select a node
   - Type `/edit`
   - Verify command does NOT include `--namespace` flag
   - Command should be: "kubectl edit nodes <node-name> ..."
-- [ ] Test with custom kubeconfig/context:
+- [x] Test with custom kubeconfig/context:
   - Run with flags: `go run cmd/k1/main.go -kubeconfig ~/.kube/config
     -context my-context`
   - Execute `/edit` on any resource
