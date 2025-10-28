@@ -1178,3 +1178,136 @@ func TestTransformHPA(t *testing.T) {
 		})
 	}
 }
+
+func TestTransformCRD(t *testing.T) {
+	tests := []struct {
+		name            string
+		input           *unstructured.Unstructured
+		expectedGroup   string
+		expectedVersion string
+		expectedKind    string
+		expectedScope   string
+		expectedPlural  string
+	}{
+		{
+			name: "cert-manager certificate CRD",
+			input: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "apiextensions.k8s.io/v1",
+					"kind":       "CustomResourceDefinition",
+					"metadata": map[string]any{
+						"name":              "certificates.cert-manager.io",
+						"creationTimestamp": metav1.NewTime(time.Now()).Format(time.RFC3339),
+					},
+					"spec": map[string]any{
+						"group": "cert-manager.io",
+						"names": map[string]any{
+							"kind":   "Certificate",
+							"plural": "certificates",
+						},
+						"scope": "Namespaced",
+						"versions": []any{
+							map[string]any{
+								"name":    "v1",
+								"storage": true,
+							},
+						},
+					},
+				},
+			},
+			expectedGroup:   "cert-manager.io",
+			expectedVersion: "v1",
+			expectedKind:    "Certificate",
+			expectedScope:   "Namespaced",
+			expectedPlural:  "certificates",
+		},
+		{
+			name: "cluster-scoped CRD",
+			input: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "apiextensions.k8s.io/v1",
+					"kind":       "CustomResourceDefinition",
+					"metadata": map[string]any{
+						"name":              "clusterwidgets.stable.example.com",
+						"creationTimestamp": metav1.NewTime(time.Now()).Format(time.RFC3339),
+					},
+					"spec": map[string]any{
+						"group": "stable.example.com",
+						"names": map[string]any{
+							"kind":   "ClusterWidget",
+							"plural": "clusterwidgets",
+						},
+						"scope": "Cluster",
+						"versions": []any{
+							map[string]any{
+								"name":    "v1",
+								"storage": true,
+							},
+						},
+					},
+				},
+			},
+			expectedGroup:   "stable.example.com",
+			expectedVersion: "v1",
+			expectedKind:    "ClusterWidget",
+			expectedScope:   "Cluster",
+			expectedPlural:  "clusterwidgets",
+		},
+		{
+			name: "CRD with multiple versions (find storage version)",
+			input: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "apiextensions.k8s.io/v1",
+					"kind":       "CustomResourceDefinition",
+					"metadata": map[string]any{
+						"name":              "tests.example.com",
+						"creationTimestamp": metav1.NewTime(time.Now()).Format(time.RFC3339),
+					},
+					"spec": map[string]any{
+						"group": "example.com",
+						"names": map[string]any{
+							"kind":   "Test",
+							"plural": "tests",
+						},
+						"scope": "Namespaced",
+						"versions": []any{
+							map[string]any{
+								"name":    "v1alpha1",
+								"storage": false,
+							},
+							map[string]any{
+								"name":    "v1beta1",
+								"storage": false,
+							},
+							map[string]any{
+								"name":    "v1",
+								"storage": true,
+							},
+						},
+					},
+				},
+			},
+			expectedGroup:   "example.com",
+			expectedVersion: "v1",
+			expectedKind:    "Test",
+			expectedScope:   "Namespaced",
+			expectedPlural:  "tests",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			common := extractMetadata(tt.input)
+			result, err := transformCRD(tt.input, common)
+
+			require.NoError(t, err)
+			crd, ok := result.(CustomResourceDefinition)
+			require.True(t, ok)
+			assert.Equal(t, tt.expectedGroup, crd.Group)
+			assert.Equal(t, tt.expectedVersion, crd.Version)
+			assert.Equal(t, tt.expectedKind, crd.Kind)
+			assert.Equal(t, tt.expectedScope, crd.Scope)
+			assert.Equal(t, tt.expectedPlural, crd.Plural)
+		})
+	}
+}

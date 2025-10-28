@@ -159,3 +159,13 @@ type HorizontalPodAutoscaler struct {
 	Replicas  int32  // Current
 	TargetCPU string // "80%" or "N/A"
 }
+
+// CustomResourceDefinition represents a CRD in the cluster
+type CustomResourceDefinition struct {
+	ResourceMetadata
+	Group   string // e.g., "cert-manager.io"
+	Version string // Storage version, e.g., "v1"
+	Kind    string // e.g., "Certificate"
+	Scope   string // "Namespaced" or "Cluster"
+	Plural  string // e.g., "certificates"
+}

@@ -642,6 +642,44 @@ func transformHPA(u *unstructured.Unstructured, common ResourceMetadata) (any, e
 	}, nil
 }
 
+// transformCRD converts an unstructured CRD to a typed CustomResourceDefinition
+func transformCRD(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
+	// Extract CRD spec fields
+	group, _, _ := unstructured.NestedString(u.Object, "spec", "group")
+	kind, _, _ := unstructured.NestedString(u.Object, "spec", "names", "kind")
+	plural, _, _ := unstructured.NestedString(u.Object, "spec", "names", "plural")
+	scope, _, _ := unstructured.NestedString(u.Object, "spec", "scope")
+
+	// Find storage version
+	versions, _, _ := unstructured.NestedSlice(u.Object, "spec", "versions")
+	version := ""
+	for _, v := range versions {
+		vMap, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		stored, _, _ := unstructured.NestedBool(vMap, "storage")
+		if stored {
+			version, _, _ = unstructured.NestedString(vMap, "name")
+			break
+		}
+	}
+
+	return CustomResourceDefinition{
+		ResourceMetadata: ResourceMetadata{
+			Namespace: common.Namespace,
+			Name:      common.Name,
+			Age:       common.Age,
+			CreatedAt: common.CreatedAt,
+		},
+		Group:   group,
+		Version: version,
+		Kind:    kind,
+		Scope:   scope,
+		Plural:  plural,
+	}, nil
+}
+
 // getResourceRegistry returns the registry of all supported resources
 func getResourceRegistry() map[ResourceType]ResourceConfig {
 	return map[ResourceType]ResourceConfig{
@@ -820,6 +858,17 @@ func getResourceRegistry() map[ResourceType]ResourceConfig {
 			Namespaced: true,
 			Tier:       1,
 			Transform:  transformHPA,
+		},
+		ResourceTypeCRD: {
+			GVR: schema.GroupVersionResource{
+				Group:    "apiextensions.k8s.io",
+				Version:  "v1",
+				Resource: "customresourcedefinitions",
+			},
+			Name:       "Custom Resource Definitions",
+			Namespaced: false, // CRDs are cluster-scoped
+			Tier:       2,     // Background load
+			Transform:  transformCRD,
 		},
 	}
 }

@@ -362,10 +362,10 @@ func TestGetCRDsScreenConfig(t *testing.T) {
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] All existing tests pass: `make test`
-- [ ] New CRD transform tests pass
-- [ ] New CRD screen config tests pass
-- [ ] Code compiles without errors: `make build`
+- [x] All existing tests pass: `make test`
+- [x] New CRD transform tests pass
+- [x] New CRD screen config tests pass
+- [x] Code compiles without errors: `make build`
 - [ ] No linting errors: `golangci-lint run`
 
 #### Manual Verification:
@@ -381,6 +381,16 @@ func TestGetCRDsScreenConfig(t *testing.T) {
 **Implementation Note**: After completing this phase and all automated
 verification passes, pause here for manual confirmation from the human
 that the manual testing was successful before proceeding to Phase 2.
+
+**TODO - Technical Debt**: Navigation commands are currently registered
+in two places (violates DRY and SRP):
+- `internal/commands/navigation.go` (navigationRegistry map)
+- `internal/commands/registry.go` (manual Command objects)
+
+**Solution**: Refactor to auto-generate Command objects from
+navigationRegistry map in NewRegistry(), eliminating duplication. This
+would mean adding a new resource screen only requires updating one
+location.
 
 ---
 

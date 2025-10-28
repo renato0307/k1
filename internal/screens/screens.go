@@ -475,6 +475,29 @@ func GetHPAsScreenConfig() ScreenConfig {
 	}
 }
 
+// GetCRDsScreenConfig returns the config for the CRDs screen
+func GetCRDsScreenConfig() ScreenConfig {
+	return ScreenConfig{
+		ID:           "customresourcedefinitions",
+		Title:        "Custom Resource Definitions",
+		ResourceType: k8s.ResourceTypeCRD,
+		Columns: []ColumnConfig{
+			{Field: "Group", Title: "Group", Width: 0, Priority: 1},
+			{Field: "Version", Title: "Version", Width: 10, Priority: 2},
+			{Field: "Kind", Title: "Kind", Width: 25, Priority: 1},
+			{Field: "Plural", Title: "Plural", Width: 25, Priority: 1},
+			{Field: "Scope", Title: "Scope", Width: 12, Priority: 2},
+			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration, Priority: 1},
+		},
+		SearchFields: []string{"Group", "Kind", "Plural"},
+		Operations: []OperationConfig{
+			{ID: "describe", Name: "Describe", Description: "Describe selected CRD", Shortcut: "d"},
+			{ID: "yaml", Name: "View YAML", Description: "View CRD YAML", Shortcut: "y"},
+		},
+		// NavigationHandler will be added in Phase 2
+	}
+}
+
 // GetContextsScreenConfig returns config for Contexts screen
 func GetContextsScreenConfig() ScreenConfig {
 	return ScreenConfig{

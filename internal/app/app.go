@@ -78,6 +78,7 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, theme))
 	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, theme))
 	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetCRDsScreenConfig(), repo, theme))
 
 	// Tier 3: Less common resources
 	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, theme))
@@ -641,6 +642,7 @@ func (m *Model) initializeScreens() {
 	m.registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, m.theme))
 	m.registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, m.theme))
 	m.registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetCRDsScreenConfig(), repo, m.theme))
 
 	// Tier 3: Less common resources
 	m.registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, m.theme))

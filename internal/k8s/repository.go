@@ -27,6 +27,7 @@ const (
 	ResourceTypeIngress               ResourceType = "ingresses"
 	ResourceTypeEndpoints             ResourceType = "endpoints"
 	ResourceTypeHPA                   ResourceType = "horizontalpodautoscalers"
+	ResourceTypeCRD                   ResourceType = "customresourcedefinitions"
 	ResourceTypeContext               ResourceType = "contexts"
 )
 
@@ -44,6 +45,7 @@ func GetGVRForResourceType(resourceType ResourceType) (schema.GroupVersionResour
 		ResourceTypeJob:         {Group: "batch", Version: "v1", Resource: "jobs"},
 		ResourceTypeCronJob:     {Group: "batch", Version: "v1", Resource: "cronjobs"},
 		ResourceTypeNode:        {Group: "", Version: "v1", Resource: "nodes"},
+		ResourceTypeCRD:         {Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"},
 	}
 
 	gvr, ok := gvrMap[resourceType]
