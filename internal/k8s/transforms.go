@@ -680,6 +680,17 @@ func transformCRD(u *unstructured.Unstructured, common ResourceMetadata) (any, e
 	}, nil
 }
 
+// CreateGenericTransform returns a transform function for unknown CRD schemas
+func CreateGenericTransform(kind string) TransformFunc {
+	return func(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
+		return GenericResource{
+			ResourceMetadata: common,
+			Kind:             kind,
+			Data:             u.Object,
+		}, nil
+	}
+}
+
 // getResourceRegistry returns the registry of all supported resources
 func getResourceRegistry() map[ResourceType]ResourceConfig {
 	return map[ResourceType]ResourceConfig{

@@ -490,6 +490,24 @@ func (p *RepositoryPool) GetResourceStats() []ResourceStats {
 	return repo.GetResourceStats()
 }
 
+// EnsureCRInformer delegates to active repository
+func (p *RepositoryPool) EnsureCRInformer(gvr schema.GroupVersionResource) error {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return fmt.Errorf("no active repository")
+	}
+	return repo.EnsureCRInformer(gvr)
+}
+
+// GetResourcesByGVR delegates to active repository
+func (p *RepositoryPool) GetResourcesByGVR(gvr schema.GroupVersionResource, transform TransformFunc) ([]any, error) {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return nil, fmt.Errorf("no active repository")
+	}
+	return repo.GetResourcesByGVR(gvr, transform)
+}
+
 // GetContexts returns all contexts for display, sorted with loaded contexts first
 func (p *RepositoryPool) GetContexts() ([]Context, error) {
 	p.mu.RLock()

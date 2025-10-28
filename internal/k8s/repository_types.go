@@ -169,3 +169,10 @@ type CustomResourceDefinition struct {
 	Scope   string // "Namespaced" or "Cluster"
 	Plural  string // e.g., "certificates"
 }
+
+// GenericResource represents a CR instance with unknown schema
+type GenericResource struct {
+	ResourceMetadata
+	Kind string         // CRD Kind (e.g., "Certificate")
+	Data map[string]any // Raw unstructured data for describe/yaml
+}

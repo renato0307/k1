@@ -202,3 +202,8 @@ type ContextSwitchCompleteMsg struct {
 type ContextRetryMsg struct {
 	ContextName string
 }
+
+// DynamicScreenCreateMsg requests creation of dynamic screen for CRD instances
+type DynamicScreenCreateMsg struct {
+	CRD any // CustomResourceDefinition instance
+}

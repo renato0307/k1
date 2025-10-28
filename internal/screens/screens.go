@@ -494,7 +494,7 @@ func GetCRDsScreenConfig() ScreenConfig {
 			{ID: "describe", Name: "Describe", Description: "Describe selected CRD", Shortcut: "d"},
 			{ID: "yaml", Name: "View YAML", Description: "View CRD YAML", Shortcut: "y"},
 		},
-		// NavigationHandler will be added in Phase 2
+		NavigationHandler: navigateToCRInstances(),
 	}
 }
 

@@ -83,6 +83,10 @@ type Repository interface {
 	// Generic resource access (config-driven)
 	GetResources(resourceType ResourceType) ([]any, error)
 
+	// Dynamic CRD instance access (for on-demand informers)
+	GetResourcesByGVR(gvr schema.GroupVersionResource, transform TransformFunc) ([]any, error)
+	EnsureCRInformer(gvr schema.GroupVersionResource) error
+
 	// Typed convenience methods (preserved for compatibility)
 	GetPods() ([]Pod, error)
 	GetDeployments() ([]Deployment, error)

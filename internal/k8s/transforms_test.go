@@ -1311,3 +1311,35 @@ func TestTransformCRD(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateGenericTransform(t *testing.T) {
+	transform := CreateGenericTransform("Certificate")
+
+	input := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "cert-manager.io/v1",
+			"kind":       "Certificate",
+			"metadata": map[string]any{
+				"name":              "test-cert",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(time.Now()).Format(time.RFC3339),
+			},
+			"spec": map[string]any{
+				"secretName": "test-secret",
+				"issuerRef": map[string]any{
+					"name": "letsencrypt",
+				},
+			},
+		},
+	}
+
+	common := extractMetadata(input)
+	result, err := transform(input, common)
+
+	assert.NoError(t, err)
+	generic, ok := result.(GenericResource)
+	assert.True(t, ok)
+	assert.Equal(t, "Certificate", generic.Kind)
+	assert.Equal(t, "test-cert", generic.Name)
+	assert.NotNil(t, generic.Data)
+}

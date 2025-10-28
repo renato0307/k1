@@ -5,11 +5,13 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/components"
 	"github.com/renato0307/k1/internal/components/commandbar"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/screens"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
@@ -260,6 +262,57 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, barCmd
+
+	case types.DynamicScreenCreateMsg:
+		// Extract CRD
+		crd, ok := msg.CRD.(k8s.CustomResourceDefinition)
+		if !ok {
+			return m, messages.ErrorCmd("Invalid CRD type")
+		}
+
+		// Construct GVR directly from CRD
+		gvr := schema.GroupVersionResource{
+			Group:    crd.Group,
+			Version:  crd.Version,
+			Resource: crd.Plural,
+		}
+
+		// Generate screen config
+		screenConfig := screens.GenerateScreenConfigForCR(crd)
+
+		// Check if screen already registered
+		screenID := screenConfig.ID
+		if existingScreen, exists := m.registry.Get(screenID); exists {
+			// Already exists, push history and switch to it
+			m.pushNavigationHistory()
+			m.currentScreen = existingScreen
+			m.header.SetScreenTitle(existingScreen.Title())
+			return m, existingScreen.Init()
+		}
+
+		// Create generic transform
+		transform := k8s.CreateGenericTransform(crd.Kind)
+
+		// Create dynamic screen
+		dynamicScreen := screens.NewDynamicScreen(
+			screenConfig,
+			gvr,
+			transform,
+			m.repoPool.GetActiveRepository(),
+			m.theme,
+		)
+
+		// Register new screen
+		m.registry.Register(dynamicScreen)
+
+		// Push navigation history before switching
+		m.pushNavigationHistory()
+
+		// Switch to it
+		m.currentScreen = dynamicScreen
+		m.header.SetScreenTitle(dynamicScreen.Title())
+
+		return m, dynamicScreen.Init()
 
 	case types.ScreenSwitchMsg:
 		if screen, ok := m.registry.Get(msg.ScreenID); ok {

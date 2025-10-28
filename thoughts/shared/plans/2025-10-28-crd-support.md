@@ -369,14 +369,14 @@ func TestGetCRDsScreenConfig(t *testing.T) {
 - [ ] No linting errors: `golangci-lint run`
 
 #### Manual Verification:
-- [ ] Application starts without errors: `./k1`
-- [ ] Type `:crds` or `:customresourcedefinitions` navigates to CRD
+- [x] Application starts without errors: `./k1`
+- [x] Type `:crds` or `:customresourcedefinitions` navigates to CRD
       screen
-- [ ] CRD screen shows all CRDs in cluster with correct columns
-- [ ] Filter works on CRD list (type to filter by group/kind/plural)
-- [ ] Press `d` on a CRD to view describe output
-- [ ] Press `y` on a CRD to view YAML output
-- [ ] CRD screen shows "No CRDs found" message if cluster has no CRDs
+- [x] CRD screen shows all CRDs in cluster with correct columns
+- [x] Filter works on CRD list (type to filter by group/kind/plural)
+- [x] Press `d` on a CRD to view describe output
+- [x] Press `y` on a CRD to view YAML output
+- [x] CRD screen shows "No CRDs found" message if cluster has no CRDs
 
 **Implementation Note**: After completing this phase and all automated
 verification passes, pause here for manual confirmation from the human
