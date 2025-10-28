@@ -1161,3 +1161,146 @@ func TestConfigScreen_ColumnOrderPreserved(t *testing.T) {
 	assert.Equal(t, "Namespace", screen.visibleColumns[2].Field)
 	assert.Equal(t, "IP", screen.visibleColumns[3].Field)
 }
+
+// TestConfigScreen_FuzzySearchSubstring tests that fuzzy search works with substrings
+// This was fixed to remove the special-case strict prefix matching for contexts screen
+func TestConfigScreen_FuzzySearchSubstring(t *testing.T) {
+	config := ScreenConfig{
+		ID:           "contexts",
+		Title:        "Contexts",
+		ResourceType: k8s.ResourceTypeContext,
+		Columns: []ColumnConfig{
+			{Field: "Name", Title: "Name", Width: 40},
+			{Field: "Cluster", Title: "Cluster", Width: 40},
+		},
+		SearchFields: []string{"Name", "Cluster"},
+	}
+
+	screen := NewConfigScreen(config, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+
+	// Simulate having contexts with various names
+	screen.items = []interface{}{
+		k8s.Context{Name: "my-production-cluster", Cluster: "prod-cluster"},
+		k8s.Context{Name: "staging-environment", Cluster: "stage-cluster"},
+		k8s.Context{Name: "dev-local", Cluster: "dev-cluster"},
+		k8s.Context{Name: "production-backup", Cluster: "backup-cluster"},
+	}
+
+	// Test substring matching (not just prefix)
+	tests := []struct {
+		name           string
+		filter         string
+		expectedCount  int
+		shouldContain  []string
+	}{
+		{
+			name:          "substring in middle matches",
+			filter:        "prod",
+			expectedCount: 2,
+			shouldContain: []string{"my-production-cluster", "production-backup"},
+		},
+		{
+			name:          "substring at end matches",
+			filter:        "cluster",
+			expectedCount: 4,
+			shouldContain: []string{"my-production-cluster", "staging-environment", "dev-local", "production-backup"},
+		},
+		{
+			name:          "prefix still works",
+			filter:        "my-",
+			expectedCount: 1,
+			shouldContain: []string{"my-production-cluster"},
+		},
+		{
+			name:          "partial word matches",
+			filter:        "stag",
+			expectedCount: 1,
+			shouldContain: []string{"staging-environment"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			screen.SetFilter(tt.filter)
+			assert.Equal(t, tt.expectedCount, len(screen.filtered), "Expected %d matches for filter '%s'", tt.expectedCount, tt.filter)
+
+			// Verify expected items are present
+			for _, expected := range tt.shouldContain {
+				found := false
+				for _, item := range screen.filtered {
+					ctx := item.(k8s.Context)
+					if ctx.Name == expected {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Expected to find '%s' in filtered results for filter '%s'", expected, tt.filter)
+			}
+		})
+	}
+}
+
+// TestConfigScreen_InitDoesNotScheduleImmediateTick tests that Init() only calls Refresh
+// and doesn't schedule the first tick (which is scheduled after refresh completes)
+func TestConfigScreen_InitDoesNotScheduleImmediateTick(t *testing.T) {
+	config := ScreenConfig{
+		ID:                    "test",
+		Title:                 "Test",
+		ResourceType:          k8s.ResourceTypePod,
+		Columns:               []ColumnConfig{{Field: "Name", Title: "Name", Width: 40}},
+		SearchFields:          []string{"Name"},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       10 * time.Second,
+	}
+
+	screen := NewConfigScreen(config, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+
+	// Call Init() - it should only return a Refresh command, not a tick
+	cmd := screen.Init()
+	assert.NotNil(t, cmd, "Init should return a command")
+
+	// Execute the command and check it's a RefreshCompleteMsg
+	msg := cmd()
+	_, isRefreshComplete := msg.(types.RefreshCompleteMsg)
+	assert.True(t, isRefreshComplete, "Init command should be a Refresh that returns RefreshCompleteMsg")
+}
+
+// TestConfigScreen_PeriodicRefreshSchedulesFirstTickAfterRefresh tests that the first tick
+// is scheduled after the initial refresh completes (not in Init)
+func TestConfigScreen_PeriodicRefreshSchedulesFirstTickAfterRefresh(t *testing.T) {
+	config := GetPodsScreenConfig() // Uses getPeriodicRefreshUpdate()
+
+	screen := NewConfigScreen(config, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+
+	// Init returns only Refresh command
+	initCmd := screen.Init()
+	assert.NotNil(t, initCmd)
+
+	// Execute init command to get RefreshCompleteMsg
+	refreshMsg := initCmd()
+	assert.IsType(t, types.RefreshCompleteMsg{}, refreshMsg)
+
+	// Now update with RefreshCompleteMsg - this should schedule the first tick
+	model, cmd := screen.Update(refreshMsg)
+	assert.NotNil(t, model)
+	assert.NotNil(t, cmd, "RefreshCompleteMsg should schedule first tick")
+
+	// The cmd should eventually return a tickMsg (we can't easily test timing, but we can verify structure)
+	// Note: We can't directly verify it's a tick without waiting, but the presence of a cmd is good enough
+}
+
+// TestConfigScreen_PeriodicRefreshContinuesAfterTick tests that tickMsg schedules next tick
+func TestConfigScreen_PeriodicRefreshContinuesAfterTick(t *testing.T) {
+	config := GetPodsScreenConfig() // Uses getPeriodicRefreshUpdate()
+
+	screen := NewConfigScreen(config, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+
+	// Simulate a tick message
+	tickMessage := tickMsg(time.Now())
+	model, cmd := screen.Update(tickMessage)
+	assert.NotNil(t, model)
+	assert.NotNil(t, cmd, "tickMsg should schedule next tick and refresh")
+
+	// The cmd should be a batch of Refresh + next tick
+	// We can't easily test the batch contents, but verify cmd exists
+}

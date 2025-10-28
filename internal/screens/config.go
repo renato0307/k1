@@ -84,6 +84,9 @@ type ConfigScreen struct {
 	// Column visibility tracking (Phase 2: responsive display)
 	visibleColumns []ColumnConfig // Columns currently visible
 	hiddenCount    int             // Number of hidden columns
+
+	// Periodic refresh state
+	firstRefreshDone bool // Tracks if first refresh has completed (for tick scheduling)
 }
 
 // NewConfigScreen creates a new config-driven screen
@@ -143,16 +146,8 @@ func (s *ConfigScreen) Operations() []types.Operation {
 }
 
 func (s *ConfigScreen) Init() tea.Cmd {
-	cmds := []tea.Cmd{s.Refresh()}
-
-	// If periodic refresh is enabled, start the tick cycle
-	if s.config.EnablePeriodicRefresh {
-		cmds = append(cmds, tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
-			return tickMsg(t)
-		}))
-	}
-
-	return tea.Batch(cmds...)
+	// Only do initial refresh; first tick will be scheduled after refresh completes
+	return s.Refresh()
 }
 
 func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -528,27 +523,6 @@ func (s *ConfigScreen) SetFilter(filter string) {
 	s.applyFilter()
 }
 
-// strictFuzzyMatch checks if query matches as prefix of any word in text
-func strictFuzzyMatch(query, text string) bool {
-	query = strings.ToLower(query)
-	text = strings.ToLower(text)
-
-	// Check if query is prefix of entire text
-	if strings.HasPrefix(text, query) {
-		return true
-	}
-
-	// Check if query is prefix of any word
-	words := strings.Fields(text)
-	for _, word := range words {
-		if strings.HasPrefix(word, query) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // applyFilter filters items based on fuzzy search
 func (s *ConfigScreen) applyFilter() {
 	if s.filter == "" {
@@ -581,22 +555,11 @@ func (s *ConfigScreen) applyFilter() {
 				}
 			}
 		} else {
-			// Strict prefix matching (for contexts screen and potentially others)
-			// Check if this is the contexts screen
-			if s.config.ID == "contexts" {
-				s.filtered = make([]interface{}, 0)
-				for i, item := range s.items {
-					if strictFuzzyMatch(s.filter, searchStrings[i]) {
-						s.filtered = append(s.filtered, item)
-					}
-				}
-			} else {
-				// Normal fuzzy search for other screens
-				matches := fuzzy.Find(s.filter, searchStrings)
-				s.filtered = make([]interface{}, len(matches))
-				for i, m := range matches {
-					s.filtered[i] = s.items[m.Index]
-				}
+			// Normal fuzzy search for all screens
+			matches := fuzzy.Find(s.filter, searchStrings)
+			s.filtered = make([]interface{}, len(matches))
+			for i, m := range matches {
+				s.filtered[i] = s.items[m.Index]
 			}
 		}
 	}

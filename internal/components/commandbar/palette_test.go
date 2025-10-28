@@ -189,8 +189,8 @@ func TestPalette_View(t *testing.T) {
 }
 
 func TestPalette_ScrollingBehavior(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -254,8 +254,8 @@ func TestPalette_ScrollingBehavior(t *testing.T) {
 }
 
 func TestPalette_ScrollResetOnFilter(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -290,8 +290,8 @@ func TestPalette_ScrollResetOnFilter(t *testing.T) {
 }
 
 func TestPalette_BoundaryConditions(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -328,8 +328,8 @@ func TestPalette_BoundaryConditions(t *testing.T) {
 }
 
 func TestPalette_ViewRenderingWithScroll(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)

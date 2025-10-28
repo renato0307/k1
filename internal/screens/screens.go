@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/types"
 )
 
 // GetPodsScreenConfig returns the config for the Pods screen (Level 2 - with periodic refresh)
@@ -46,6 +47,19 @@ func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, t
 				return tickMsg(t)
 			})
 			return s, tea.Batch(s.Refresh(), nextTick)
+		case types.RefreshCompleteMsg:
+			// After first refresh completes, schedule the first tick
+			if !s.firstRefreshDone {
+				s.firstRefreshDone = true
+				nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
+					return tickMsg(t)
+				})
+				// Let DefaultUpdate handle the RefreshCompleteMsg, then schedule tick
+				model, cmd := s.DefaultUpdate(msg)
+				screen := model.(*ConfigScreen)
+				return screen, tea.Batch(cmd, nextTick)
+			}
+			return s.DefaultUpdate(msg)
 		default:
 			return s.DefaultUpdate(msg)
 		}

@@ -312,7 +312,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.LastRefresh = time.Now()
 		m.state.RefreshTime = msg.Duration
 		m.header.SetLastRefresh(time.Now())
-		return m, nil
+		// Forward to screen so it can schedule first tick for periodic refresh
+		model, cmd := m.currentScreen.Update(msg)
+		m.currentScreen = model.(types.Screen)
+		return m, cmd
 
 	case types.StatusMsg:
 		m.statusBar.SetMessage(msg.Message, msg.Type)
