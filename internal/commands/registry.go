@@ -417,3 +417,13 @@ func (r *Registry) Get(name string, category CommandCategory) *Command {
 	}
 	return nil
 }
+
+// GetByShortcut returns a command by keyboard shortcut, or nil if not found
+func (r *Registry) GetByShortcut(shortcut string) *Command {
+	for _, cmd := range r.commands {
+		if cmd.Shortcut != "" && cmd.Shortcut == shortcut {
+			return &cmd
+		}
+	}
+	return nil
+}

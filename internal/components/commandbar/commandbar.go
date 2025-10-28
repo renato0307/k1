@@ -724,3 +724,8 @@ func (cb *CommandBar) ExecuteCommand(name string, category commands.CommandCateg
 
 	return cb, cmd
 }
+
+// GetCommandByShortcut returns a command by keyboard shortcut.
+func (cb *CommandBar) GetCommandByShortcut(shortcut string) *commands.Command {
+	return cb.registry.GetByShortcut(shortcut)
+}
