@@ -10,7 +10,7 @@ import (
 )
 
 // EndpointsCommand returns execute function for showing service endpoints
-func EndpointsCommand(repo k8s.Repository) ExecuteFunc {
+func EndpointsCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		namespace := "default"
@@ -32,6 +32,10 @@ func EndpointsCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
+			repo := pool.GetActiveRepository()
+			if repo == nil {
+				return messages.ErrorCmd("No active repository")()
+			}
 			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 

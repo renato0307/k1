@@ -1,6 +1,8 @@
 package components
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/renato0307/k1/internal/ui"
 )
@@ -30,6 +32,10 @@ func (l *Layout) SetSize(width, height int) {
 	l.height = height
 }
 
+func (l *Layout) SetContext(context string) {
+	l.context = context
+}
+
 // CalculateBodyHeight returns the available height for the body content
 func (l *Layout) CalculateBodyHeight() int {
 	// Reserve space for: title (1) + header (1) + empty line (1) + message (1) + command bar (1) + padding
@@ -43,8 +49,8 @@ func (l *Layout) CalculateBodyHeight() int {
 
 // CalculateBodyHeightWithCommandBar returns the available height accounting for dynamic command bar and status bar
 func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
-	// Reserve space for: title (1) + header (1) + empty line after header (1) + status bar (1) + command bar (dynamic)
-	reserved := 4 + commandBarHeight
+	// Reserve space for: title (1) + empty line after title (1) + header (1) + empty line after header (1) + status bar (1) + command bar (dynamic)
+	reserved := 5 + commandBarHeight
 	bodyHeight := l.height - reserved
 	if bodyHeight < 3 {
 		bodyHeight = 3
@@ -53,20 +59,27 @@ func (l *Layout) CalculateBodyHeightWithCommandBar(commandBarHeight int) int {
 }
 
 // Render builds the full layout
-func (l *Layout) Render(header, body, statusBar, commandBar, paletteItems, hints string) string {
+func (l *Layout) Render(header, body, statusBar, commandBar, paletteItems, hints, loadingText string) string {
 	sections := []string{}
 
-	// Title line with app name and emoji using theme's AppTitle style
-	titleText := l.appName + " 💨"
+	// Title line with app name and context (full width with background)
+	titleParts := []string{l.appName + " 💨"}
 	if l.version != "" {
-		titleText += " v" + l.version
+		titleParts[0] += " v" + l.version
 	}
 	if l.context != "" {
-		titleText += " • " + l.context
+		titleParts = append(titleParts, "current context: "+l.context)
 	}
-	// Make title span full width
+	if loadingText != "" {
+		titleParts = append(titleParts, loadingText)
+	}
+
 	titleStyle := l.theme.AppTitle.Width(l.width)
-	sections = append(sections, titleStyle.Render(titleText))
+	titleLine := titleStyle.Render(strings.Join(titleParts, " • "))
+	sections = append(sections, titleLine)
+
+	// Add empty line after title
+	sections = append(sections, "")
 
 	// Header (screen info)
 	if header != "" {

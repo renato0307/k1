@@ -166,3 +166,39 @@ type ShowFullScreenMsg struct {
 
 // ExitFullScreenMsg returns from full-screen view to list
 type ExitFullScreenMsg struct{}
+
+// Context management messages
+
+// ContextSwitchMsg initiates a context switch
+type ContextSwitchMsg struct {
+	ContextName string
+}
+
+// ContextLoadProgressMsg reports loading progress
+type ContextLoadProgressMsg struct {
+	Context string
+	Message string
+	Phase   int
+}
+
+// ContextLoadCompleteMsg signals successful context load
+type ContextLoadCompleteMsg struct {
+	Context string
+}
+
+// ContextLoadFailedMsg signals failed context load
+type ContextLoadFailedMsg struct {
+	Context string
+	Error   error
+}
+
+// ContextSwitchCompleteMsg signals successful context switch
+type ContextSwitchCompleteMsg struct {
+	OldContext string
+	NewContext string
+}
+
+// ContextRetryMsg requests retry of failed context
+type ContextRetryMsg struct {
+	ContextName string
+}

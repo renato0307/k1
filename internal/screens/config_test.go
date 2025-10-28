@@ -1054,3 +1054,110 @@ func TestConfigScreen_View_WithResults(t *testing.T) {
 	view := screen.View()
 	assert.NotContains(t, view, "No resources found")
 }
+
+// Phase 2: Responsive column display tests
+
+func TestConfigScreen_SetSizeWithPriorities(t *testing.T) {
+	tests := []struct {
+		name            string
+		terminalWidth   int
+		columns         []ColumnConfig
+		expectedVisible int
+		expectedHidden  int
+	}{
+		{
+			name:          "Wide terminal - all columns visible",
+			terminalWidth: 200,
+			columns: []ColumnConfig{
+				{Field: "Name", Title: "Name", Width: 40, Priority: 1},
+				{Field: "Status", Title: "Status", Width: 15, Priority: 1},
+				{Field: "Node", Title: "Node", Width: 30, Priority: 3},
+				{Field: "IP", Title: "IP", Width: 16, Priority: 3},
+			},
+			expectedVisible: 4,
+			expectedHidden:  0,
+		},
+		{
+			name:          "Narrow terminal - Priority 3 hidden",
+			terminalWidth: 80,
+			columns: []ColumnConfig{
+				{Field: "Name", Title: "Name", Width: 40, Priority: 1},
+				{Field: "Status", Title: "Status", Width: 15, Priority: 1},
+				{Field: "Node", Title: "Node", Width: 30, Priority: 3},
+				{Field: "IP", Title: "IP", Width: 16, Priority: 3},
+			},
+			expectedVisible: 3, // Name + Status + IP (Node doesn't fit)
+			expectedHidden:  1, // Node
+		},
+		{
+			name:          "Very narrow - only Priority 1",
+			terminalWidth: 60,
+			columns: []ColumnConfig{
+				{Field: "Name", Title: "Name", Width: 20, Priority: 1},
+				{Field: "Status", Title: "Status", Width: 15, Priority: 1},
+				{Field: "Namespace", Title: "Namespace", Width: 40, Priority: 2},
+				{Field: "Node", Title: "Node", Width: 30, Priority: 3},
+			},
+			expectedVisible: 2, // Name + Status (Priority 1)
+			expectedHidden:  2, // Namespace + Node
+		},
+		{
+			name:          "Mixed priorities with dynamic columns",
+			terminalWidth: 150,
+			columns: []ColumnConfig{
+				{Field: "Namespace", Title: "Namespace", Width: 0, Priority: 2},
+				{Field: "Name", Title: "Name", Width: 50, Priority: 1},
+				{Field: "Ready", Title: "Ready", Width: 8, Priority: 1},
+				{Field: "Status", Title: "Status", Width: 15, Priority: 1},
+				{Field: "Node", Title: "Node", Width: 0, Priority: 3},
+				{Field: "IP", Title: "IP", Width: 0, Priority: 3},
+			},
+			expectedVisible: 6, // All columns fit at 150 chars
+			expectedHidden:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := ScreenConfig{
+				ID:           "test",
+				Title:        "Test",
+				ResourceType: k8s.ResourceTypePod,
+				Columns:      tt.columns,
+				SearchFields: []string{"Name"},
+			}
+			screen := NewConfigScreen(config, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+			screen.SetSize(tt.terminalWidth, 40)
+
+			assert.Equal(t, tt.expectedVisible, len(screen.visibleColumns),
+				"Expected %d visible columns but got %d", tt.expectedVisible, len(screen.visibleColumns))
+			assert.Equal(t, tt.expectedHidden, screen.hiddenCount,
+				"Expected %d hidden columns but got %d", tt.expectedHidden, screen.hiddenCount)
+		})
+	}
+}
+
+func TestConfigScreen_ColumnOrderPreserved(t *testing.T) {
+	columns := []ColumnConfig{
+		{Field: "Name", Title: "Name", Width: 40, Priority: 1},
+		{Field: "Status", Title: "Status", Width: 15, Priority: 1},
+		{Field: "Namespace", Title: "Namespace", Width: 40, Priority: 2},
+		{Field: "IP", Title: "IP", Width: 16, Priority: 3},
+	}
+
+	config := ScreenConfig{
+		ID:           "test",
+		Title:        "Test",
+		ResourceType: k8s.ResourceTypePod,
+		Columns:      columns,
+		SearchFields: []string{"Name"},
+	}
+	screen := NewConfigScreen(config, k8s.NewDummyRepository(), ui.GetTheme("charm"))
+	screen.SetSize(200, 40) // Wide enough for all columns
+
+	// Verify columns appear in original order, not sorted by priority
+	assert.Equal(t, "Name", screen.visibleColumns[0].Field)
+	assert.Equal(t, "Status", screen.visibleColumns[1].Field)
+	assert.Equal(t, "Namespace", screen.visibleColumns[2].Field)
+	assert.Equal(t, "IP", screen.visibleColumns[3].Field)
+}

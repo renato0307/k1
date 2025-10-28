@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,7 +22,23 @@ const (
 
 	// MaxNavigationHistorySize limits the navigation history stack
 	MaxNavigationHistorySize = 50
+
+	// DisplayUpdateInterval is how often we update the display (spinner, refresh time)
+	DisplayUpdateInterval = 100 * time.Millisecond
 )
+
+// prevContextKey returns the previous context shortcut
+func prevContextKey() string {
+	return "ctrl+p"
+}
+
+// nextContextKey returns the next context shortcut
+func nextContextKey() string {
+	return "ctrl+n"
+}
+
+// displayTickMsg triggers display updates (spinner animation, refresh time)
+type displayTickMsg time.Time
 
 // NavigationState represents a point in navigation history
 type NavigationState struct {
@@ -41,12 +58,15 @@ type Model struct {
 	fullScreen        *components.FullScreen
 	fullScreenMode    bool
 	navigationHistory []NavigationState
-	repo              k8s.Repository
+	repoPool          *k8s.RepositoryPool
 	theme             *ui.Theme
 }
 
-func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
+func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 	registry := types.NewScreenRegistry()
+
+	// Get active repository from pool
+	repo := pool.GetActiveRepository()
 
 	// Register all screens using config-driven approach
 	// Tier 1: Critical (Pods)
@@ -76,14 +96,21 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	// System screen
 	registry.Register(screens.NewSystemScreen(repo, theme))
 
+	// Contexts screen (special - uses pool directly)
+	registry.Register(screens.NewConfigScreen(screens.GetContextsScreenConfig(), pool, theme))
+
 	// Start with pods screen
 	initialScreen, _ := registry.Get("pods")
 
 	header := components.NewHeader("k1", theme)
 	header.SetScreenTitle(initialScreen.Title())
 	header.SetWidth(80)
+	// Set initial refresh interval
+	if configScreen, ok := initialScreen.(*screens.ConfigScreen); ok {
+		header.SetRefreshInterval(configScreen.GetRefreshInterval())
+	}
 
-	cmdBar := commandbar.New(repo, theme)
+	cmdBar := commandbar.New(pool, theme)
 	cmdBar.SetWidth(80)
 	cmdBar.SetScreen("pods") // Set initial screen context
 
@@ -91,6 +118,7 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 	statusBar.SetWidth(80)
 
 	layout := components.NewLayout(80, 24, theme)
+	layout.SetContext(pool.GetActiveContext()) // Set initial context on title line
 
 	// Set initial size for the screen
 	initialBodyHeight := layout.CalculateBodyHeightWithCommandBar(cmdBar.GetTotalHeight())
@@ -111,13 +139,18 @@ func NewModel(repo k8s.Repository, theme *ui.Theme) Model {
 		statusBar:         statusBar,
 		commandBar:        cmdBar,
 		navigationHistory: make([]NavigationState, 0, MaxNavigationHistorySize),
-		repo:              repo,
+		repoPool:          pool,
 		theme:             theme,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.currentScreen.Init()
+	return tea.Batch(
+		m.currentScreen.Init(),
+		tea.Tick(DisplayUpdateInterval, func(t time.Time) tea.Msg {
+			return displayTickMsg(t)
+		}),
+	)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -142,6 +175,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+
+		case prevContextKey():
+			// Previous context (ctrl+p)
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("prev-context", commands.CategoryResource)
+			m.commandBar = updatedBar
+			return m, barCmd
+
+		case nextContextKey():
+			// Next context (ctrl+n)
+			updatedBar, barCmd := m.commandBar.ExecuteCommand("next-context", commands.CategoryResource)
+			m.commandBar = updatedBar
+			return m, barCmd
+
+		case "ctrl+r":
+			// Global refresh - trigger current screen refresh
+			if screen, ok := m.currentScreen.(interface{ Refresh() tea.Cmd }); ok {
+				return m, screen.Refresh()
+			}
+			return m, nil
 		case "ctrl+y":
 			// Update selection context before executing command
 			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
@@ -251,6 +303,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Update header with screen title
 			m.header.SetScreenTitle(screen.Title())
 
+			// Update header with refresh interval if screen is ConfigScreen
+			if configScreen, ok := screen.(*screens.ConfigScreen); ok {
+				m.header.SetRefreshInterval(configScreen.GetRefreshInterval())
+			}
+
 			// Update header with filter text if FilterContext is present
 			if msg.FilterContext != nil {
 				m.header.SetFilterText(msg.FilterContext.Description())
@@ -287,6 +344,171 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case types.ClearStatusMsg:
 		m.statusBar.ClearMessage()
 		return m, nil
+
+	case displayTickMsg:
+		// Update display elements (spinner, refresh time) without refreshing data
+		m.header.AdvanceSpinner()
+
+		// Update refresh time text (already formatted by GetRefreshTimeString)
+		refreshTime := m.header.GetRefreshTimeString()
+		m.header.SetRefreshText(refreshTime)
+
+		// Schedule next display tick
+		return m, tea.Tick(DisplayUpdateInterval, func(t time.Time) tea.Msg {
+			return displayTickMsg(t)
+		})
+
+	case types.ContextLoadProgressMsg:
+		// Check if loading is complete (Phase == 3 is PhaseComplete)
+		if msg.Phase == 3 {
+			// Clear loading state when complete
+			m.header.SetContext(msg.Context)
+		} else {
+			// Show loading progress in header (spinner advances via displayTickMsg)
+			m.header.SetContextLoading(msg.Context, msg.Message)
+		}
+		return m, nil
+
+	case types.ContextLoadCompleteMsg:
+		// Only clear loading spinner if this context was loading
+		// Don't change the active context display - that only happens on ContextSwitchMsg
+		currentContext := m.repoPool.GetActiveContext()
+		if msg.Context == currentContext {
+			// This is the active context finishing load - update display
+			m.header.SetContext(msg.Context)
+			m.layout.SetContext(msg.Context)
+		}
+		// Otherwise it's a background context - do nothing (keep current context displayed)
+		return m, nil
+
+	case types.ContextLoadFailedMsg:
+		// Only show errors (critical feedback)
+		m.statusBar.SetMessage(
+			fmt.Sprintf("Failed to load context %s: %v", msg.Context, msg.Error),
+			types.MessageTypeError,
+		)
+		return m, tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+			return types.ClearStatusMsg{}
+		})
+
+	case types.ContextSwitchMsg:
+		// Check if context is already loaded
+		contexts, err := m.repoPool.GetContexts()
+		if err != nil {
+			m.statusBar.SetMessage(
+				fmt.Sprintf("Failed to get contexts: %v", err),
+				types.MessageTypeError,
+			)
+			return m, nil
+		}
+
+		// Find the target context
+		var needsLoading bool
+		for _, ctx := range contexts {
+			if ctx.Name == msg.ContextName {
+				needsLoading = (ctx.Status != string(k8s.StatusLoaded))
+				break
+			}
+		}
+
+		// If needs loading, show immediate feedback
+		if needsLoading {
+			// Mark context as loading BEFORE refresh so UI shows it
+			m.repoPool.MarkAsLoading(msg.ContextName)
+
+			m.statusBar.SetMessage(
+				fmt.Sprintf("Loading context %s...", msg.ContextName),
+				types.MessageTypeInfo,
+			)
+			// Refresh current screen to show updated status
+			if m.currentScreen.ID() == "contexts" {
+				refreshCmd := m.currentScreen.(*screens.ConfigScreen).Refresh()
+				return m, tea.Batch(refreshCmd, m.switchContextCmd(msg.ContextName))
+			}
+		}
+
+		// Initiate context switch asynchronously
+		return m, m.switchContextCmd(msg.ContextName)
+
+	case types.ContextSwitchCompleteMsg:
+		// Context switch completed - refresh current screen
+		m.statusBar.SetMessage(
+			fmt.Sprintf("Switched to context: %s", msg.NewContext),
+			types.MessageTypeSuccess,
+		)
+
+		// Update header and layout with new context
+		m.header.SetContext(msg.NewContext)
+		m.layout.SetContext(msg.NewContext)
+
+		// Special handling for contexts screen - navigate to pods after switching
+		if m.currentScreen.ID() == "contexts" {
+			// Re-register screens with new repository
+			m.registry = types.NewScreenRegistry()
+			m.initializeScreens()
+
+			// Navigate to pods screen
+			if screen, ok := m.registry.Get("pods"); ok {
+				m.currentScreen = screen
+				m.state.CurrentScreen = "pods"
+
+				// Update command bar with pods screen context
+				m.commandBar.SetScreen("pods")
+
+				// Update header with screen title
+				m.header.SetScreenTitle(screen.Title())
+				m.header.SetFilterText("")
+
+				// Update header with refresh interval
+				if configScreen, ok := screen.(*screens.ConfigScreen); ok {
+					m.header.SetRefreshInterval(configScreen.GetRefreshInterval())
+				}
+
+				// Trigger resize to fix table formatting
+				bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
+				if screenWithSize, ok := screen.(interface{ SetSize(int, int) }); ok {
+					screenWithSize.SetSize(m.state.Width, bodyHeight)
+				}
+
+				return m, tea.Batch(
+					screen.(interface{ Refresh() tea.Cmd }).Refresh(),
+					tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+						return types.ClearStatusMsg{}
+					}),
+				)
+			}
+
+			// Fallback if pods screen not found
+			return m, tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+				return types.ClearStatusMsg{}
+			})
+		}
+
+		// Re-register screens with new repository
+		m.registry = types.NewScreenRegistry()
+		m.initializeScreens()
+
+		// Switch to same screen type in new context
+		if screen, ok := m.registry.Get(m.currentScreen.ID()); ok {
+			m.currentScreen = screen
+			m.header.SetScreenTitle(screen.Title())
+		}
+
+		bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
+		if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
+			screenWithSize.SetSize(m.state.Width, bodyHeight)
+		}
+
+		return m, tea.Batch(
+			m.currentScreen.Init(),
+			tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+				return types.ClearStatusMsg{}
+			}),
+		)
+
+	case types.ContextRetryMsg:
+		// Retry failed context
+		return m, m.retryContextCmd(msg.ContextName)
 
 	case types.ShowFullScreenMsg:
 		// Create full-screen view
@@ -375,9 +597,86 @@ func (m Model) View() string {
 	commandBar := m.commandBar.View()
 	paletteItems := m.commandBar.ViewPaletteItems()
 	hints := m.commandBar.ViewHints()
+	loadingText := m.header.GetLoadingText()
 
-	baseView := m.layout.Render(header, body, statusBar, commandBar, paletteItems, hints)
+	baseView := m.layout.Render(header, body, statusBar, commandBar, paletteItems, hints, loadingText)
 
 	// Return layout directly - it's already sized correctly via body height calculations
 	return baseView
+}
+
+// switchContextCmd returns command to switch contexts asynchronously
+func (m Model) switchContextCmd(contextName string) tea.Cmd {
+	return func() tea.Msg {
+		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE switch
+		err := m.repoPool.SwitchContext(contextName, nil)
+
+		if err != nil {
+			return types.ContextLoadFailedMsg{
+				Context: contextName,
+				Error:   err,
+			}
+		}
+
+		return types.ContextSwitchCompleteMsg{
+			OldContext: oldContext,  // Correct value
+			NewContext: contextName,
+		}
+	}
+}
+
+// retryContextCmd returns command to retry failed context
+func (m Model) retryContextCmd(contextName string) tea.Cmd {
+	return func() tea.Msg {
+		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE retry
+		err := m.repoPool.RetryFailedContext(contextName, nil)
+
+		if err != nil {
+			return types.ContextLoadFailedMsg{
+				Context: contextName,
+				Error:   err,
+			}
+		}
+
+		return types.ContextSwitchCompleteMsg{
+			OldContext: oldContext,
+			NewContext: contextName,
+		}
+	}
+}
+
+// initializeScreens registers all screens with active repository
+func (m *Model) initializeScreens() {
+	repo := m.repoPool.GetActiveRepository()
+
+	// Register all screens using config-driven approach
+	// Tier 1: Critical (Pods)
+	m.registry.Register(screens.NewConfigScreen(screens.GetPodsScreenConfig(), repo, m.theme))
+
+	// Tier 2: Common resources
+	m.registry.Register(screens.NewConfigScreen(screens.GetDeploymentsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetServicesScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, m.theme))
+
+	// Tier 3: Less common resources
+	m.registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetDaemonSetsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetJobsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetCronJobsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetNodesScreenConfig(), repo, m.theme))
+
+	// Tier 1 (Phase 2): Additional high-value resources
+	m.registry.Register(screens.NewConfigScreen(screens.GetReplicaSetsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetPVCsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetIngressesScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetEndpointsScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetHPAsScreenConfig(), repo, m.theme))
+
+	// System screen
+	m.registry.Register(screens.NewSystemScreen(repo, m.theme))
+
+	// Contexts screen (special - uses pool directly)
+	m.registry.Register(screens.NewConfigScreen(screens.GetContextsScreenConfig(), m.repoPool, m.theme))
 }

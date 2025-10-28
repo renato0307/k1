@@ -18,7 +18,7 @@ type DrainArgs struct {
 }
 
 // CordonCommand returns execute function for cordoning nodes
-func CordonCommand(repo k8s.Repository) ExecuteFunc {
+func CordonCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		if name, ok := ctx.Selected["name"].(string); ok {
@@ -33,6 +33,10 @@ func CordonCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
+			repo := pool.GetActiveRepository()
+			if repo == nil {
+				return messages.ErrorCmd("No active repository")()
+			}
 			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 
@@ -49,7 +53,7 @@ func CordonCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // DrainCommand returns execute function for draining nodes
-func DrainCommand(repo k8s.Repository) ExecuteFunc {
+func DrainCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args (with optional inline args)
 		var args DrainArgs
@@ -80,6 +84,10 @@ func DrainCommand(repo k8s.Repository) ExecuteFunc {
 
 		// Return a command that executes kubectl asynchronously
 		return func() tea.Msg {
+			repo := pool.GetActiveRepository()
+			if repo == nil {
+				return messages.ErrorCmd("No active repository")()
+			}
 			executor := NewKubectlExecutor(repo.GetKubeconfig(), repo.GetContext())
 			output, err := executor.Execute(kubectlArgs, ExecuteOptions{})
 

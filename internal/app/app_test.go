@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,13 +11,47 @@ import (
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// createTestPool creates a repository pool for testing
+func createTestPool(t *testing.T) *k8s.RepositoryPool {
+	t.Helper()
+
+	// Create a temporary kubeconfig for testing
+	kubeconfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+	kubeconfigContent := `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://localhost:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: test-token
+`
+	err := os.WriteFile(kubeconfigPath, []byte(kubeconfigContent), 0600)
+	require.NoError(t, err, "Failed to create test kubeconfig")
+
+	// Create pool
+	pool, err := k8s.NewRepositoryPool(kubeconfigPath, 10)
+	require.NoError(t, err, "Failed to create repository pool")
+
+	return pool
+}
 
 // TestPushNavigationHistory_MaxSize verifies history size limit enforcement
 func TestPushNavigationHistory_MaxSize(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Push MaxNavigationHistorySize + 10 entries
 	for i := 0; i < MaxNavigationHistorySize+10; i++ {
@@ -29,9 +65,9 @@ func TestPushNavigationHistory_MaxSize(t *testing.T) {
 
 // TestPushNavigationHistory_CapturesFilterContext verifies filter context is captured
 func TestPushNavigationHistory_CapturesFilterContext(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Switch to deployments screen
 	msg := types.ScreenSwitchMsg{ScreenID: "deployments"}
@@ -80,9 +116,9 @@ func TestPushNavigationHistory_CapturesFilterContext(t *testing.T) {
 
 // TestPopNavigationHistory_ReturnsNilWhenEmpty verifies empty history handling
 func TestPopNavigationHistory_ReturnsNilWhenEmpty(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Pop from empty history
 	cmd := model.popNavigationHistory()
@@ -94,9 +130,9 @@ func TestPopNavigationHistory_ReturnsNilWhenEmpty(t *testing.T) {
 
 // TestPopNavigationHistory_ReturnsScreenSwitchMsg verifies back navigation message
 func TestPopNavigationHistory_ReturnsScreenSwitchMsg(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Manually push a state to history
 	model.navigationHistory = append(model.navigationHistory, NavigationState{
@@ -134,9 +170,9 @@ func TestPopNavigationHistory_ReturnsScreenSwitchMsg(t *testing.T) {
 
 // TestScreenSwitchMsg_PushesHistory verifies contextual navigation pushes history
 func TestScreenSwitchMsg_PushesHistory(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Initial state: pods screen, no filter
 	assert.Equal(t, "pods", model.state.CurrentScreen)
@@ -167,9 +203,9 @@ func TestScreenSwitchMsg_PushesHistory(t *testing.T) {
 
 // TestScreenSwitchMsg_DoesNotPushHistoryForBackNav verifies IsBackNav prevents double-push
 func TestScreenSwitchMsg_DoesNotPushHistoryForBackNav(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Navigate with IsBackNav=true (should not push)
 	msg := types.ScreenSwitchMsg{
@@ -194,9 +230,9 @@ func TestScreenSwitchMsg_DoesNotPushHistoryForBackNav(t *testing.T) {
 
 // TestScreenSwitchMsg_DoesNotPushHistoryWithoutFilter verifies explicit nav doesn't push
 func TestScreenSwitchMsg_DoesNotPushHistoryWithoutFilter(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Navigate without filter (explicit navigation like :pods)
 	msg := types.ScreenSwitchMsg{
@@ -214,9 +250,9 @@ func TestScreenSwitchMsg_DoesNotPushHistoryWithoutFilter(t *testing.T) {
 
 // TestESCKey_TriggersBackNavigation verifies ESC key pops history
 func TestESCKey_TriggersBackNavigation(t *testing.T) {
-	repo := k8s.NewDummyRepository()
+	pool := createTestPool(t)
 	theme := ui.ThemeCharm()
-	model := NewModel(repo, theme)
+	model := NewModel(pool, theme)
 
 	// Manually push a state to history
 	model.navigationHistory = append(model.navigationHistory, NavigationState{

@@ -83,9 +83,37 @@ func (m *mockRepository) GetResourceStats() []k8s.ResourceStats {
 }
 func (m *mockRepository) Close() {}
 
+// newTestRepositoryPool creates a test pool with a mock repository
+// Uses the repository_pool's SetTestRepository which properly initializes the pool
+func newTestRepositoryPool(repo k8s.Repository) *k8s.RepositoryPool {
+	// Create an empty pool struct
+	// The fields repos, lru are private, but SetTestRepository is designed for tests
+	// and will initialize them properly
+	pool := new(k8s.RepositoryPool)
+	pool.SetTestRepository("test-context", repo)
+	return pool
+}
+
+// Context management methods (stub implementations for testing)
+func (m *mockRepository) SwitchContext(contextName string, progress chan<- k8s.ContextLoadProgress) error {
+	return nil
+}
+func (m *mockRepository) GetAllContexts() []k8s.ContextWithStatus {
+	return []k8s.ContextWithStatus{}
+}
+func (m *mockRepository) GetActiveContext() string {
+	return m.context
+}
+func (m *mockRepository) RetryFailedContext(contextName string, progress chan<- k8s.ContextLoadProgress) error {
+	return nil
+}
+func (m *mockRepository) GetContexts() ([]k8s.Context, error) {
+	return []k8s.Context{}, nil
+}
+
 func TestScaleCommand_ArgParsing(t *testing.T) {
 	repo := &mockRepository{}
-	scaleCmd := ScaleCommand(repo)
+	scaleCmd := ScaleCommand(newTestRepositoryPool(repo))
 
 	tests := []struct {
 		name      string
@@ -148,7 +176,7 @@ func TestRestartCommand_BasicFlow(t *testing.T) {
 		kubeconfig: "/path/to/kubeconfig",
 		context:    "test-context",
 	}
-	restartCmd := RestartCommand(repo)
+	restartCmd := RestartCommand(newTestRepositoryPool(repo))
 
 	ctx := CommandContext{
 		ResourceType: k8s.ResourceTypeDeployment,
@@ -176,7 +204,7 @@ func TestRestartCommand_BasicFlow(t *testing.T) {
 
 func TestDeleteCommand_BasicFlow(t *testing.T) {
 	repo := &mockRepository{}
-	deleteCmd := DeleteCommand(repo)
+	deleteCmd := DeleteCommand(newTestRepositoryPool(repo))
 
 	tests := []struct {
 		name         string
@@ -230,7 +258,7 @@ func TestScaleCommand_ContextHandling(t *testing.T) {
 		kubeconfig: "/custom/kubeconfig",
 		context:    "prod-cluster",
 	}
-	scaleCmd := ScaleCommand(repo)
+	scaleCmd := ScaleCommand(newTestRepositoryPool(repo))
 
 	ctx := CommandContext{
 		ResourceType: k8s.ResourceTypeDeployment,
@@ -251,7 +279,7 @@ func TestScaleCommand_ContextHandling(t *testing.T) {
 
 func TestRestartCommand_MissingResource(t *testing.T) {
 	repo := &mockRepository{}
-	restartCmd := RestartCommand(repo)
+	restartCmd := RestartCommand(newTestRepositoryPool(repo))
 
 	ctx := CommandContext{
 		ResourceType: k8s.ResourceTypeDeployment,

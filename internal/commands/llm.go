@@ -8,7 +8,7 @@ import (
 
 // LLMDeleteFailingPodsCommand returns execute function for LLM example command.
 // TODO: Implement local LLM integration (see research docs in thoughts/shared/research/).
-func LLMDeleteFailingPodsCommand(repo k8s.Repository) ExecuteFunc {
+func LLMDeleteFailingPodsCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented")
 	}
@@ -16,7 +16,7 @@ func LLMDeleteFailingPodsCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMScaleNginxCommand returns execute function for LLM example command.
 // TODO: Implement local LLM integration (see research docs in thoughts/shared/research/).
-func LLMScaleNginxCommand(repo k8s.Repository) ExecuteFunc {
+func LLMScaleNginxCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented")
 	}
@@ -24,7 +24,7 @@ func LLMScaleNginxCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMGetPodLogsCommand returns execute function for LLM example command.
 // TODO: Implement local LLM integration (see research docs in thoughts/shared/research/).
-func LLMGetPodLogsCommand(repo k8s.Repository) ExecuteFunc {
+func LLMGetPodLogsCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented")
 	}
@@ -32,7 +32,7 @@ func LLMGetPodLogsCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMRestartDeploymentCommand returns execute function for LLM example command.
 // TODO: Implement local LLM integration (see research docs in thoughts/shared/research/).
-func LLMRestartDeploymentCommand(repo k8s.Repository) ExecuteFunc {
+func LLMRestartDeploymentCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented")
 	}
@@ -40,7 +40,7 @@ func LLMRestartDeploymentCommand(repo k8s.Repository) ExecuteFunc {
 
 // LLMShowPodEventsCommand returns execute function for LLM example command.
 // TODO: Implement local LLM integration (see research docs in thoughts/shared/research/).
-func LLMShowPodEventsCommand(repo k8s.Repository) ExecuteFunc {
+func LLMShowPodEventsCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		return messages.InfoCmd("LLM commands not yet implemented")
 	}

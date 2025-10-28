@@ -28,7 +28,7 @@ type PortForwardArgs struct {
 }
 
 // ShellCommand returns execute function for opening shell in pod (clipboard mode)
-func ShellCommand(repo k8s.Repository) ExecuteFunc {
+func ShellCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args
 		var args ShellArgs
@@ -44,6 +44,12 @@ func ShellCommand(repo k8s.Repository) ExecuteFunc {
 		}
 		if ns, ok := ctx.Selected["namespace"].(string); ok {
 			namespace = ns
+		}
+
+		// Get active repository at execution time
+		repo := pool.GetActiveRepository()
+		if repo == nil {
+			return messages.ErrorCmd("No active repository")
 		}
 
 		// Build kubectl exec command
@@ -86,7 +92,7 @@ func ShellCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // LogsCommand returns execute function for viewing pod logs (clipboard mode)
-func LogsCommand(repo k8s.Repository) ExecuteFunc {
+func LogsCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args
 		var args LogsArgs
@@ -102,6 +108,12 @@ func LogsCommand(repo k8s.Repository) ExecuteFunc {
 		}
 		if ns, ok := ctx.Selected["namespace"].(string); ok {
 			namespace = ns
+		}
+
+		// Get active repository at execution time
+		repo := pool.GetActiveRepository()
+		if repo == nil {
+			return messages.ErrorCmd("No active repository")
 		}
 
 		// Build kubectl logs command
@@ -149,7 +161,7 @@ func LogsCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // LogsPreviousCommand returns execute function for viewing previous pod logs
-func LogsPreviousCommand(repo k8s.Repository) ExecuteFunc {
+func LogsPreviousCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		if name, ok := ctx.Selected["name"].(string); ok {
@@ -160,7 +172,7 @@ func LogsPreviousCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // PortForwardCommand returns execute function for port forwarding to pod (clipboard mode)
-func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
+func PortForwardCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		// Parse args
 		var args PortForwardArgs
@@ -176,6 +188,12 @@ func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
 		}
 		if ns, ok := ctx.Selected["namespace"].(string); ok {
 			namespace = ns
+		}
+
+		// Get active repository at execution time
+		repo := pool.GetActiveRepository()
+		if repo == nil {
+			return messages.ErrorCmd("No active repository")
 		}
 
 		// Build kubectl port-forward command
@@ -210,7 +228,7 @@ func PortForwardCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // JumpOwnerCommand returns execute function for jumping to owner resource
-func JumpOwnerCommand(repo k8s.Repository) ExecuteFunc {
+func JumpOwnerCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		if name, ok := ctx.Selected["name"].(string); ok {
@@ -221,7 +239,7 @@ func JumpOwnerCommand(repo k8s.Repository) ExecuteFunc {
 }
 
 // ShowNodeCommand returns execute function for showing node details
-func ShowNodeCommand(repo k8s.Repository) ExecuteFunc {
+func ShowNodeCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
 		resourceName := "unknown"
 		nodeName := "unknown"

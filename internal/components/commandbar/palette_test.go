@@ -8,13 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/renato0307/k1/internal/commands"
-	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/ui"
 )
 
 func TestNewPalette(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -25,8 +24,8 @@ func TestNewPalette(t *testing.T) {
 }
 
 func TestPalette_Filter_Resource(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -49,8 +48,8 @@ func TestPalette_Filter_Resource(t *testing.T) {
 }
 
 func TestPalette_Filter_Action(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -71,8 +70,8 @@ func TestPalette_Filter_Action(t *testing.T) {
 }
 
 func TestPalette_NavigateUpDown(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -115,8 +114,8 @@ func TestPalette_NavigateUpDown(t *testing.T) {
 }
 
 func TestPalette_GetSelected(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -143,8 +142,8 @@ func TestPalette_GetSelected(t *testing.T) {
 }
 
 func TestPalette_Reset(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -160,8 +159,8 @@ func TestPalette_Reset(t *testing.T) {
 }
 
 func TestPalette_SetWidth(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -172,8 +171,8 @@ func TestPalette_SetWidth(t *testing.T) {
 }
 
 func TestPalette_View(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	registry := commands.NewRegistry(repo)
+	pool := createTestPool(t)
+	registry := commands.NewRegistry(pool)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
