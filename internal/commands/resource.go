@@ -172,3 +172,63 @@ func DeleteCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 		}
 	}
 }
+
+// EditCommand returns execute function for editing a resource (clipboard)
+func EditCommand(pool *k8s.RepositoryPool) ExecuteFunc {
+	return func(ctx CommandContext) tea.Cmd {
+		// Get resource info
+		resourceName := "unknown"
+		namespace := ""
+		if name, ok := ctx.Selected["name"].(string); ok {
+			resourceName = name
+		}
+
+		// Only set namespace for namespaced resources
+		if !isClusterScoped(ctx.ResourceType) {
+			namespace = "default"
+			if ns, ok := ctx.Selected["namespace"].(string); ok {
+				namespace = ns
+			}
+		}
+
+		// Validate we have active repository first
+		repo := pool.GetActiveRepository()
+		if repo == nil {
+			return messages.ErrorCmd("No active repository")
+		}
+
+		// Build kubectl edit command
+		var kubectlCmd strings.Builder
+		kubectlCmd.WriteString("kubectl edit ")
+		kubectlCmd.WriteString(string(ctx.ResourceType))
+		kubectlCmd.WriteString(" ")
+		kubectlCmd.WriteString(resourceName)
+
+		// Add namespace flag only for namespaced resources
+		if namespace != "" {
+			kubectlCmd.WriteString(" --namespace ")
+			kubectlCmd.WriteString(namespace)
+		}
+
+		// Add kubeconfig/context if set
+		if repo.GetKubeconfig() != "" {
+			kubectlCmd.WriteString(" --kubeconfig ")
+			kubectlCmd.WriteString(repo.GetKubeconfig())
+		}
+		if repo.GetContext() != "" {
+			kubectlCmd.WriteString(" --context ")
+			kubectlCmd.WriteString(repo.GetContext())
+		}
+
+		command := kubectlCmd.String()
+
+		return func() tea.Msg {
+			msg, err := CopyToClipboard(command)
+			if err != nil {
+				// Clipboard failed (e.g., SSH session), show command anyway
+				return messages.InfoCmd("Clipboard unavailable. Command: %s", command)()
+			}
+			return messages.InfoCmd("%s", msg)()
+		}
+	}
+}

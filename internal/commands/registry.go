@@ -174,6 +174,14 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Execute:           DeleteCommand(pool),
 			},
 			{
+				Name:          "edit",
+				Description:   "Edit resource (clipboard)",
+				Category:      CategoryAction,
+				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
+				Shortcut:      "ctrl+e",
+				Execute:       EditCommand(pool),
+			},
+			{
 				Name:          "logs",
 				Description:   "View pod logs (clipboard)",
 				Category:      CategoryAction,
