@@ -164,8 +164,10 @@ make build
 - [ ] Configuration persistence (~/.config/k1/)
 - [ ] Resource editing
 - [ ] Log streaming in TUI
-- [ ] Multi-cluster support
-- [ ] Shell history and saved commands
+- [ ] AI based commands
+- [ ] Search on yaml and describe
+- [ ] Copy screen to clipboard
+- [ ] Shell into pod
 
 ## Inspiration
 

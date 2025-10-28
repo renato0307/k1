@@ -8,10 +8,11 @@ topic: "Search functionality for YAML and describe screens with highlighting
 and YAMLPath support"
 tags: [research, codebase, fullscreen, yaml, describe, search, yamlpath,
 highlighting]
-status: complete
-last_updated: 2025-10-09
+status: in-progress
+last_updated: 2025-10-28
 last_updated_by: claude
-last_updated_note: "Added YAMLPath research findings"
+last_updated_note: "Added follow-up review: command bar integration status,
+implementation gaps, and context management additions"
 ---
 
 # Research: Search Functionality for YAML and Describe Screens
@@ -787,3 +788,617 @@ column := token.Position.Column // Direct column
 4. **Test position tracking**: Verify line/column accuracy for highlighting
 5. **User feedback**: Test search UX with realistic workflows
 6. **Documentation**: Update CLAUDE.md with search usage patterns
+
+---
+
+## Follow-up Review [2025-10-28T07:01:58+00:00]
+
+**Date**: 2025-10-28
+**Git Commit**: 7206c20452f397727d32d009cc2183212f045b13
+**Branch**: feat/kubernetes-context-management
+
+### Review Purpose
+
+Review the codebase to identify what has changed since the original research
+(October 9, 2025) and assess the current implementation status of the
+proposed search features.
+
+### Key Findings
+
+#### 1. No Search Implementation Yet
+
+**Finding**: None of the proposed search features have been implemented.
+
+**Details**:
+- FullScreen component remains unchanged (`fullscreen.go:26-247`)
+- No search state machine additions
+- No text matching or position tracking
+- No YAMLPath integration
+- `goccy/go-yaml` dependency NOT added to `go.mod`
+
+**Proposed messages NOT implemented**:
+- `EnterSearchMsg` - Does not exist in `internal/types/types.go`
+- `SearchQueryUpdateMsg` - Does not exist
+- `SearchResultsMsg` - Does not exist
+- `ExitSearchMsg` - Does not exist
+
+**Status**: Research was complete, but no implementation work has started.
+
+#### 2. Command Bar NOT Integrated with FullScreen
+
+**Finding**: FullScreen and command bar operate independently without
+integration.
+
+**Details** (`app.go:240-249`):
+- When `fullScreenMode = true`, command bar is completely bypassed
+- ESC key handled specially to exit full-screen (`app.go:242-244`)
+- All input forwarded directly to FullScreen component
+- Command bar not rendered during full-screen mode (`app.go:589-591`)
+
+**Implication**: Phase 0 (Add Command Bar to FullScreen) from original
+research is NOT implemented. The proposed integration pattern would require
+significant refactoring:
+- FullScreen would need to own a CommandBar instance
+- Message routing would need to be added
+- View rendering would need to include command bar
+- Height coordination would need implementation
+
+**Current architecture**: FullScreen is a standalone modal that replaces the
+entire UI (header, body, command bar).
+
+**Proposed architecture**: FullScreen would become a complex component with
+embedded command bar, similar to how screens work.
+
+#### 3. Command Registry is Well-Structured
+
+**Finding**: Command registry exists with sophisticated filtering, but no
+search commands registered.
+
+**Current commands** (`internal/commands/registry.go`):
+- Resource commands: `/yaml`, `/describe`, `/delete`, `/logs`
+- Deployment commands: `/scale`, `/restart`
+- Node commands: `/cordon`, `/drain`
+- Service commands: `/endpoints`
+- Navigation commands: `:pods`, `:deployments`, `:services`, etc.
+- Context commands: `:contexts`, `:next`, `:prev`
+- LLM commands: `/ai <prompt>`
+
+**Missing commands**:
+- `/search` - NOT registered
+- `/yamlpath` - NOT registered
+- `/copy` - NOT registered
+- `/export-json` - NOT registered
+- `/goto-line` - NOT registered
+
+**Registry capabilities** (`registry.go:351-376`):
+- Fuzzy search filtering via `github.com/sahilm/fuzzy`
+- Category-based filtering (Resource vs Action)
+- Resource-type filtering (context-aware commands)
+- Could easily support new commands when implemented
+
+#### 4. Filter Patterns Work Well for Lists
+
+**Finding**: Existing filter infrastructure is mature and could be adapted
+for FullScreen search.
+
+**Current implementation** (`screens/config.go:553-605`):
+- Real-time fuzzy search on table rows
+- Negation support with `!` prefix
+- `fuzzy.Match.MatchedIndexes` available but UNUSED for highlighting
+- Strict prefix matching for contexts screen
+
+**Command bar integration** (`commandbar/commandbar.go:162-244`):
+- Any character activates filter mode
+- `FilterUpdateMsg` sent on every keystroke
+- ESC clears filter and returns to hidden state
+- Works seamlessly with screens
+
+**Adaptation opportunity**: The filter pattern could be adapted to FullScreen
+content, but would require:
+- Line-based filtering instead of row-based
+- Match position tracking for highlighting
+- Scroll-to-match functionality
+- Visual indicator of filtered vs all content
+
+#### 5. Command Bar State Machine is Sophisticated
+
+**Finding**: Command bar has a complex 7-state state machine that could
+support search modes.
+
+**Current states** (`types.go:16-23`):
+- `StateHidden` - Inactive
+- `StateFilter` - Real-time fuzzy search
+- `StateSuggestionPalette` - Command palette (`:` or `/`)
+- `StateInput` - Direct command input with args
+- `StateConfirmation` - Destructive operation confirmation
+- `StateLLMPreview` - AI command preview
+- `StateResult` - Command execution result display
+
+**Potential new states for search**:
+- `StateSearchActive` - Text search with n/N navigation
+- `StateYAMLPathActive` - YAMLPath query mode
+
+**Height coordination** (`commandbar.go:73-91`, `app.go:269`):
+- Dynamic height (1-6 lines) based on state
+- App recalculates body height on every state change
+- Layout system supports variable command bar height
+
+**Challenge**: FullScreen currently takes entire terminal (`app.go:521`). To
+integrate command bar, would need to:
+- Reserve space for command bar at bottom
+- Coordinate height between FullScreen and CommandBar
+- Handle state transitions and message routing
+- Render both components in full-screen mode
+
+#### 6. Major Feature Addition: Context Management
+
+**Finding**: Kubernetes context switching with loading states was added since
+October 9 research.
+
+**New messages** (`types.go:170-204`):
+- `ContextSwitchMsg` - Initiates context switch
+- `ContextLoadProgressMsg` - Reports loading progress
+- `ContextLoadCompleteMsg` - Signals successful load
+- `ContextLoadFailedMsg` - Signals failed load
+- `ContextSwitchCompleteMsg` - Signals successful switch
+- `ContextRetryMsg` - Requests retry of failed context
+
+**Implementation** (`app.go:394-646`):
+- Background context loading via RepositoryPool
+- Loading UI with spinner and progress messages
+- Re-registration of all screens with new repository
+- History preservation across context switches
+- Error handling and retry mechanism
+
+**Impact on search feature**: None directly, but demonstrates the project's
+ability to add complex multi-message workflows.
+
+#### 7. FullScreen Component Unchanged
+
+**Finding**: FullScreen component implementation matches October 9 research
+exactly.
+
+**Current features** (`fullscreen.go:26-247`):
+- Three view types: YAML (0), Describe (1), Logs (2)
+- Manual scrolling: ↑↓, jk, PgUp/PgDn, g/G
+- YAML syntax highlighting (simple pattern-based)
+- Scroll position indicator
+- Content stored as single string
+- Reserved lines constant: 3
+
+**No additions**:
+- No search state
+- No match tracking
+- No highlighting infrastructure
+- No command bar integration
+- No viewport component
+
+**Logs view type**: Still not implemented (reserved but unused)
+
+**Reference**: Log streaming research exists at
+`thoughts/shared/research/2025-10-26-log-streaming-tui-implementation.md`
+
+#### 8. Highlighting Infrastructure is Ready
+
+**Finding**: Theme colors and styling patterns exist for implementing match
+highlighting.
+
+**Available theme colors** (`ui/theme.go`):
+- `Primary` - Main accent (currently used for YAML keys)
+- `Success` - Green (currently used for YAML values)
+- `Error` - Red (for error states)
+- `Warning` - Yellow/Orange (available for match highlighting)
+- `Muted` - Grey (currently used for comments)
+- `Dimmed` - Very subtle grey (for hints)
+- `Subtle` - Medium grey (for backgrounds)
+- `Accent` - Alternative highlight (available for match highlighting)
+
+**Existing highlighting patterns**:
+- YAML syntax highlighting: line-by-line with key/value/comment colors
+  (`fullscreen.go:184-216`)
+- Selection highlighting: background + bold + indicator
+  (`palette.go:177-206`)
+- Status messages: high-contrast background + foreground + bold
+  (`statusbar.go:58-91`)
+
+**Recommendation from original research**: Use `Accent` or `Warning` with
+Bold for search matches to distinguish from syntax highlighting.
+
+**Ready for implementation**: The styling infrastructure is mature and could
+support layered highlighting (syntax + search matches).
+
+### Implementation Gaps Analysis
+
+#### Phase 0: Add Command Bar to FullScreen (NOT DONE)
+
+**Original estimate**: Low complexity (1 day)
+
+**Current reality**: More complex than originally estimated due to:
+1. FullScreen currently replaces entire UI (modal pattern)
+2. Command bar bypass in full-screen mode is intentional
+3. Would require architectural change from modal to embedded pattern
+4. Height coordination more complex than anticipated
+
+**Required changes**:
+- Add CommandBar field to FullScreen struct
+- Modify View() to render command bar at bottom
+- Update Update() to route messages to command bar
+- Reserve space in height calculations
+- Handle state transitions (filter, palette, input)
+- Coordinate scrolling when command bar expands
+
+**Revised estimate**: Medium complexity (2-3 days)
+
+#### Phase 1: Fuzzy Filter on Content (NOT DONE)
+
+**Original estimate**: Low-Medium complexity (1-2 days)
+
+**Readiness**: High - existing filter infrastructure could be adapted
+
+**Required changes**:
+- Handle `FilterUpdateMsg` in FullScreen
+- Split content into lines, apply fuzzy search
+- Track matched line numbers
+- Highlight matched lines or characters
+- Scroll to first match on filter activation
+- Show match count in UI
+
+**Dependencies**: Phase 0 must be complete
+
+**Consideration**: Should filter hide non-matching lines or just highlight
+them? Original research doesn't specify.
+
+#### Phase 2: Text Search Command (/search) (NOT DONE)
+
+**Original estimate**: Medium complexity (2-3 days)
+
+**Missing pieces**:
+- `/search` command not registered in registry
+- Search state not added to FullScreen
+- No n/N navigation logic
+- No match position tracking
+- No current match highlighting
+
+**Required changes**:
+- Register `/search` command in registry
+- Add search fields to FullScreen: searchMode, searchQuery, searchMatches,
+  currentMatch
+- Implement text matching with position tracking
+- Add n/N key handlers for navigation
+- Highlight current match differently than other matches
+- Auto-scroll to current match
+
+**Dependencies**: Phase 0 must be complete
+
+**Consideration**: Distinguish filter (immediate, fuzzy) from search
+(persistent, navigate with n/N).
+
+#### Phase 3: YAMLPath Query Command (/yamlpath) (NOT DONE)
+
+**Original estimate**: Medium complexity (3-4 days with native position
+support)
+
+**Missing pieces**:
+- `goccy/go-yaml` dependency not added to `go.mod`
+- `/yamlpath` command not registered
+- No AST parsing logic
+- No YAMLPath query execution
+- No result rendering with context
+
+**Required changes**:
+- Add dependency: `go get github.com/goccy/go-yaml`
+- Register `/yamlpath` command
+- Implement YAMLPath query execution with AST parsing
+- Extract native line/column positions from AST nodes
+- Display results with surrounding context
+- Handle query validation errors
+- Provide query syntax examples
+
+**Dependencies**: Phase 0 must be complete
+
+**Advantage**: goccy/go-yaml provides native position tracking, eliminating
+need for complex mapping.
+
+#### Phase 4: Additional Commands (NOT DONE)
+
+**Original estimate**: Low-Medium complexity (2-3 days)
+
+**Commands to implement**:
+- `/copy` - Copy entire content to clipboard
+- `/copy-selection` - Copy current match/selection
+- `/export-json` - Convert YAML to JSON and copy
+- `/goto-line` - Jump to specific line number
+
+**Missing pieces**:
+- No clipboard integration (would need `atotto/clipboard` or similar)
+- No commands registered
+- No execution logic
+
+**Status**: Not started
+
+#### Phase 5: Advanced Features (NOT DONE)
+
+**Original estimate**: Optional enhancements
+
+**Features proposed**:
+- Search history (remember recent queries)
+- Case-sensitive toggle
+- Regular expression support
+- Save/load favorite YAMLPath queries
+- Export search results
+- Search result count in status bar
+
+**Status**: Not started, still optional
+
+### Revised Implementation Strategy
+
+#### Challenge 1: Modal vs Embedded Pattern
+
+**Current**: FullScreen is a modal that replaces entire UI
+
+**Required**: FullScreen needs embedded command bar like screens
+
+**Options**:
+
+**Option A: Full Integration (Original Plan)**
+- Embed CommandBar in FullScreen
+- FullScreen owns command bar instance
+- Coordinate height dynamically
+- Message routing in FullScreen.Update()
+
+**Pros**: Clean separation, FullScreen self-contained
+**Cons**: Complex, breaks modal pattern, height coordination tricky
+
+**Option B: Parallel Components**
+- Keep FullScreen as modal for content
+- Keep CommandBar separate at app level
+- App coordinates messages between them
+- Command bar stays visible in full-screen mode
+
+**Pros**: Simpler, maintains current architecture
+**Cons**: App becomes more complex coordinator, less encapsulation
+
+**Option C: Hybrid Approach**
+- FullScreen remains modal for YAML/describe views (no search)
+- Add new "SearchableFullScreen" component with embedded command bar
+- Migrate to SearchableFullScreen only when search feature implemented
+
+**Pros**: Gradual migration, doesn't break existing functionality
+**Cons**: Two full-screen components, more code
+
+**Recommendation**: Option B (Parallel Components) for Phase 0, then
+refactor to Option A if needed. Simpler to start, less risk.
+
+#### Challenge 2: Filter vs Search Distinction
+
+**Original research question** (Open Question #2):
+"Is the distinction between filter and search clear to users?"
+
+**Current filter behavior** (command bar + screens):
+- Type character → immediate fuzzy filtering
+- Real-time updates on every keystroke
+- ESC clears filter
+- Shows all matches at once
+
+**Proposed search behavior** (Phase 2):
+- Execute `/search` command → enter search mode
+- Type search term → find matches
+- n/N navigate between matches
+- Shows current match with highlighting
+- Persistent until explicitly exited
+
+**Distinction**:
+- **Filter**: Immediate, fuzzy, shows all matches
+- **Search**: Persistent, exact, navigate matches
+
+**User signal**: Filter for quick narrowing, search for precise navigation
+
+**Implementation approach**: Implement filter first (Phase 1), defer search
+(Phase 2) until user feedback confirms need for both.
+
+#### Challenge 3: Highlighting Conflicts
+
+**Original research question** (Open Question #4):
+"How to combine YAML syntax highlighting with search match highlighting?"
+
+**Current YAML highlighting** (`fullscreen.go:184-216`):
+- Line-by-line processing
+- Keys: `theme.Primary`
+- Values: `theme.Success`
+- Comments: `theme.Muted`
+
+**Proposed match highlighting**:
+- Background: `theme.Warning` or `theme.Accent`
+- Foreground: `theme.Background` (high contrast)
+- Bold: true
+
+**Implementation strategy**:
+1. Apply YAML syntax highlighting first (current behavior)
+2. Identify match positions within styled content
+3. Re-style matched characters/words with search highlight
+4. Concatenate styled fragments
+
+**Example**:
+```
+Original:  "  name: nginx-deployment"
+Syntax:    "  " + Primary("name:") + " " + Success("nginx-deployment")
+Search:    "  " + Primary("name:") + " " + Success("nginx") +
+Warning("-deployment")
+```
+
+**Challenge**: Need character-level styling, not line-level. Current
+`highlightYAML()` doesn't support this.
+
+**Solution**: Refactor to build styled string character-by-character or
+segment-by-segment.
+
+### Updated Recommendations
+
+#### Short-Term (Immediate Next Steps)
+
+1. **Prototype parallel components approach** (Option B)
+   - Keep FullScreen as modal
+   - Make command bar visible in full-screen mode
+   - Route messages at app level
+   - Test with simple filter mode
+
+2. **Implement Phase 1: Fuzzy Filter**
+   - Reuse existing filter message types
+   - Apply fuzzy search to FullScreen content
+   - Highlight matched lines (simple background color)
+   - Defer character-level highlighting
+
+3. **User feedback on filter behavior**
+   - Is filter mode sufficient for most use cases?
+   - Do users need persistent search with n/N navigation?
+   - Is the filter vs search distinction necessary?
+
+#### Medium-Term (After Feedback)
+
+4. **Decide on search implementation**
+   - If filter is sufficient, stop at Phase 1
+   - If persistent search needed, implement Phase 2
+   - Re-evaluate architectural pattern (parallel vs embedded)
+
+5. **Evaluate YAMLPath demand**
+   - Survey users: Would they use YAMLPath queries?
+   - Identify common query patterns (containers, labels, etc.)
+   - Prototype with `goccy/go-yaml` if demand exists
+
+6. **Implement utility commands**
+   - `/copy` (highest value, easiest)
+   - `/goto-line` (if large YAML files common)
+   - `/export-json` (if conversion needed)
+
+#### Long-Term (Future Enhancements)
+
+7. **Advanced highlighting**
+   - Character-level match highlighting
+   - Multiple match colors (current vs others)
+   - Context lines around matches
+
+8. **Search history and templates**
+   - Remember recent queries
+   - Favorite YAMLPath templates
+   - Query validation and syntax help
+
+9. **Performance optimization**
+   - Lazy AST parsing for YAMLPath
+   - Progress indicators for slow queries
+   - Caching for repeated queries
+
+### Testing Strategy Updates
+
+#### Unit Tests (Currently Missing)
+
+**Required for search implementation**:
+- `fullscreen_test.go` - DOES NOT EXIST (add before search work)
+- Test scrolling, view rendering, size calculations
+- Test content processing and highlighting
+
+**Search-specific tests** (add when implementing):
+- Text matching with various patterns
+- Position tracking and match navigation
+- Filter vs search behavior
+- Highlighting with YAML syntax
+
+#### Integration Tests
+
+**Required**:
+- Full search flow with envtest Kubernetes objects
+- Command bar coordination in full-screen mode
+- Height recalculation when command bar changes state
+- Message routing between app, command bar, full-screen
+
+**YAMLPath-specific** (if implemented):
+- AST parsing with goccy/go-yaml
+- Query execution with real Kubernetes YAML
+- Position extraction from AST nodes
+- Multi-document YAML support
+
+#### Manual Testing Checklist
+
+**Filter mode**:
+- [ ] Type characters to filter content
+- [ ] ESC clears filter
+- [ ] Matched lines highlighted
+- [ ] Scroll position preserved or reset?
+- [ ] Large files (1000+ lines) performance
+
+**Search mode** (if implemented):
+- [ ] `/search` command activation
+- [ ] n/N navigation between matches
+- [ ] Current match highlighted differently
+- [ ] Auto-scroll to current match
+- [ ] Search persists across scrolling
+
+**YAMLPath mode** (if implemented):
+- [ ] `/yamlpath` command activation
+- [ ] Query syntax validation
+- [ ] Result highlighting with context
+- [ ] Complex queries (nested fields, arrays)
+- [ ] YAML comments preserved
+
+### Open Questions (Updated)
+
+#### Resolved Since Original Research
+
+**Question 1**: Command bar integration approach
+**Answer**: Parallel components approach recommended for Phase 0
+
+**Question 3**: Search scope
+**Answer**: All content with auto-scroll (confirmed as correct approach)
+
+#### Still Open
+
+**Question 2**: Filter vs Search distinction
+**Status**: Implement filter first, defer search until user feedback
+
+**Question 4**: Highlighting conflicts
+**Status**: Refactor to character-level styling required
+
+**Question 5**: Performance for large files
+**Status**: Implement basic version, optimize if slow
+
+**Question 6**: Command availability in full-screen
+**Status**: Commands should be context-aware (only show when applicable)
+
+**Question 7**: YAMLPath syntax help
+**Status**: Provide examples if YAMLPath implemented
+
+#### New Questions
+
+**Question 8**: Should filter hide non-matching lines or just highlight them?
+**Recommendation**: Highlight only (preserves context)
+
+**Question 9**: Should search work across view types (YAML, describe, logs)?
+**Recommendation**: Yes, search should be view-agnostic
+
+**Question 10**: How to handle search in streaming logs (future)?
+**Recommendation**: Defer until log streaming implemented, may need
+different approach
+
+### Conclusion
+
+**Implementation status**: None of the proposed search features have been
+implemented since the October 9 research.
+
+**Key blockers**:
+1. Architectural decision needed: modal vs embedded pattern
+2. Command bar integration more complex than estimated
+3. No clear user demand signal for search vs filter
+
+**Recommended path forward**:
+1. Start with Phase 0: parallel components approach (simpler)
+2. Implement Phase 1: basic filter mode (reuse existing patterns)
+3. Gather user feedback before investing in full search (Phase 2-5)
+4. Re-evaluate YAMLPath based on actual user needs
+
+**Effort estimate** (revised):
+- Phase 0: 2-3 days (was 1 day)
+- Phase 1: 2-3 days (was 1-2 days)
+- Total for basic filter: 4-6 days
+
+**Risk**: Medium - architectural changes to app-level coordination
+
+**Value**: High - improves YAML/describe navigation significantly
