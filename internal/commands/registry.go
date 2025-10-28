@@ -174,6 +174,14 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Execute:           DeleteCommand(pool),
 			},
 			{
+				Name:          "edit",
+				Description:   "Edit resource (clipboard)",
+				Category:      CategoryAction,
+				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
+				Shortcut:      "ctrl+e",
+				Execute:       EditCommand(pool),
+			},
+			{
 				Name:          "logs",
 				Description:   "View pod logs (clipboard)",
 				Category:      CategoryAction,
@@ -404,6 +412,16 @@ func (r *Registry) FilterByResourceType(commands []Command, resourceType k8s.Res
 func (r *Registry) Get(name string, category CommandCategory) *Command {
 	for _, cmd := range r.commands {
 		if cmd.Category == category && strings.EqualFold(cmd.Name, name) {
+			return &cmd
+		}
+	}
+	return nil
+}
+
+// GetByShortcut returns a command by keyboard shortcut, or nil if not found
+func (r *Registry) GetByShortcut(shortcut string) *Command {
+	for _, cmd := range r.commands {
+		if cmd.Shortcut != "" && cmd.Shortcut == shortcut {
 			return &cmd
 		}
 	}

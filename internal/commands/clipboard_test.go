@@ -276,3 +276,155 @@ func TestLogsCommand_ArgParsing(t *testing.T) {
 		})
 	}
 }
+
+func TestEditCommand_CommandGeneration(t *testing.T) {
+	repo := &mockRepository{}
+	editCmd := EditCommand(newTestRepositoryPool(repo))
+
+	tests := []struct {
+		name         string
+		resourceType k8s.ResourceType
+		selected     map[string]any
+		expected     []string // Expected command parts
+	}{
+		{
+			name:         "namespaced resource (pod)",
+			resourceType: k8s.ResourceTypePod,
+			selected: map[string]any{
+				"name":      "test-pod",
+				"namespace": "default",
+			},
+			expected: []string{"kubectl edit pods", "test-pod", "--namespace default"},
+		},
+		{
+			name:         "namespaced resource (deployment)",
+			resourceType: k8s.ResourceTypeDeployment,
+			selected: map[string]any{
+				"name":      "nginx-deployment",
+				"namespace": "production",
+			},
+			expected: []string{"kubectl edit deployments", "nginx-deployment", "--namespace production"},
+		},
+		{
+			name:         "cluster-scoped resource (node)",
+			resourceType: k8s.ResourceTypeNode,
+			selected: map[string]any{
+				"name": "worker-node-1",
+			},
+			expected: []string{"kubectl edit nodes", "worker-node-1"},
+		},
+		{
+			name:         "cluster-scoped resource (namespace)",
+			resourceType: k8s.ResourceTypeNamespace,
+			selected: map[string]any{
+				"name": "kube-system",
+			},
+			expected: []string{"kubectl edit namespaces", "kube-system"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := CommandContext{
+				ResourceType: tt.resourceType,
+				Selected:     tt.selected,
+			}
+
+			cmd := editCmd(ctx)
+			require.NotNil(t, cmd)
+
+			// Execute the command
+			msg := cmd()
+			require.NotNil(t, msg)
+
+			// Should return info message (clipboard copy or fallback)
+			statusMsg, ok := msg.(types.StatusMsg)
+			assert.True(t, ok, "expected StatusMsg")
+			if ok {
+				assert.Equal(t, types.MessageTypeInfo, statusMsg.Type)
+				// Message should contain the command parts
+				for _, expectedPart := range tt.expected {
+					assert.Contains(t, statusMsg.Message, expectedPart,
+						"command should contain '%s'", expectedPart)
+				}
+				// Cluster-scoped resources should NOT have namespace flag
+				if tt.resourceType == k8s.ResourceTypeNode || tt.resourceType == k8s.ResourceTypeNamespace {
+					assert.NotContains(t, statusMsg.Message, "--namespace",
+						"cluster-scoped resource should not have --namespace flag")
+				}
+				t.Logf("Edit command message: %s", statusMsg.Message)
+			}
+		})
+	}
+}
+
+func TestEditCommand_KubeconfigContext(t *testing.T) {
+	repo := &mockRepository{
+		kubeconfig: "/custom/kubeconfig",
+		context:    "prod-cluster",
+	}
+	editCmd := EditCommand(newTestRepositoryPool(repo))
+
+	tests := []struct {
+		name         string
+		resourceType k8s.ResourceType
+		selected     map[string]any
+		expectedParts []string
+	}{
+		{
+			name:         "namespaced resource with custom config",
+			resourceType: k8s.ResourceTypeService,
+			selected: map[string]any{
+				"name":      "api-service",
+				"namespace": "production",
+			},
+			expectedParts: []string{
+				"kubectl edit services",
+				"api-service",
+				"--namespace production",
+				"--kubeconfig /custom/kubeconfig",
+				"--context prod-cluster",
+			},
+		},
+		{
+			name:         "cluster-scoped with custom config",
+			resourceType: k8s.ResourceTypeNode,
+			selected: map[string]any{
+				"name": "master-node",
+			},
+			expectedParts: []string{
+				"kubectl edit nodes",
+				"master-node",
+				"--kubeconfig /custom/kubeconfig",
+				"--context prod-cluster",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := CommandContext{
+				ResourceType: tt.resourceType,
+				Selected:     tt.selected,
+			}
+
+			cmd := editCmd(ctx)
+			require.NotNil(t, cmd)
+
+			msg := cmd()
+			require.NotNil(t, msg)
+
+			statusMsg, ok := msg.(types.StatusMsg)
+			assert.True(t, ok)
+			if ok {
+				assert.Equal(t, types.MessageTypeInfo, statusMsg.Type)
+				// Verify all expected parts are in the command
+				for _, part := range tt.expectedParts {
+					assert.Contains(t, statusMsg.Message, part,
+						"command should contain '%s'", part)
+				}
+				t.Logf("Edit command with custom config: %s", statusMsg.Message)
+			}
+		})
+	}
+}

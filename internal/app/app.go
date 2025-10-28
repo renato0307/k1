@@ -194,46 +194,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, screen.Refresh()
 			}
 			return m, nil
-		case "ctrl+y":
+		}
+
+		// Try to find command by shortcut dynamically
+		if cmd := m.commandBar.GetCommandByShortcut(msg.String()); cmd != nil {
 			// Update selection context before executing command
 			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
 				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
 			}
-			// Execute /yaml command
-			updatedBar, barCmd := m.commandBar.ExecuteCommand("yaml", commands.CategoryAction)
+
+			// Execute command
+			updatedBar, barCmd := m.commandBar.ExecuteCommand(cmd.Name, cmd.Category)
 			m.commandBar = updatedBar
-			return m, barCmd
-		case "ctrl+d":
-			// Update selection context before executing command
-			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
-				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
-			}
-			// Execute /describe command
-			updatedBar, barCmd := m.commandBar.ExecuteCommand("describe", commands.CategoryAction)
-			m.commandBar = updatedBar
-			return m, barCmd
-		case "ctrl+l":
-			// Update selection context before executing command
-			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
-				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
-			}
-			// Execute /logs command
-			updatedBar, barCmd := m.commandBar.ExecuteCommand("logs", commands.CategoryAction)
-			m.commandBar = updatedBar
-			return m, barCmd
-		case "ctrl+x":
-			// Update selection context before executing command
-			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
-				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
-			}
-			// Execute /delete command (will show confirmation)
-			updatedBar, barCmd := m.commandBar.ExecuteCommand("delete", commands.CategoryAction)
-			m.commandBar = updatedBar
-			// Recalculate body height if command bar expanded for confirmation
+
+			// Recalculate body height if command bar expanded (e.g., for confirmation)
 			bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
 			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
 				screenWithSize.SetSize(m.state.Width, bodyHeight)
 			}
+
 			return m, barCmd
 		}
 
