@@ -637,7 +637,7 @@ func (m Model) View() string {
 // switchContextCmd returns command to switch contexts asynchronously
 func (m Model) switchContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
-		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE switch
+		oldContext := m.repoPool.GetActiveContext() // Capture BEFORE switch
 		err := m.repoPool.SwitchContext(contextName, nil)
 
 		if err != nil {
@@ -648,7 +648,7 @@ func (m Model) switchContextCmd(contextName string) tea.Cmd {
 		}
 
 		return types.ContextSwitchCompleteMsg{
-			OldContext: oldContext,  // Correct value
+			OldContext: oldContext, // Correct value
 			NewContext: contextName,
 		}
 	}
@@ -657,7 +657,7 @@ func (m Model) switchContextCmd(contextName string) tea.Cmd {
 // retryContextCmd returns command to retry failed context
 func (m Model) retryContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
-		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE retry
+		oldContext := m.repoPool.GetActiveContext() // Capture BEFORE retry
 		err := m.repoPool.RetryFailedContext(contextName, nil)
 
 		if err != nil {

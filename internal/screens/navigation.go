@@ -192,6 +192,7 @@ func navigateToPodsForVolumeSource(kind string) NavigationFunc {
 		}
 	}
 }
+
 // navigateToReplicaSetsForDeployment creates handler for Deployment → ReplicaSets
 func navigateToReplicaSetsForDeployment() NavigationFunc {
 	return func(s *ConfigScreen) tea.Cmd {

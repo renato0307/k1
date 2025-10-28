@@ -38,12 +38,12 @@ type loadingState struct {
 type RepositoryPool struct {
 	mu         sync.RWMutex
 	repos      map[string]*RepositoryEntry
-	active     string          // Current context name
-	maxSize    int             // Pool size limit
-	lru        *list.List      // LRU eviction order
+	active     string     // Current context name
+	maxSize    int        // Pool size limit
+	lru        *list.List // LRU eviction order
 	kubeconfig string
-	contexts   []*ContextInfo  // All contexts from kubeconfig
-	loading    sync.Map        // map[string]*loadingState - coordinate concurrent loads
+	contexts   []*ContextInfo // All contexts from kubeconfig
+	loading    sync.Map       // map[string]*loadingState - coordinate concurrent loads
 }
 
 // NewRepositoryPool creates a new repository pool
@@ -189,7 +189,7 @@ func (p *RepositoryPool) SwitchContext(contextName string, progress chan<- Conte
 	// Switch to newly loaded context
 	p.mu.Lock()
 	p.active = contextName
-	p.markUsed(contextName)  // Update LRU
+	p.markUsed(contextName) // Update LRU
 	p.mu.Unlock()
 
 	return nil

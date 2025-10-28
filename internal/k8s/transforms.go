@@ -729,6 +729,17 @@ func CreateGenericTransform(kind string, columns []CRDColumn) TransformFunc {
 	}
 }
 
+// CreateGenericTransform returns a transform function for unknown CRD schemas
+func CreateGenericTransform(kind string) TransformFunc {
+	return func(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
+		return GenericResource{
+			ResourceMetadata: common,
+			Kind:             kind,
+			Data:             u.Object,
+		}, nil
+	}
+}
+
 // getResourceRegistry returns the registry of all supported resources
 // GetResourceConfig returns the config for a specific resource type
 func GetResourceConfig(resourceType ResourceType) (ResourceConfig, bool) {

@@ -69,7 +69,7 @@ type InformerRepository struct {
 	resourceStats map[schema.GroupVersionResource]*ResourceStats
 	statsUpdateCh chan statsUpdateMsg
 
-	closed atomic.Bool  // Atomic flag for safe close detection
+	closed atomic.Bool // Atomic flag for safe close detection
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -97,7 +97,6 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 			Phase:   PhaseConnecting,
 		}
 	}
-
 
 	// Build kubeconfig path
 	if kubeconfig == "" {
@@ -586,7 +585,7 @@ func (r *InformerRepository) GetContext() string {
 
 // Close stops the informers and cleans up resources
 func (r *InformerRepository) Close() {
-	r.closed.Store(true)  // Set flag BEFORE closing channel
+	r.closed.Store(true) // Set flag BEFORE closing channel
 
 	if r.cancel != nil {
 		r.cancel()
