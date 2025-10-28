@@ -511,12 +511,12 @@ func GetContextsScreenConfig() ScreenConfig {
 			{Field: "User", Title: "User", Width: 0, Priority: 2},
 			{Field: "Status", Title: "Status", Width: 15, Priority: 1},
 		},
-		SearchFields: []string{"Name", "Cluster", "User", "Status"},
-		Operations:   []OperationConfig{}, // No operations - ctrl+r is global refresh
+		SearchFields:          []string{"Name", "Cluster", "User", "Status"},
+		Operations:            []OperationConfig{}, // No operations - ctrl+r is global refresh
 		NavigationHandler:     navigateToContextSwitch(),
 		TrackSelection:        true,
-		EnablePeriodicRefresh: true,                   // Auto-refresh to update loading status
-		RefreshInterval:       ContextsRefreshInterval, // Refresh every 30 seconds (contexts don't change often)
+		EnablePeriodicRefresh: true,                       // Auto-refresh to update loading status
+		RefreshInterval:       ContextsRefreshInterval,    // Refresh every 30 seconds (contexts don't change often)
 		CustomUpdate:          getPeriodicRefreshUpdate(), // Handle tick messages for refresh
 	}
 }
