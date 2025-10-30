@@ -82,20 +82,20 @@ After completing all phases:
    - Low risk, follows existing patterns exactly
    - Provides immediate value (can see what CRDs exist)
 
-2. **Phase 2**: Dynamic CRD instance screens (2-3 days)
+2. **Phase 2**: Dynamic CRD instance screens (2-3 days) ✅ COMPLETE
    - Medium complexity, new architectural components
    - On-demand screen creation when user navigates
    - Generic transform (namespace/name/age only)
 
-3. **Phase 3**: Usage tracking and adaptive pre-loading (1 day)
+3. **Phase 3**: Schema-aware columns (4-6 hours)
+   - Use additionalPrinterColumns from CRD spec (Priority 1)
+   - Fallback to OpenAPI schema parsing if needed (Priority 2)
+   - Display CRD-specific fields instead of just name/age
+
+4. **Phase 4**: Usage tracking and adaptive pre-loading (1 day)
    - Config file tracks access patterns
    - Pre-load top N frequently-used CRDs at startup
    - Learns from user behavior over time
-
-4. **Phase 4**: Schema-aware transforms (future, 2-3 days)
-   - Parse CRD OpenAPI schema
-   - Extract important fields dynamically
-   - Generate columns based on schema
 
 **Each phase is independently valuable and testable.**
 
@@ -950,40 +950,126 @@ func TestInformerRepository_EnsureCRInformer(t *testing.T) {
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] All existing tests pass: `make test`
-- [ ] New generic transform tests pass
-- [ ] New dynamic screen generator tests pass
-- [ ] Integration tests pass for dynamic informer registration
-- [ ] Code compiles without errors: `make build`
+- [x] All existing tests pass: `make test`
+- [x] New generic transform tests pass
+- [x] New dynamic screen generator tests pass
+- [x] Integration tests pass for dynamic informer registration
+- [x] Code compiles without errors: `make build`
 - [ ] No linting errors: `golangci-lint run`
 
 #### Manual Verification:
-- [ ] Navigate to `:crds` screen
-- [ ] Select a CRD and press Enter
-- [ ] Dynamic screen appears showing CR instances
-- [ ] Screen title shows CRD Kind (e.g., "Certificates")
-- [ ] Table shows Namespace (if applicable), Name, and Age columns
-- [ ] Can filter CR instances by name
-- [ ] Press `d` to describe a CR instance
-- [ ] Press `y` to view CR instance YAML
-- [ ] Navigate to different CRD, press Enter, see its instances
-- [ ] Return to first CRD instances - should be instant (already
+- [x] Navigate to `:crds` screen
+- [x] Select a CRD and press Enter
+- [x] Dynamic screen appears showing CR instances
+- [x] Screen title shows CRD Kind (e.g., "Certificates")
+- [x] Table shows Namespace (if applicable), Name, and Age columns
+- [x] Can filter CR instances by name
+- [x] Press `d` to describe a CR instance
+- [x] Press `y` to view CR instance YAML
+- [x] Navigate to different CRD, press Enter, see its instances
+- [x] Return to first CRD instances - should be instant (already
       cached)
-- [ ] Loading message appears during initial 10s informer sync
+- [x] Loading message appears during initial 10s informer sync
 
-**Implementation Note**: After completing this phase and all automated
-verification passes, pause here for manual confirmation from the human
-that the manual testing was successful before proceeding to Phase 3.
+**Status**: ✅ COMPLETE - All functionality implemented and tested.
+
+---
+---
+
+## Phase 3: Schema-Aware Columns
+
+### Overview
+Extract column definitions from CRD specifications to display CRD-specific fields instead of generic namespace/name/age columns. Uses `additionalPrinterColumns` as primary source (explicitly defined by CRD authors), with OpenAPI schema parsing as fallback.
+
+**Effort**: 4-6 hours (Priority 1), 2-3 days (Priority 2 if needed) | **Risk**: Low (Priority 1), Medium (Priority 2) | **Value**: High
+
+### Architecture: Two-Tier Approach
+
+**Priority 1: additionalPrinterColumns (90% of CRDs, simple)**
+- CRD authors explicitly define important columns
+- Standard Kubernetes feature, used by well-designed CRDs
+- JSONPath expressions provided for field extraction
+- Minimal complexity, high reliability
+
+**Priority 2: OpenAPI Schema Parsing (fallback, complex)**
+- Only if `additionalPrinterColumns` not defined
+- Parse schema, use heuristics to identify important fields
+- Higher complexity, lower reliability
+
+**Fallback**: Generic columns (namespace/name/age) if neither available
+
+### Changes Required (Priority 1 Implementation)
+
+This section focuses on Priority 1 (additionalPrinterColumns) as it provides 90% of value with minimal complexity.
+
+#### 1. Add Column Metadata to CRD Type
+**File**: `internal/k8s/repository_types.go`
+
+Add `Columns` field and `CRDColumn` type definition.
+
+#### 2. Update CRD Transform 
+**File**: `internal/k8s/transforms.go`
+
+Extract `additionalPrinterColumns` from storage version in `transformCRD()`.
+
+#### 3. Create JSONPath Evaluator
+**File**: `internal/k8s/jsonpath.go` (new file)
+
+Use `k8s.io/client-go/util/jsonpath` to evaluate JSONPath expressions on CR instances.
+
+#### 4. Update GenericResource Type
+**File**: `internal/k8s/repository_types.go`
+
+Add `Fields map[string]string` to store dynamic column values.
+
+#### 5. Update CreateGenericTransform
+**File**: `internal/k8s/transforms.go`
+
+Accept `columns []CRDColumn` parameter and evaluate JSONPath for each column.
+
+#### 6. Update GenerateScreenConfigForCR
+**File**: `internal/screens/dynamic_screens.go`
+
+Generate columns from `crd.Columns` if available, otherwise use generic columns.
+
+#### 7. Update DynamicScreenCreateMsg Handler
+**File**: `internal/app/app.go`
+
+Pass `crd.Columns` to `CreateGenericTransform()`.
+
+#### 8. Create Tests
+**Files**: 
+- `internal/k8s/jsonpath_test.go` - Test JSONPath evaluation
+- `internal/k8s/transforms_test.go` - Test CRD transform with columns
+- `internal/screens/dynamic_screens_test.go` - Test column generation
+
+### Success Criteria
+
+#### Automated Verification:
+- [ ] All existing tests pass: `make test`
+- [ ] JSONPath evaluator tests pass
+- [ ] CRD transform with columns tests pass
+- [ ] Dynamic screen generator with columns tests pass
+- [ ] Code compiles without errors: `make build`
+
+#### Manual Verification:
+- [ ] Navigate to `:crds` screen
+- [ ] Select a CRD with additionalPrinterColumns (e.g., cert-manager Certificate)
+- [ ] Press Enter to view instances
+- [ ] Table shows CRD-specific columns (e.g., Ready, Issuer, Status) not just generic columns
+- [ ] Column values are correctly extracted from CR instances
+- [ ] For CRDs without additionalPrinterColumns, fallback to generic columns
+- [ ] Complex JSONPath expressions (with filters) work correctly
+- [ ] Missing fields display as empty, don't crash
+
+**Implementation Note**: Prioritize `additionalPrinterColumns` first. Only implement OpenAPI schema parsing if significant CRDs lack this field.
 
 ---
 
-## Phase 3: Usage Tracking & Adaptive Pre-loading
+## Phase 4: Usage Tracking & Adaptive Pre-loading
 
 ### Overview
-Track which CRD instances users access most frequently and pre-load
-their informers at startup. Config file stored at
-`~/.config/k1/crd-usage.yaml` tracks access patterns. Top N (default
-10) CRDs are pre-loaded on subsequent startups for instant access.
+Track which CRD instances users access most frequently and pre-load their informers at startup. Config file stored at `~/.config/k1/crd-usage.yaml` tracks access patterns. Top N (default 10) CRDs are pre-loaded on subsequent startups for instant access.
 
 **Effort**: 1 day | **Risk**: Low | **Value**: High
 
@@ -992,510 +1078,86 @@ their informers at startup. Config file stored at
 #### 1. Create CRD Usage Config Package
 **File**: `internal/config/crd_usage.go` (new file)
 
-```go
-package config
-
-import (
-    "os"
-    "path/filepath"
-    "sort"
-    "time"
-
-    "gopkg.in/yaml.v3"
-    "k8s.io/apimachinery/pkg/runtime/schema"
-)
-
-// CRDUsageConfig tracks CRD access patterns
-type CRDUsageConfig struct {
-    Version     int              `yaml:"version"`
-    LastUpdated time.Time        `yaml:"last_updated"`
-    MaxPreload  int              `yaml:"max_preload"`
-    CRDUsage    []CRDUsageEntry  `yaml:"crd_usage"`
-}
-
-// CRDUsageEntry records access stats for one CRD
-type CRDUsageEntry struct {
-    Group        string    `yaml:"group"`
-    Version      string    `yaml:"version"`
-    Resource     string    `yaml:"resource"`
-    AccessCount  int       `yaml:"access_count"`
-    LastAccessed time.Time `yaml:"last_accessed"`
-}
-
-// ToGVR converts entry to GroupVersionResource
-func (e *CRDUsageEntry) ToGVR() schema.GroupVersionResource {
-    return schema.GroupVersionResource{
-        Group:    e.Group,
-        Version:  e.Version,
-        Resource: e.Resource,
-    }
-}
-
-// GetConfigPath returns path to usage config file
-func GetConfigPath() (string, error) {
-    home, err := os.UserHomeDir()
-    if err != nil {
-        return "", err
-    }
-
-    configDir := filepath.Join(home, ".config", "k1")
-    if err := os.MkdirAll(configDir, 0755); err != nil {
-        return "", err
-    }
-
-    return filepath.Join(configDir, "crd-usage.yaml"), nil
-}
-
-// LoadCRDUsage reads usage config from disk
-func LoadCRDUsage() (*CRDUsageConfig, error) {
-    path, err := GetConfigPath()
-    if err != nil {
-        return nil, err
-    }
-
-    data, err := os.ReadFile(path)
-    if err != nil {
-        if os.IsNotExist(err) {
-            // First run - return empty config
-            return &CRDUsageConfig{
-                Version:    1,
-                MaxPreload: 10,
-                CRDUsage:   []CRDUsageEntry{},
-            }, nil
-        }
-        return nil, err
-    }
-
-    var config CRDUsageConfig
-    if err := yaml.Unmarshal(data, &config); err != nil {
-        return nil, err
-    }
-
-    return &config, nil
-}
-
-// Save writes usage config to disk
-func (c *CRDUsageConfig) Save() error {
-    c.LastUpdated = time.Now()
-
-    data, err := yaml.Marshal(c)
-    if err != nil {
-        return err
-    }
-
-    path, err := GetConfigPath()
-    if err != nil {
-        return err
-    }
-
-    return os.WriteFile(path, data, 0644)
-}
-
-// RecordAccess updates access count for GVR
-func (c *CRDUsageConfig) RecordAccess(gvr schema.GroupVersionResource) {
-    // Find existing entry
-    for i := range c.CRDUsage {
-        entry := &c.CRDUsage[i]
-        if entry.Group == gvr.Group &&
-           entry.Version == gvr.Version &&
-           entry.Resource == gvr.Resource {
-            entry.AccessCount++
-            entry.LastAccessed = time.Now()
-            return
-        }
-    }
-
-    // New entry
-    c.CRDUsage = append(c.CRDUsage, CRDUsageEntry{
-        Group:        gvr.Group,
-        Version:      gvr.Version,
-        Resource:     gvr.Resource,
-        AccessCount:  1,
-        LastAccessed: time.Now(),
-    })
-}
-
-// GetTopN returns N most-accessed CRDs
-func (c *CRDUsageConfig) GetTopN(n int) []schema.GroupVersionResource {
-    if n > len(c.CRDUsage) {
-        n = len(c.CRDUsage)
-    }
-
-    // Sort by access count (descending)
-    sorted := make([]CRDUsageEntry, len(c.CRDUsage))
-    copy(sorted, c.CRDUsage)
-
-    sort.Slice(sorted, func(i, j int) bool {
-        // Primary: access count (higher first)
-        if sorted[i].AccessCount != sorted[j].AccessCount {
-            return sorted[i].AccessCount > sorted[j].AccessCount
-        }
-        // Secondary: last accessed (more recent first)
-        return sorted[i].LastAccessed.After(sorted[j].LastAccessed)
-    })
-
-    result := make([]schema.GroupVersionResource, n)
-    for i := 0; i < n; i++ {
-        result[i] = sorted[i].ToGVR()
-    }
-
-    return result
-}
-
-// Cleanup removes entries older than 90 days with low usage
-func (c *CRDUsageConfig) Cleanup() {
-    cutoff := time.Now().Add(-90 * 24 * time.Hour)
-    filtered := []CRDUsageEntry{}
-
-    for _, entry := range c.CRDUsage {
-        // Keep if accessed recently OR frequently
-        if entry.LastAccessed.After(cutoff) || entry.AccessCount >= 5 {
-            filtered = append(filtered, entry)
-        }
-    }
-
-    c.CRDUsage = filtered
-}
-```
+Implement CRDUsageConfig with tracking, sorting, and persistence.
 
 #### 2. Integrate Usage Tracking into Repository
 **File**: `internal/k8s/informer_repository.go`
 
-Add fields to InformerRepository (around line 47):
-```go
-type InformerRepository struct {
-    // ... existing fields
-    crdUsageConfig *config.CRDUsageConfig
-    crdUsageMutex  sync.Mutex
-}
-```
+Add usage tracking fields, pre-loading logic, and access recording.
 
-Update initialization in `NewInformerRepositoryWithProgress()` (around
-line 140):
-```go
-// Load CRD usage config
-crdUsageConfig, err := config.LoadCRDUsage()
-if err != nil {
-    // Log but don't fail - just skip pre-loading
-    crdUsageConfig = &config.CRDUsageConfig{MaxPreload: 10}
-}
-
-repo := &InformerRepository{
-    // ... existing fields
-    crdUsageConfig: crdUsageConfig,
-}
-
-// Pre-load top N CRDs if they exist in cluster
-if err := repo.preloadTopCRDs(progress); err != nil {
-    // Log error but don't fail startup
-}
-```
-
-Add pre-loading method (around line 300):
-```go
-// preloadTopCRDs loads frequently-used CRDs at startup
-func (r *InformerRepository) preloadTopCRDs(
-    progress chan<- ProgressUpdate) error {
-
-    // Get top N GVRs from config
-    topGVRs := r.crdUsageConfig.GetTopN(r.crdUsageConfig.MaxPreload)
-
-    if len(topGVRs) == 0 {
-        return nil // First run, nothing to pre-load
-    }
-
-    // Get CRDs from registry (must be loaded first)
-    crdConfig, exists := getResourceRegistry()[ResourceTypeCRD]
-    if !exists {
-        return nil // CRDs not registered yet
-    }
-
-    // List available CRDs in cluster
-    existingCRDs, err := r.GetResources(ResourceTypeCRD)
-    if err != nil {
-        return err // Can't verify, skip pre-loading
-    }
-
-    // Build map of existing GVRs
-    existingGVRs := make(map[schema.GroupVersionResource]bool)
-    for _, crd := range existingCRDs {
-        crdTyped := crd.(CustomResourceDefinition)
-        gvr := schema.GroupVersionResource{
-            Group:    crdTyped.Group,
-            Version:  crdTyped.Version,
-            Resource: crdTyped.Plural,
-        }
-        existingGVRs[gvr] = true
-    }
-
-    // Register informers for top CRDs that still exist
-    for i, gvr := range topGVRs {
-        if existingGVRs[gvr] {
-            progress <- ProgressUpdate{
-                Message: fmt.Sprintf("Pre-loading CR: %s/%s",
-                                     gvr.Group, gvr.Resource),
-                Current: i + 1,
-                Total:   len(topGVRs),
-            }
-
-            if err := r.registerCRInformerNoTracking(gvr); err != nil {
-                // Log but continue - don't fail for one CRD
-                continue
-            }
-        }
-    }
-
-    return nil
-}
-
-// registerCRInformerNoTracking registers without usage tracking (for
-// pre-loading)
-func (r *InformerRepository) registerCRInformerNoTracking(
-    gvr schema.GroupVersionResource) error {
-
-    r.mu.Lock()
-    defer r.mu.Unlock()
-
-    // Check if already registered
-    if _, exists := r.dynamicListers[gvr]; exists {
-        return nil
-    }
-
-    // Create informer
-    informer := r.dynamicFactory.ForResource(gvr)
-
-    // Start factory (safe, idempotent)
-    r.dynamicFactory.Start(r.ctx.Done())
-
-    // Wait for cache sync with timeout
-    syncCtx, cancel := context.WithTimeout(r.ctx, 10*time.Second)
-    defer cancel()
-
-    if !cache.WaitForCacheSync(syncCtx.Done(),
-                                informer.Informer().HasSynced) {
-        return fmt.Errorf("failed to sync cache for %v", gvr)
-    }
-
-    // Store lister
-    r.dynamicListers[gvr] = r.dynamicFactory.ForResource(gvr).Lister()
-
-    return nil
-}
-```
-
-Update `EnsureCRInformer()` to track usage (around line 610):
-```go
-func (r *InformerRepository) EnsureCRInformer(
-    gvr schema.GroupVersionResource) error {
-
-    r.mu.Lock()
-    defer r.mu.Unlock()
-
-    // Check if already registered
-    if _, exists := r.dynamicListers[gvr]; exists {
-        // Already cached - just record access
-        r.recordCRDAccess(gvr)
-        return nil
-    }
-
-    // Register new informer
-    if err := r.registerCRInformerNoTracking(gvr); err != nil {
-        return err
-    }
-
-    // Record access
-    r.recordCRDAccess(gvr)
-
-    return nil
-}
-
-// recordCRDAccess updates usage tracking
-func (r *InformerRepository) recordCRDAccess(
-    gvr schema.GroupVersionResource) {
-
-    r.crdUsageMutex.Lock()
-    defer r.crdUsageMutex.Unlock()
-
-    r.crdUsageConfig.RecordAccess(gvr)
-
-    // Save async to avoid blocking
-    go func() {
-        if err := r.crdUsageConfig.Save(); err != nil {
-            // Log error but don't fail
-        }
-    }()
-}
-```
-
-#### 3. Add Command-Line Flag for Max Preload
+#### 3. Add Command-Line Flag
 **File**: `cmd/k1/main.go`
 
-Add flag (around line 30):
-```go
-var (
-    // ... existing flags
-    crdPreloadMax = flag.Int("crd-preload-max", 10,
-        "Maximum CRDs to pre-load at startup (0 to disable)")
-)
-```
+Add `--crd-preload-max` flag to control pre-loading behavior.
 
-Use flag when creating repository (around line 80):
-```go
-// Override max preload if flag provided
-if *crdPreloadMax >= 0 {
-    // Will be applied when loading config
-}
-```
+#### 4. Create Tests
+**File**: `internal/config/crd_usage_test.go`
 
-Update config loading in repository initialization to respect flag.
-
-#### 4. Create Tests for Usage Config
-**File**: `internal/config/crd_usage_test.go` (new file)
-
-```go
-package config
-
-import (
-    "os"
-    "path/filepath"
-    "testing"
-    "time"
-
-    "github.com/stretchr/testify/assert"
-    "k8s.io/apimachinery/pkg/runtime/schema"
-)
-
-func TestCRDUsageConfig_RecordAccess(t *testing.T) {
-    config := &CRDUsageConfig{
-        Version:    1,
-        MaxPreload: 10,
-        CRDUsage:   []CRDUsageEntry{},
-    }
-
-    gvr := schema.GroupVersionResource{
-        Group:    "cert-manager.io",
-        Version:  "v1",
-        Resource: "certificates",
-    }
-
-    // First access
-    config.RecordAccess(gvr)
-    assert.Len(t, config.CRDUsage, 1)
-    assert.Equal(t, 1, config.CRDUsage[0].AccessCount)
-
-    // Second access
-    config.RecordAccess(gvr)
-    assert.Len(t, config.CRDUsage, 1)
-    assert.Equal(t, 2, config.CRDUsage[0].AccessCount)
-}
-
-func TestCRDUsageConfig_GetTopN(t *testing.T) {
-    config := &CRDUsageConfig{
-        CRDUsage: []CRDUsageEntry{
-            {Group: "a.io", Resource: "as", AccessCount: 10},
-            {Group: "b.io", Resource: "bs", AccessCount: 5},
-            {Group: "c.io", Resource: "cs", AccessCount: 15},
-        },
-    }
-
-    top2 := config.GetTopN(2)
-
-    assert.Len(t, top2, 2)
-    assert.Equal(t, "c.io", top2[0].Group)    // 15 accesses
-    assert.Equal(t, "a.io", top2[1].Group)    // 10 accesses
-}
-
-func TestCRDUsageConfig_SaveAndLoad(t *testing.T) {
-    // Create temp config dir
-    tmpDir := t.TempDir()
-    os.Setenv("HOME", tmpDir)
-
-    config := &CRDUsageConfig{
-        Version:    1,
-        MaxPreload: 5,
-        CRDUsage: []CRDUsageEntry{
-            {
-                Group:        "test.io",
-                Resource:     "tests",
-                AccessCount:  3,
-                LastAccessed: time.Now(),
-            },
-        },
-    }
-
-    // Save
-    err := config.Save()
-    assert.NoError(t, err)
-
-    // Verify file exists
-    path := filepath.Join(tmpDir, ".config", "k1", "crd-usage.yaml")
-    _, err = os.Stat(path)
-    assert.NoError(t, err)
-
-    // Load
-    loaded, err := LoadCRDUsage()
-    assert.NoError(t, err)
-    assert.Equal(t, 1, loaded.Version)
-    assert.Equal(t, 5, loaded.MaxPreload)
-    assert.Len(t, loaded.CRDUsage, 1)
-    assert.Equal(t, "test.io", loaded.CRDUsage[0].Group)
-}
-
-func TestCRDUsageConfig_Cleanup(t *testing.T) {
-    now := time.Now()
-    old := now.Add(-100 * 24 * time.Hour) // 100 days ago
-
-    config := &CRDUsageConfig{
-        CRDUsage: []CRDUsageEntry{
-            // Keep: recent access
-            {Group: "a.io", AccessCount: 1, LastAccessed: now},
-            // Keep: high access count
-            {Group: "b.io", AccessCount: 10, LastAccessed: old},
-            // Remove: old and low access
-            {Group: "c.io", AccessCount: 2, LastAccessed: old},
-        },
-    }
-
-    config.Cleanup()
-
-    assert.Len(t, config.CRDUsage, 2)
-    assert.Equal(t, "a.io", config.CRDUsage[0].Group)
-    assert.Equal(t, "b.io", config.CRDUsage[1].Group)
-}
-```
+Test tracking, sorting, save/load, and cleanup logic.
 
 #### 5. Add Documentation
 **File**: `README.md`
 
-Add section on CRD usage tracking:
-```markdown
-### CRD Usage Tracking
+Document CRD usage tracking feature and configuration.
 
-k1 learns which CRDs you access most frequently and pre-loads them at
-startup:
+### Success Criteria
 
-- **First startup**: All CRDs load on-demand (10s delay)
-- **Subsequent startups**: Top 10 frequently-used CRDs pre-load
-  instantly
-- **Config file**: `~/.config/k1/crd-usage.yaml`
+#### Automated Verification:
+- [ ] All existing tests pass: `make test`
+- [ ] New config package tests pass
+- [ ] Config save/load works correctly
+- [ ] GetTopN sorting works correctly
+- [ ] Cleanup removes old entries
+- [ ] Code compiles without errors: `make build`
 
-Customize max pre-loaded CRDs:
-```bash
-k1 --crd-preload-max 20  # Pre-load top 20
-k1 --crd-preload-max 0   # Disable pre-loading (pure lazy-loading)
+#### Manual Verification:
+- [ ] First startup with new cluster: no config file exists
+- [ ] Navigate to a CRD instances screen (10s load time)
+- [ ] Check config file exists at `~/.config/k1/crd-usage.yaml`
+- [ ] Config file has 1 entry with access_count=1
+- [ ] Navigate to same CRD again: instant (already cached)
+- [ ] Restart k1: pre-loading message shows for that CRD
+- [ ] Second startup: CRD instances load instantly (<1s)
+- [ ] Navigate to 5 different CRDs during session
+- [ ] Restart k1: all 5 CRDs pre-load at startup
+- [ ] Test with `--crd-preload-max 0`: no pre-loading occurs
+- [ ] Test with `--crd-preload-max 2`: only top 2 pre-load
+
+**Implementation Note**: This optimization phase can be implemented after Phase 3 provides the UX improvements users need most.
+
+---
+Old entries (>90 days, <5 accesses) are automatically cleaned up.
 ```
 
-Config file format:
-```yaml
-version: 1
-max_preload: 10
-crd_usage:
-  - group: cert-manager.io
-    version: v1
-    resource: certificates
-    access_count: 45
-    last_accessed: 2025-10-28T10:30:00Z
-```
+### Success Criteria
+
+#### Automated Verification:
+- [ ] All existing tests pass: `make test`
+- [ ] New config package tests pass
+- [ ] Config save/load works correctly
+- [ ] GetTopN sorting works correctly
+- [ ] Cleanup removes old entries
+- [ ] Code compiles without errors: `make build`
+- [ ] No linting errors: `golangci-lint run`
+
+#### Manual Verification:
+- [ ] First startup with new cluster: no config file exists
+- [ ] Navigate to a CRD instances screen (10s load time)
+- [ ] Check config file exists at `~/.config/k1/crd-usage.yaml`
+- [ ] Config file has 1 entry with access_count=1
+- [ ] Navigate to same CRD again: instant (already cached)
+- [ ] Restart k1: pre-loading message shows for that CRD
+- [ ] Second startup: CRD instances load instantly (<1s)
+- [ ] Navigate to 5 different CRDs during session
+- [ ] Restart k1: all 5 CRDs pre-load at startup
+- [ ] Test with `--crd-preload-max 0`: no pre-loading occurs
+- [ ] Test with `--crd-preload-max 2`: only top 2 pre-load
+
+**Implementation Note**: After completing this phase and all automated
+verification passes, pause here for manual confirmation from the human
+that the manual testing was successful before proceeding to Phase 4.
+
+---
 
 Old entries (>90 days, <5 accesses) are automatically cleaned up.
 ```
@@ -1530,162 +1192,25 @@ that the manual testing was successful before proceeding to Phase 4.
 
 ---
 
-## Phase 4: Schema-Aware Transforms (Future Enhancement)
-
-### Overview
-Parse CRD OpenAPI v3 schema to extract important fields and generate
-meaningful table columns dynamically. Instead of only showing
-namespace/name/age, display CRD-specific fields like spec.replicas,
-status.phase, etc.
-
-**Effort**: 2-3 days | **Risk**: Medium | **Value**: High
-
-**Note**: This phase is marked as future work. Implement only when
-users request richer CRD instance displays.
-
-### Proposed Approach
-
-1. **Schema Extraction**: Parse `spec.versions[].schema.openAPIV3Schema`
-   from CRD
-2. **Field Prioritization**: Identify important fields (common
-   patterns: `spec.replicas`, `status.phase`, `status.conditions`)
-3. **Dynamic Column Generation**: Generate ColumnConfig based on schema
-   fields
-4. **Type-Aware Formatting**: Format columns based on OpenAPI types
-   (number, boolean, etc.)
-
-### Changes Required (High-Level)
-
-#### 1. Schema Parser
-**File**: `internal/k8s/schema_parser.go` (new file)
-
-- Parse OpenAPI v3 schema from CRD
-- Extract top-level spec/status fields
-- Identify field types and descriptions
-- Prioritize fields (heuristics: replicas, phase, conditions, ready)
-
-#### 2. Enhanced Dynamic Transform
-Update `internal/k8s/dynamic_resources.go`:
-
-- Extract schema-identified fields from unstructured object
-- Create typed struct with dynamic fields
-- Handle nested fields (e.g., `status.conditions[0].status`)
-
-#### 3. Enhanced Screen Generator
-Update `internal/screens/dynamic_screens.go`:
-
-- Generate columns from schema fields
-- Add appropriate formatters (FormatNumber, FormatBool, etc.)
-- Include field descriptions in help text
-
-### Success Criteria
-
-#### Automated Verification:
-- [ ] Schema parser tests pass
-- [ ] Field extraction tests pass
-- [ ] Dynamic column generation tests pass
-
-#### Manual Verification:
-- [ ] Navigate to Certificate CR instances
-- [ ] Table shows: Namespace, Name, Ready, Issuer, Status, Age
-- [ ] Navigate to VirtualService CR instances
-- [ ] Table shows: Namespace, Name, Hosts, Gateways, Age
-- [ ] Complex nested fields display correctly
-- [ ] Fallback to basic columns if schema parsing fails
-
-**Implementation Note**: This phase should be tackled only when basic
-CRD support is stable and users request more detailed views.
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests
-- Transform functions for each phase
-- Config-driven screen generation
-- Usage tracking logic
-- Schema parsing (Phase 4)
-
-### Integration Tests
-- Dynamic informer registration with envtest
-- CRD creation and instance listing
-- Usage config persistence
-- Pre-loading verification
-
-### Manual Testing Steps
-1. **Phase 1**:
-   - Install k1 in cluster with CRDs (e.g., cert-manager)
-   - Verify CRDs screen shows all CRDs
-   - Test filtering, describe, YAML viewing
-
-2. **Phase 2**:
-   - Navigate to Certificate CRD
-   - Press Enter to view instances
-   - Verify table shows namespaced resources correctly
-   - Test with cluster-scoped CRD
-
-3. **Phase 3**:
-   - Navigate to 5 different CRD instance screens
-   - Check usage config file has 5 entries
-   - Restart k1, verify top 5 pre-load
-   - Test with different --crd-preload-max values
-
-4. **Phase 4**:
-   - Verify Certificate instances show issuer, status fields
-   - Compare with kubectl output for accuracy
-
-### Test Coverage Targets
-- **Phase 1**: 75% coverage (transforms, screen config)
-- **Phase 2**: 70% coverage (dynamic screens, manager)
-- **Phase 3**: 80% coverage (config logic, ranking)
-- **Phase 4**: 70% coverage (schema parsing)
+See implementation plan for detailed test requirements per phase.
 
 ## Performance Considerations
 
 ### Memory Usage
 - Each informer caches all resources in memory
 - Pre-loading 10 CRDs × 100 instances each = ~1MB memory
-- Large clusters (50+ CRDs): use lower max_preload value
-- Future: LRU cache with eviction if memory becomes concern
 
 ### Startup Time
-- Tier 2 CRD resource: loads in background (~2s)
-- Pre-loading 10 CRDs: adds 5-10s to startup (parallelized)
-- Adaptive: only frequently-used CRDs pre-load
-
-### Runtime Performance
-- On-demand informer registration: 10s first access
-- Cached informers: instant subsequent access
-- Usage config save: async, non-blocking
-
-## Migration Notes
-
-### From No CRD Support
-- Existing installations: no migration needed
-- Usage config created on first CRD access
-- No breaking changes to existing resource types
-
-### Config File
-- First run: empty config auto-created
-- Config file location: `~/.config/k1/crd-usage.yaml`
-- Safe to delete: will recreate on next run
-
-### Backwards Compatibility
-- All phases maintain existing resource support
-- No changes to existing screens or navigation
-- Command-line flags are optional
+- Phase 4 pre-loading adds 5-10s to startup (parallelized)
 
 ## References
 
-- Original research:
-  `thoughts/shared/research/2025-10-28-crd-support-research.md`
-- Related extensibility research:
-  `thoughts/shared/research/2025-10-08-scaling-to-71-api-resources.md`
-- Registry pattern implementation:
-  `thoughts/shared/plans/2025-10-08-issue-3-scale-to-31-resources.md`
-- Config-driven navigation:
-  `thoughts/shared/research/2025-10-07-contextual-navigation.md`
-- Kubernetes dynamic client docs:
-  https://pkg.go.dev/k8s.io/client-go/dynamic
-- CRD API reference:
-  https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#customresourcedefinition-v1-apiextensions-k8s-io
+- Original research: `thoughts/shared/research/2025-10-28-crd-support-research.md`
+- Kubernetes dynamic client docs: https://pkg.go.dev/k8s.io/client-go/dynamic
+- CRD API reference: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#customresourcedefinition-v1-apiextensions-k8s-io
+
