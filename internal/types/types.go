@@ -112,6 +112,7 @@ type ScreenSwitchMsg struct {
 	FilterContext    *FilterContext // Optional filter for contextual navigation
 	CommandBarFilter string         // Optional command bar fuzzy filter to restore
 	IsBackNav        bool           // True if navigating back via ESC
+	PushHistory      bool           // True if should push current screen to history
 }
 
 type RefreshCompleteMsg struct {

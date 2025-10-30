@@ -57,7 +57,7 @@ type ResourceConfig struct {
 	GVR        schema.GroupVersionResource
 	Name       string
 	Namespaced bool
-	Tier       int // 1=critical (block UI), 2=background, 3=deferred
+	Tier       int // 0=on-demand only, 1=critical (block UI), 2=background, 3=deferred
 	Transform  TransformFunc
 }
 
@@ -86,6 +86,9 @@ type Repository interface {
 	// Dynamic CRD instance access (for on-demand informers)
 	GetResourcesByGVR(gvr schema.GroupVersionResource, transform TransformFunc) ([]any, error)
 	EnsureCRInformer(gvr schema.GroupVersionResource) error
+	IsInformerSynced(gvr schema.GroupVersionResource) bool
+	// Ensure informer for resource type is loaded (for on-demand Tier 0 resources)
+	EnsureResourceTypeInformer(resourceType ResourceType) error
 
 	// Typed convenience methods (preserved for compatibility)
 	GetPods() ([]Pod, error)

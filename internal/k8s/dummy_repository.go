@@ -636,7 +636,15 @@ func (r *DummyRepository) GetContexts() ([]Context, error) {
 }
 
 // EnsureCRInformer stub for testing (dummy repository doesn't support dynamic CRs)
+func (r *DummyRepository) IsInformerSynced(gvr schema.GroupVersionResource) bool {
+	return true // Dummy always returns true (no actual informer)
+}
+
 func (r *DummyRepository) EnsureCRInformer(gvr schema.GroupVersionResource) error {
+	return nil // Stub for testing
+}
+
+func (r *DummyRepository) EnsureResourceTypeInformer(resourceType ResourceType) error {
 	return nil // Stub for testing
 }
 

@@ -491,12 +491,28 @@ func (p *RepositoryPool) GetResourceStats() []ResourceStats {
 }
 
 // EnsureCRInformer delegates to active repository
+func (p *RepositoryPool) IsInformerSynced(gvr schema.GroupVersionResource) bool {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return false
+	}
+	return repo.IsInformerSynced(gvr)
+}
+
 func (p *RepositoryPool) EnsureCRInformer(gvr schema.GroupVersionResource) error {
 	repo := p.GetActiveRepository()
 	if repo == nil {
 		return fmt.Errorf("no active repository")
 	}
 	return repo.EnsureCRInformer(gvr)
+}
+
+func (p *RepositoryPool) EnsureResourceTypeInformer(resourceType ResourceType) error {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return fmt.Errorf("no active repository")
+	}
+	return repo.EnsureResourceTypeInformer(resourceType)
 }
 
 // GetResourcesByGVR delegates to active repository

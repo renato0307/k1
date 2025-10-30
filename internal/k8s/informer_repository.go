@@ -131,13 +131,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	config.Timeout = 90 * time.Second
 	config.QPS = 50    // Allow more requests per second
 	config.Burst = 100 // Allow bursts for initial sync
-
-	// Disable HTTP/2 to avoid stream INTERNAL_ERROR from load balancers
-	// HTTP/2 streams can be killed by 60s idle timeouts on ALB/ELB
-	// while large responses are still streaming data
-	// NextProtos must be set before TransportFor is called
-	config.NextProtos = []string{"http/1.1"}
-	fmt.Fprintf(os.Stderr, "API config: timeout=%v, qps=%.0f, burst=%d, http/2=disabled\n", config.Timeout, config.QPS, config.Burst)
+	fmt.Fprintf(os.Stderr, "API config: timeout=%v, qps=%.0f, burst=%d\n", config.Timeout, config.QPS, config.Burst)
 
 	// Create clientset
 	clientset, err := kubernetes.NewForConfig(config)
@@ -182,11 +176,16 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	// Initialize resource registry
 	resourceRegistry := getResourceRegistry()
 
-	// Create dynamic informers for all registered resources
+	// Create dynamic informers for startup resources only (Tier > 0)
+	// Tier 0 resources are loaded on-demand
 	dynamicListers := make(map[schema.GroupVersionResource]cache.GenericLister)
 	dynamicInformers := make(map[schema.GroupVersionResource]cache.SharedIndexInformer)
 
 	for _, resCfg := range resourceRegistry {
+		if resCfg.Tier == 0 {
+			// Skip on-demand resources at startup
+			continue
+		}
 		informer := dynamicFactory.ForResource(resCfg.GVR).Informer()
 		dynamicListers[resCfg.GVR] = dynamicFactory.ForResource(resCfg.GVR).Lister()
 		dynamicInformers[resCfg.GVR] = informer
@@ -217,23 +216,6 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 
 	// Track which informers synced successfully
 	syncedInformers := make(map[schema.GroupVersionResource]bool)
-
-	// Log sync progress every 5 seconds
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-syncCtx.Done():
-				return
-			case <-ticker.C:
-				fmt.Fprintf(os.Stderr, "  Still syncing... (checking: pods=%v, deployments=%v, services=%v)\n",
-					podInformer.HasSynced(),
-					deploymentInformer.HasSynced(),
-					serviceInformer.HasSynced())
-			}
-		}
-	}()
 
 	// Try typed informers together (they sync in parallel)
 	// Note: ReplicaSets excluded from critical check - they're used internally by
@@ -298,23 +280,58 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		}
 	}
 
-	// Try each dynamic informer individually
+	// Start syncing all dynamic informers in background goroutines
+	// Only wait for Tier 1 (critical) resources - Tier 2/3 can sync async
+	var wg sync.WaitGroup
+	var mu sync.Mutex // Protect syncedInformers and dynamicListers maps
+
 	for gvr, informer := range dynamicInformers {
-		informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
-		if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
-			syncedInformers[gvr] = true
-		} else {
-			// Informer failed to sync (likely RBAC), remove from listers
-			delete(dynamicListers, gvr)
-			fmt.Fprintf(os.Stderr, "Warning: Failed to sync %s informer (timeout after %v) - continuing without this resource\n", gvr, InformerIndividualSyncTimeout)
+		resCfg := resourceRegistry[ResourceType(gvr.Resource)]
+
+		// Launch sync goroutine for all resources
+		go func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, tier int) {
+			informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
+			defer informerCancel()
+
+			if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
+				mu.Lock()
+				syncedInformers[gvr] = true
+				mu.Unlock()
+			} else {
+				// Informer failed to sync (likely RBAC), remove from listers
+				mu.Lock()
+				delete(dynamicListers, gvr)
+				mu.Unlock()
+				if tier == 1 {
+					// Only warn for Tier 1 failures
+					fmt.Fprintf(os.Stderr, "Warning: Failed to sync critical resource %s (timeout after %v)\n", gvr, InformerIndividualSyncTimeout)
+				}
+			}
+		}(gvr, informer, resCfg.Tier)
+
+		// Only wait for Tier 1 (critical) resources
+		if resCfg.Tier == 1 {
+			wg.Add(1)
+			go func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer) {
+				defer wg.Done()
+				informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
+				defer informerCancel()
+				cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced)
+			}(gvr, informer)
 		}
-		informerCancel()
 	}
 
+	// Wait only for Tier 1 (critical) resources to sync
+	// Tier 2 and 3 continue syncing in background
+	wg.Wait()
+
 	// Initialize resource statistics
+	// Must read syncedInformers under mutex since Tier 2/3 are still syncing
 	resourceStats := make(map[schema.GroupVersionResource]*ResourceStats)
 	for _, resCfg := range resourceRegistry {
+		mu.Lock()
 		synced := syncedInformers[resCfg.GVR]
+		mu.Unlock()
 		resourceStats[resCfg.GVR] = &ResourceStats{
 			ResourceType: ResourceType(resCfg.GVR.Resource),
 			Count:        0,
@@ -667,6 +684,14 @@ func (r *InformerRepository) GetResources(resourceType ResourceType) ([]any, err
 	return results, nil
 }
 
+// IsInformerSynced checks if informer for GVR is already registered and synced
+func (r *InformerRepository) IsInformerSynced(gvr schema.GroupVersionResource) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, exists := r.dynamicListers[gvr]
+	return exists
+}
+
 // EnsureCRInformer registers informer for CR on-demand if not already registered
 func (r *InformerRepository) EnsureCRInformer(gvr schema.GroupVersionResource) error {
 	r.mu.Lock()
@@ -695,6 +720,27 @@ func (r *InformerRepository) EnsureCRInformer(gvr schema.GroupVersionResource) e
 	r.dynamicListers[gvr] = r.dynamicFactory.ForResource(gvr).Lister()
 
 	return nil
+}
+
+// EnsureResourceTypeInformer registers informer for resource type on-demand if not already registered
+func (r *InformerRepository) EnsureResourceTypeInformer(resourceType ResourceType) error {
+	// Get resource config
+	config, exists := r.resources[resourceType]
+	if !exists {
+		return fmt.Errorf("unknown resource type: %v", resourceType)
+	}
+
+	// Check if already registered
+	r.mu.RLock()
+	_, alreadyExists := r.dynamicListers[config.GVR]
+	r.mu.RUnlock()
+
+	if alreadyExists {
+		return nil // Already loaded
+	}
+
+	// Use EnsureCRInformer to register (it handles the locking and sync)
+	return r.EnsureCRInformer(config.GVR)
 }
 
 // GetResourcesByGVR fetches resources using explicit GVR (for dynamic CRs)
