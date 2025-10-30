@@ -12,18 +12,23 @@ func GenerateScreenConfigForCR(crd k8s.CustomResourceDefinition) ScreenConfig {
 		screenID = crd.Group + "/" + crd.Plural
 	}
 
-	// Basic columns: name, age
-	columns := []ColumnConfig{
-		{Field: "Name", Title: "Name", Width: 0, Priority: 1},
-		{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration, Priority: 1},
+	// Build columns: namespace (if namespaced), name, age
+	columns := []ColumnConfig{}
+
+	// Add namespace column first if CRD is namespaced
+	// Fixed width (20 chars) - most namespaces fit in this
+	if crd.Scope == "Namespaced" {
+		columns = append(columns, ColumnConfig{
+			Field: "Namespace", Title: "Namespace", Width: 20, Priority: 1,
+		})
 	}
 
-	// Add namespace column if CRD is namespaced
-	if crd.Scope == "Namespaced" {
-		columns = append([]ColumnConfig{
-			{Field: "Namespace", Title: "Namespace", Width: 20, Priority: 2},
-		}, columns...)
-	}
+	// Name gets dynamic width (0) to fill remaining space - it's the most important field
+	// Age gets fixed width (10 chars)
+	columns = append(columns,
+		ColumnConfig{Field: "Name", Title: "Name", Width: 0, Priority: 1},
+		ColumnConfig{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration, Priority: 1},
+	)
 
 	return ScreenConfig{
 		ID:           screenID,
