@@ -1046,11 +1046,11 @@ Pass `crd.Columns` to `CreateGenericTransform()`.
 ### Success Criteria
 
 #### Automated Verification:
-- [x] All existing tests pass: `make test`
-- [x] JSONPath evaluator tests pass
-- [x] CRD transform with columns tests pass
-- [x] Dynamic screen generator with columns tests pass
-- [x] Code compiles without errors: `make build`
+- [ ] All existing tests pass: `make test`
+- [ ] JSONPath evaluator tests pass
+- [ ] CRD transform with columns tests pass
+- [ ] Dynamic screen generator with columns tests pass
+- [ ] Code compiles without errors: `make build`
 
 #### Manual Verification:
 - [ ] Navigate to `:crds` screen
