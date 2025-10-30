@@ -19,6 +19,9 @@ import (
 // tickMsg triggers periodic refresh
 type tickMsg time.Time
 
+// startConfigLoadingMsg triggers the loading sequence for ConfigScreen
+type startConfigLoadingMsg struct{}
+
 // ColumnConfig defines a column in the resource list table
 type ColumnConfig struct {
 	Field    string                   // Field name in resource struct
@@ -85,8 +88,8 @@ type ConfigScreen struct {
 	visibleColumns []ColumnConfig // Columns currently visible
 	hiddenCount    int             // Number of hidden columns
 
-	// Periodic refresh state
-	firstRefreshDone bool // Tracks if first refresh has completed (for tick scheduling)
+	// Track initialization for loading messages and periodic refresh
+	initialized bool
 }
 
 // NewConfigScreen creates a new config-driven screen
@@ -146,11 +149,68 @@ func (s *ConfigScreen) Operations() []types.Operation {
 }
 
 func (s *ConfigScreen) Init() tea.Cmd {
-	// Only do initial refresh; first tick will be scheduled after refresh completes
+	// If already initialized (cached screen), just refresh
+	// Note: first tick scheduled after refresh completes (in Update())
+	if s.initialized {
+		return s.Refresh()
+	}
+
+	// First initialization
+	s.initialized = true
+
+	// Check if this is a Tier 0 resource that needs loading
+	needsLoading := s.needsInitialLoad()
+
+	if needsLoading {
+		// Show loading message before blocking
+		return tea.Batch(
+			func() tea.Msg {
+				return startConfigLoadingMsg{}
+			},
+		)
+	}
+
+	// Already loaded, just refresh
+	// First tick will be scheduled after refresh completes (in Update())
 	return s.Refresh()
 }
 
+// needsInitialLoad checks if this screen needs to show loading on first visit
+func (s *ConfigScreen) needsInitialLoad() bool {
+	// Get the resource config to check tier
+	config, exists := k8s.GetResourceConfig(s.config.ResourceType)
+	if !exists {
+		return false
+	}
+
+	// Only Tier 0 (on-demand) resources need loading messages
+	// Tier 1/2/3 are already loaded at startup
+	if config.Tier != 0 {
+		return false
+	}
+
+	// Check if informer is already synced
+	gvr, ok := k8s.GetGVRForResourceType(s.config.ResourceType)
+	if !ok {
+		return false
+	}
+
+	return !s.repo.IsInformerSynced(gvr)
+}
+
 func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle loading message first (before custom update)
+	switch msg.(type) {
+	case startConfigLoadingMsg:
+		// Show loading message and start refresh
+		return s, tea.Batch(
+			func() tea.Msg {
+				return types.InfoMsg("Loading " + s.config.Title + "...")
+			},
+			s.Refresh(),
+		)
+	}
+
 	// Check for custom update handler
 	if s.config.CustomUpdate != nil {
 		return s.config.CustomUpdate(s, msg)
@@ -269,7 +329,9 @@ func (s *ConfigScreen) SetSize(width, height int) {
 	usedWidth := 0
 
 	for _, col := range sorted {
-		if s.shouldExcludeColumn(col, availableWidth, usedWidth) {
+		exclude := s.shouldExcludeColumn(col, availableWidth, usedWidth)
+
+		if exclude {
 			continue
 		}
 
@@ -376,6 +438,12 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 	}
 
 	return func() tea.Msg {
+		// Ensure informer is loaded for on-demand resources (Tier 0)
+		// This may take 10-30 seconds for first access
+		if err := s.repo.EnsureResourceTypeInformer(s.config.ResourceType); err != nil {
+			return types.ErrorStatusMsg(fmt.Sprintf("Failed to load %s informer: %v", s.config.Title, err))
+		}
+
 		start := time.Now()
 
 		var items []interface{}

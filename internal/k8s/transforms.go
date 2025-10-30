@@ -692,6 +692,12 @@ func CreateGenericTransform(kind string) TransformFunc {
 }
 
 // getResourceRegistry returns the registry of all supported resources
+// GetResourceConfig returns the config for a specific resource type
+func GetResourceConfig(resourceType ResourceType) (ResourceConfig, bool) {
+	config, exists := getResourceRegistry()[resourceType]
+	return config, exists
+}
+
 func getResourceRegistry() map[ResourceType]ResourceConfig {
 	return map[ResourceType]ResourceConfig{
 		ResourceTypePod: {
@@ -878,7 +884,7 @@ func getResourceRegistry() map[ResourceType]ResourceConfig {
 			},
 			Name:       "Custom Resource Definitions",
 			Namespaced: false, // CRDs are cluster-scoped
-			Tier:       2,     // Background load
+			Tier:       0,     // On-demand load only (not loaded at startup)
 			Transform:  transformCRD,
 		},
 	}

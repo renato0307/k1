@@ -8,11 +8,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// startLoadingMsg triggers the loading sequence
+type startLoadingMsg struct{}
+
 // DynamicScreen wraps ConfigScreen for dynamic CRD instances
 type DynamicScreen struct {
 	*ConfigScreen
-	gvr       schema.GroupVersionResource
-	transform k8s.TransformFunc
+	gvr         schema.GroupVersionResource
+	transform   k8s.TransformFunc
+	initialized bool // Track if Init() has been called before
 }
 
 // NewDynamicScreen creates a screen for CR instances
@@ -32,23 +36,57 @@ func NewDynamicScreen(
 	}
 }
 
-// Init ensures informer is registered before loading data
+// Init starts the data refresh, showing loading message only on first call
 func (s *DynamicScreen) Init() tea.Cmd {
-	return tea.Batch(
-		func() tea.Msg {
-			// Register informer on-demand
-			if err := s.repo.EnsureCRInformer(s.gvr); err != nil {
-				return types.ErrorStatusMsg("Failed to load " + s.config.Title + ": " + err.Error())
-			}
-			return types.InfoMsg("Loading " + s.config.Title + "...")
-		},
-		s.Refresh(),
-	)
+	// If already initialized before (cached screen being revisited), just refresh
+	if s.initialized {
+		return s.Refresh()
+	}
+
+	// First initialization
+	s.initialized = true
+
+	// Check if informer needs syncing
+	if s.repo.IsInformerSynced(s.gvr) {
+		// Already synced (shouldn't happen on first init, but handle it)
+		return s.Refresh()
+	}
+
+	// Informer needs syncing - show loading message before blocking
+	return func() tea.Msg {
+		return startLoadingMsg{}
+	}
+}
+
+// Update handles messages for DynamicScreen
+func (s *DynamicScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case startLoadingMsg:
+		// Show loading message and start sync
+		return s, tea.Batch(
+			func() tea.Msg {
+				return types.InfoMsg("Loading " + s.config.Title + "...")
+			},
+			s.Refresh(),
+		)
+	case types.RefreshCompleteMsg:
+		// Let ConfigScreen handle the refresh complete
+		// App will clear loading message automatically
+		return s.ConfigScreen.Update(msg)
+	}
+
+	// Delegate to ConfigScreen for all other messages
+	return s.ConfigScreen.Update(msg)
 }
 
 // Refresh fetches CR instances using GVR
 func (s *DynamicScreen) Refresh() tea.Cmd {
 	return func() tea.Msg {
+		// Ensure informer is registered on-demand (may take 10-30s first time)
+		if err := s.repo.EnsureCRInformer(s.gvr); err != nil {
+			return types.ErrorStatusMsg("Failed to load " + s.config.Title + ": " + err.Error())
+		}
+
 		resources, err := s.repo.GetResourcesByGVR(s.gvr, s.transform)
 		if err != nil {
 			return types.ErrorStatusMsg("Failed to refresh " + s.config.Title + ": " + err.Error())

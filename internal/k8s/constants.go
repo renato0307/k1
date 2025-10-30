@@ -15,7 +15,8 @@ const (
 	InformerSyncTimeout = 120 * time.Second
 
 	// InformerIndividualSyncTimeout is the timeout for each dynamic informer
-	// to sync individually. 60 seconds per resource allows graceful handling of
-	// RBAC permission errors and large resource lists without blocking startup.
-	InformerIndividualSyncTimeout = 60 * time.Second
+	// to sync in parallel. 30 seconds allows handling RBAC errors and large
+	// resource lists. Since informers sync in parallel, total startup time is
+	// max(all individual syncs), not sum(all individual syncs).
+	InformerIndividualSyncTimeout = 30 * time.Second
 )
