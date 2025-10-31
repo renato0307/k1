@@ -390,6 +390,14 @@ func navigateToCRInstances() NavigationFunc {
 		plural, _ := resource["plural"].(string)
 		scope, _ := resource["scope"].(string)
 
+		// Extract columns field (slice of CRDColumn)
+		var columns []k8s.CRDColumn
+		if columnsInterface, ok := resource["columns"]; ok {
+			if columnSlice, ok := columnsInterface.([]k8s.CRDColumn); ok {
+				columns = columnSlice
+			}
+		}
+
 		// Build CRD from extracted fields
 		crd := k8s.CustomResourceDefinition{
 			Group:   group,
@@ -397,6 +405,7 @@ func navigateToCRInstances() NavigationFunc {
 			Kind:    kind,
 			Plural:  plural,
 			Scope:   scope,
+			Columns: columns,
 		}
 
 		// Trigger dynamic screen creation

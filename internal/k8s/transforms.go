@@ -650,9 +650,11 @@ func transformCRD(u *unstructured.Unstructured, common ResourceMetadata) (any, e
 	plural, _, _ := unstructured.NestedString(u.Object, "spec", "names", "plural")
 	scope, _, _ := unstructured.NestedString(u.Object, "spec", "scope")
 
-	// Find storage version
+	// Find storage version and extract additionalPrinterColumns
 	versions, _, _ := unstructured.NestedSlice(u.Object, "spec", "versions")
 	version := ""
+	var columns []CRDColumn
+
 	for _, v := range versions {
 		vMap, ok := v.(map[string]any)
 		if !ok {
@@ -661,11 +663,34 @@ func transformCRD(u *unstructured.Unstructured, common ResourceMetadata) (any, e
 		stored, _, _ := unstructured.NestedBool(vMap, "storage")
 		if stored {
 			version, _, _ = unstructured.NestedString(vMap, "name")
+
+			// Extract additionalPrinterColumns from storage version
+			columnsSlice, _, _ := unstructured.NestedSlice(vMap, "additionalPrinterColumns")
+			for _, col := range columnsSlice {
+				colMap, ok := col.(map[string]any)
+				if !ok {
+					continue
+				}
+
+				name, _, _ := unstructured.NestedString(colMap, "name")
+				colType, _, _ := unstructured.NestedString(colMap, "type")
+				description, _, _ := unstructured.NestedString(colMap, "description")
+				jsonPath, _, _ := unstructured.NestedString(colMap, "jsonPath")
+				priority, _, _ := unstructured.NestedInt64(colMap, "priority")
+
+				columns = append(columns, CRDColumn{
+					Name:        name,
+					Type:        colType,
+					Description: description,
+					JSONPath:    jsonPath,
+					Priority:    int32(priority),
+				})
+			}
 			break
 		}
 	}
 
-	return CustomResourceDefinition{
+	crd := CustomResourceDefinition{
 		ResourceMetadata: ResourceMetadata{
 			Namespace: common.Namespace,
 			Name:      common.Name,
@@ -677,16 +702,30 @@ func transformCRD(u *unstructured.Unstructured, common ResourceMetadata) (any, e
 		Kind:    kind,
 		Scope:   scope,
 		Plural:  plural,
-	}, nil
+		Columns: columns,
+	}
+
+
+	return crd, nil
 }
 
 // CreateGenericTransform returns a transform function for unknown CRD schemas
-func CreateGenericTransform(kind string) TransformFunc {
+// If columns are provided, it evaluates JSONPath expressions to populate Fields map.
+// Otherwise, Fields will be empty and the screen will use generic columns.
+func CreateGenericTransform(kind string, columns []CRDColumn) TransformFunc {
 	return func(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
+		// Evaluate JSONPath for each column
+		fields := make(map[string]string)
+		for _, col := range columns {
+			value := EvaluateJSONPath(u, col.JSONPath)
+			fields[col.Name] = value
+		}
+
 		return GenericResource{
 			ResourceMetadata: common,
 			Kind:             kind,
 			Data:             u.Object,
+			Fields:           fields,
 		}, nil
 	}
 }

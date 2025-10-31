@@ -160,19 +160,30 @@ type HorizontalPodAutoscaler struct {
 	TargetCPU string // "80%" or "N/A"
 }
 
+// CRDColumn represents a column defined in CRD additionalPrinterColumns
+type CRDColumn struct {
+	Name        string // Column name (e.g., "Ready", "Status")
+	Type        string // Column type (e.g., "string", "integer", "boolean", "date")
+	Description string // Human-readable description
+	JSONPath    string // JSONPath expression (e.g., ".status.conditions[?(@.type==\"Ready\")].status")
+	Priority    int32  // Display priority (0=always show, >0=hide by default)
+}
+
 // CustomResourceDefinition represents a CRD in the cluster
 type CustomResourceDefinition struct {
 	ResourceMetadata
-	Group   string // e.g., "cert-manager.io"
-	Version string // Storage version, e.g., "v1"
-	Kind    string // e.g., "Certificate"
-	Scope   string // "Namespaced" or "Cluster"
-	Plural  string // e.g., "certificates"
+	Group   string      // e.g., "cert-manager.io"
+	Version string      // Storage version, e.g., "v1"
+	Kind    string      // e.g., "Certificate"
+	Scope   string      // "Namespaced" or "Cluster"
+	Plural  string      // e.g., "certificates"
+	Columns []CRDColumn // additionalPrinterColumns from storage version
 }
 
 // GenericResource represents a CR instance with unknown schema
 type GenericResource struct {
 	ResourceMetadata
-	Kind string         // CRD Kind (e.g., "Certificate")
-	Data map[string]any // Raw unstructured data for describe/yaml
+	Kind   string            // CRD Kind (e.g., "Certificate")
+	Data   map[string]any    // Raw unstructured data for describe/yaml
+	Fields map[string]string // Dynamic column values extracted via JSONPath
 }

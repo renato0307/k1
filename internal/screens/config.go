@@ -719,12 +719,43 @@ func (s *ConfigScreen) handleEnterKey() tea.Cmd {
 // Helper functions
 
 // getFieldValue extracts a field value from an interface{} using reflection
+// Supports dot notation for nested field access (e.g., "Fields.Ready" accesses the Fields map)
 func getFieldValue(obj interface{}, fieldName string) interface{} {
 	v := reflect.ValueOf(obj)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 
+	// Handle dot notation for nested fields (e.g., "Fields.Ready")
+	if strings.Contains(fieldName, ".") {
+		parts := strings.SplitN(fieldName, ".", 2)
+		parentField := parts[0]
+		childKey := parts[1]
+
+		// Get the parent field (e.g., "Fields")
+		parent := v.FieldByName(parentField)
+		if !parent.IsValid() {
+			return ""
+		}
+
+		// If parent is a map, access the key
+		if parent.Kind() == reflect.Map {
+			mapValue := parent.MapIndex(reflect.ValueOf(childKey))
+			if !mapValue.IsValid() {
+				return ""
+			}
+			return mapValue.Interface()
+		}
+
+		// If parent is a struct, recurse
+		if parent.Kind() == reflect.Struct {
+			return getFieldValue(parent.Interface(), childKey)
+		}
+
+		return ""
+	}
+
+	// Direct field access for simple field names
 	field := v.FieldByName(fieldName)
 	if !field.IsValid() {
 		return ""
@@ -789,4 +820,30 @@ func FormatDuration(val interface{}) string {
 		return fmt.Sprintf("%dh", int(d.Hours()))
 	}
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
+}
+
+// FormatDate formats a date/time value as a human-readable string
+// Handles string values (like those from JSONPath evaluation) or time.Time
+func FormatDate(val interface{}) string {
+	switch v := val.(type) {
+	case string:
+		// If already a string (from JSONPath), try to parse it
+		if v == "" {
+			return "<none>"
+		}
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			// If parsing fails, return as-is (might already be formatted)
+			return v
+		}
+		// Format as relative time
+		return FormatDuration(time.Since(t)) + " ago"
+	case time.Time:
+		if v.IsZero() {
+			return "<none>"
+		}
+		return FormatDuration(time.Since(v)) + " ago"
+	default:
+		return fmt.Sprint(val)
+	}
 }

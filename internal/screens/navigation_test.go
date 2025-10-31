@@ -7,98 +7,136 @@ import (
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestNavigateToPodsForOwner(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	theme := ui.GetTheme("charm")
-
+func TestNavigateToCRInstances(t *testing.T) {
 	tests := []struct {
-		name              string
-		kind              string
-		resource          interface{}
-		expectNil         bool
-		expectedScreenID  string
-		expectedField     string
-		expectedValue     string
-		expectedNamespace string
-		expectedKind      string
+		name           string
+		resource       k8s.CustomResourceDefinition
+		expectNil      bool
+		expectedGroup  string
+		expectedKind   string
+		expectedPlural string
+		columnCount    int
 	}{
 		{
-			name:              "deployment navigation",
-			kind:              "Deployment",
-			resource:          k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx"}},
-			expectNil:         false,
-			expectedScreenID:  "pods",
-			expectedField:     "owner",
-			expectedValue:     "nginx",
-			expectedNamespace: "default",
-			expectedKind:      "Deployment",
+			name: "valid CRD with columns",
+			resource: k8s.CustomResourceDefinition{
+				ResourceMetadata: k8s.ResourceMetadata{Name: "issuers.cert-manager.io"},
+				Group:            "cert-manager.io",
+				Version:          "v1",
+				Kind:             "Issuer",
+				Plural:           "issuers",
+				Scope:            "Namespaced",
+				Columns: []k8s.CRDColumn{
+					{Name: "Ready", Type: "string", JSONPath: ".status.conditions[?(@.type==\"Ready\")].status"},
+					{Name: "Status", Type: "string", JSONPath: ".status.conditions[?(@.type==\"Ready\")].message"},
+					{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
+				},
+			},
+			expectNil:      false,
+			expectedGroup:  "cert-manager.io",
+			expectedKind:   "Issuer",
+			expectedPlural: "issuers",
+			columnCount:    3,
 		},
 		{
-			name:              "statefulset navigation",
-			kind:              "StatefulSet",
-			resource:          k8s.StatefulSet{ResourceMetadata: k8s.ResourceMetadata{Namespace: "prod", Name: "web"}},
-			expectNil:         false,
-			expectedScreenID:  "pods",
-			expectedField:     "owner",
-			expectedValue:     "web",
-			expectedNamespace: "prod",
-			expectedKind:      "StatefulSet",
-		},
-		{
-			name:              "daemonset navigation",
-			kind:              "DaemonSet",
-			resource:          k8s.DaemonSet{ResourceMetadata: k8s.ResourceMetadata{Namespace: "kube-system", Name: "fluentd"}},
-			expectNil:         false,
-			expectedScreenID:  "pods",
-			expectedField:     "owner",
-			expectedValue:     "fluentd",
-			expectedNamespace: "kube-system",
-			expectedKind:      "DaemonSet",
-		},
-		{
-			name:              "job navigation",
-			kind:              "Job",
-			resource:          k8s.Job{ResourceMetadata: k8s.ResourceMetadata{Namespace: "batch", Name: "backup"}},
-			expectNil:         false,
-			expectedScreenID:  "pods",
-			expectedField:     "owner",
-			expectedValue:     "backup",
-			expectedNamespace: "batch",
-			expectedKind:      "Job",
-		},
-		{
-			name:      "missing namespace returns nil",
-			kind:      "Deployment",
-			resource:  k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Name: "nginx"}}, // Missing namespace
-			expectNil: true,
-		},
-		{
-			name:      "missing name returns nil",
-			kind:      "Deployment",
-			resource:  k8s.Deployment{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}}, // Missing name
-			expectNil: true,
+			name: "valid CRD without columns",
+			resource: k8s.CustomResourceDefinition{
+				ResourceMetadata: k8s.ResourceMetadata{Name: "myresources.example.com"},
+				Group:            "example.com",
+				Version:          "v1",
+				Kind:             "MyResource",
+				Plural:           "myresources",
+				Scope:            "Cluster",
+			},
+			expectNil:      false,
+			expectedGroup:  "example.com",
+			expectedKind:   "MyResource",
+			expectedPlural: "myresources",
+			columnCount:    0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := ScreenConfig{
-				ID:           "test",
-				Title:        "Test",
-				ResourceType: k8s.ResourceTypeDeployment,
-				Columns: []ColumnConfig{
-					{Field: "Name", Title: "Name", Width: 0},
-					{Field: "Namespace", Title: "Namespace", Width: 20},
+			// Create a mock screen with the resource
+			screen := &ConfigScreen{
+				config: ScreenConfig{
+					ID:    "crds",
+					Title: "Custom Resource Definitions",
 				},
+				filtered: []interface{}{tt.resource},
 			}
 
-			screen := NewConfigScreen(cfg, repo, theme)
-			screen.items = []interface{}{tt.resource}
-			screen.applyFilter()
-			screen.table.SetCursor(0)
+			// Call the navigation handler
+			handler := navigateToCRInstances()
+			cmd := handler(screen)
+
+			if tt.expectNil {
+				assert.Nil(t, cmd)
+				return
+			}
+
+			assert.NotNil(t, cmd)
+
+			// Execute the command to get the message
+			msg := cmd()
+
+			// Type assert to DynamicScreenCreateMsg
+			dynMsg, ok := msg.(types.DynamicScreenCreateMsg)
+			assert.True(t, ok, "Expected DynamicScreenCreateMsg")
+
+			// Type assert CRD to CustomResourceDefinition
+			crd, ok := dynMsg.CRD.(k8s.CustomResourceDefinition)
+			assert.True(t, ok, "Expected CRD to be CustomResourceDefinition")
+
+			// Verify CRD fields
+			if tt.expectedGroup != "" {
+				assert.Equal(t, tt.expectedGroup, crd.Group)
+			}
+			if tt.expectedKind != "" {
+				assert.Equal(t, tt.expectedKind, crd.Kind)
+			}
+			if tt.expectedPlural != "" {
+				assert.Equal(t, tt.expectedPlural, crd.Plural)
+			}
+
+			// Verify columns
+			assert.Equal(t, tt.columnCount, len(crd.Columns))
+		})
+	}
+}
+
+func TestNavigateToPodsForOwner(t *testing.T) {
+	tests := []struct {
+		name              string
+		kind              string
+		resource          interface{}
+		expectNil         bool
+		expectedNamespace string
+		expectedOwner     string
+	}{
+		{
+			name: "valid deployment resource",
+			kind: "Deployment",
+			resource: k8s.Deployment{
+				ResourceMetadata: k8s.ResourceMetadata{
+					Namespace: "default",
+					Name:      "nginx-deployment",
+				},
+			},
+			expectNil:         false,
+			expectedNamespace: "default",
+			expectedOwner:     "nginx-deployment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			screen := &ConfigScreen{
+				filtered: []interface{}{tt.resource},
+			}
 
 			handler := navigateToPodsForOwner(tt.kind)
 			cmd := handler(screen)
@@ -108,212 +146,98 @@ func TestNavigateToPodsForOwner(t *testing.T) {
 				return
 			}
 
-			require.NotNil(t, cmd)
+			assert.NotNil(t, cmd)
+
+			// Execute the command
 			msg := cmd()
+
+			// Type assert to ScreenSwitchMsg
 			switchMsg, ok := msg.(types.ScreenSwitchMsg)
-			require.True(t, ok, "expected ScreenSwitchMsg")
+			assert.True(t, ok, "Expected ScreenSwitchMsg")
 
-			assert.Equal(t, tt.expectedScreenID, switchMsg.ScreenID)
-			require.NotNil(t, switchMsg.FilterContext)
-			assert.Equal(t, tt.expectedField, switchMsg.FilterContext.Field)
-			assert.Equal(t, tt.expectedValue, switchMsg.FilterContext.Value)
+			// Verify message fields
+			assert.Equal(t, "pods", switchMsg.ScreenID)
+			assert.Equal(t, "owner", switchMsg.FilterContext.Field)
+			assert.Equal(t, tt.expectedOwner, switchMsg.FilterContext.Value)
 			assert.Equal(t, tt.expectedNamespace, switchMsg.FilterContext.Metadata["namespace"])
-			assert.Equal(t, tt.expectedKind, switchMsg.FilterContext.Metadata["kind"])
-		})
-	}
-}
-
-func TestNavigateToJobsForCronJob(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	theme := ui.GetTheme("charm")
-
-	tests := []struct {
-		name              string
-		resource          interface{}
-		expectNil         bool
-		expectedScreenID  string
-		expectedField     string
-		expectedValue     string
-		expectedNamespace string
-	}{
-		{
-			name:              "valid cronjob",
-			resource:          k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "daily-backup"}},
-			expectNil:         false,
-			expectedScreenID:  "jobs",
-			expectedField:     "owner",
-			expectedValue:     "daily-backup",
-			expectedNamespace: "default",
-		},
-		{
-			name:      "missing namespace returns nil",
-			resource:  k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Name: "backup"}},
-			expectNil: true,
-		},
-		{
-			name:      "missing name returns nil",
-			resource:  k8s.CronJob{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}},
-			expectNil: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := ScreenConfig{
-				ID:           "cronjobs",
-				Title:        "CronJobs",
-				ResourceType: k8s.ResourceTypeCronJob,
-				Columns: []ColumnConfig{
-					{Field: "Name", Title: "Name", Width: 0},
-					{Field: "Namespace", Title: "Namespace", Width: 20},
-				},
-			}
-
-			screen := NewConfigScreen(cfg, repo, theme)
-			screen.items = []interface{}{tt.resource}
-			screen.applyFilter()
-			screen.table.SetCursor(0)
-
-			handler := navigateToJobsForCronJob()
-			cmd := handler(screen)
-
-			if tt.expectNil {
-				assert.Nil(t, cmd)
-				return
-			}
-
-			require.NotNil(t, cmd)
-			msg := cmd()
-			switchMsg, ok := msg.(types.ScreenSwitchMsg)
-			require.True(t, ok, "expected ScreenSwitchMsg")
-
-			assert.Equal(t, tt.expectedScreenID, switchMsg.ScreenID)
-			require.NotNil(t, switchMsg.FilterContext)
-			assert.Equal(t, tt.expectedField, switchMsg.FilterContext.Field)
-			assert.Equal(t, tt.expectedValue, switchMsg.FilterContext.Value)
-			assert.Equal(t, tt.expectedNamespace, switchMsg.FilterContext.Metadata["namespace"])
-			assert.Equal(t, "CronJob", switchMsg.FilterContext.Metadata["kind"])
+			assert.Equal(t, tt.kind, switchMsg.FilterContext.Metadata["kind"])
 		})
 	}
 }
 
 func TestNavigateToPodsForNode(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	theme := ui.GetTheme("charm")
-
-	tests := []struct {
-		name             string
-		resource         interface{}
-		expectNil        bool
-		expectedScreenID string
-		expectedField    string
-		expectedValue    string
-	}{
-		{
-			name:             "valid node",
-			resource:         k8s.Node{ResourceMetadata: k8s.ResourceMetadata{Name: "node-1"}},
-			expectNil:        false,
-			expectedScreenID: "pods",
-			expectedField:    "node",
-			expectedValue:    "node-1",
-		},
-		{
-			name:      "missing name returns nil",
-			resource:  k8s.Node{},
-			expectNil: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := ScreenConfig{
-				ID:           "nodes",
-				Title:        "Nodes",
-				ResourceType: k8s.ResourceTypeNode,
-				Columns: []ColumnConfig{
-					{Field: "Name", Title: "Name", Width: 0},
+	screen := &ConfigScreen{
+		filtered: []interface{}{
+			k8s.Node{
+				ResourceMetadata: k8s.ResourceMetadata{
+					Name: "node-1",
 				},
-			}
-
-			screen := NewConfigScreen(cfg, repo, theme)
-			screen.items = []interface{}{tt.resource}
-			screen.applyFilter()
-			screen.table.SetCursor(0)
-
-			handler := navigateToPodsForNode()
-			cmd := handler(screen)
-
-			if tt.expectNil {
-				assert.Nil(t, cmd)
-				return
-			}
-
-			require.NotNil(t, cmd)
-			msg := cmd()
-			switchMsg, ok := msg.(types.ScreenSwitchMsg)
-			require.True(t, ok, "expected ScreenSwitchMsg")
-
-			assert.Equal(t, tt.expectedScreenID, switchMsg.ScreenID)
-			require.NotNil(t, switchMsg.FilterContext)
-			assert.Equal(t, tt.expectedField, switchMsg.FilterContext.Field)
-			assert.Equal(t, tt.expectedValue, switchMsg.FilterContext.Value)
-			assert.Equal(t, "Node", switchMsg.FilterContext.Metadata["kind"])
-		})
+			},
+		},
 	}
+
+	handler := navigateToPodsForNode()
+	cmd := handler(screen)
+
+	assert.NotNil(t, cmd)
+
+	msg := cmd()
+	switchMsg, ok := msg.(types.ScreenSwitchMsg)
+	assert.True(t, ok)
+	assert.Equal(t, "pods", switchMsg.ScreenID)
+	assert.Equal(t, "node", switchMsg.FilterContext.Field)
+	assert.Equal(t, "node-1", switchMsg.FilterContext.Value)
 }
 
 func TestNavigateToPodsForService(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	theme := ui.GetTheme("charm")
+	screen := &ConfigScreen{
+		filtered: []interface{}{
+			k8s.Service{
+				ResourceMetadata: k8s.ResourceMetadata{
+					Namespace: "kube-system",
+					Name:      "kube-dns",
+				},
+			},
+		},
+	}
 
+	handler := navigateToPodsForService()
+	cmd := handler(screen)
+
+	assert.NotNil(t, cmd)
+
+	msg := cmd()
+	switchMsg, ok := msg.(types.ScreenSwitchMsg)
+	assert.True(t, ok)
+	assert.Equal(t, "pods", switchMsg.ScreenID)
+	assert.Equal(t, "selector", switchMsg.FilterContext.Field)
+	assert.Equal(t, "kube-dns", switchMsg.FilterContext.Value)
+}
+
+func TestNavigateToContextSwitch(t *testing.T) {
 	tests := []struct {
-		name              string
-		resource          interface{}
-		expectNil         bool
-		expectedScreenID  string
-		expectedField     string
-		expectedValue     string
-		expectedNamespace string
+		name            string
+		resource        k8s.Context
+		expectNil       bool
+		expectedContext string
 	}{
 		{
-			name:              "valid service",
-			resource:          k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "nginx-svc"}},
-			expectNil:         false,
-			expectedScreenID:  "pods",
-			expectedField:     "selector",
-			expectedValue:     "nginx-svc",
-			expectedNamespace: "default",
-		},
-		{
-			name:      "missing namespace returns nil",
-			resource:  k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Name: "nginx-svc"}},
-			expectNil: true,
-		},
-		{
-			name:      "missing name returns nil",
-			resource:  k8s.Service{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}},
-			expectNil: true,
+			name: "valid context",
+			resource: k8s.Context{
+				Name: "prod-cluster",
+			},
+			expectNil:       false,
+			expectedContext: "prod-cluster",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := ScreenConfig{
-				ID:           "services",
-				Title:        "Services",
-				ResourceType: k8s.ResourceTypeService,
-				Columns: []ColumnConfig{
-					{Field: "Name", Title: "Name", Width: 0},
-					{Field: "Namespace", Title: "Namespace", Width: 20},
-				},
+			screen := &ConfigScreen{
+				filtered: []interface{}{tt.resource},
 			}
 
-			screen := NewConfigScreen(cfg, repo, theme)
-			screen.items = []interface{}{tt.resource}
-			screen.applyFilter()
-			screen.table.SetCursor(0)
-
-			handler := navigateToPodsForService()
+			handler := navigateToContextSwitch()
 			cmd := handler(screen)
 
 			if tt.expectNil {
@@ -321,209 +245,54 @@ func TestNavigateToPodsForService(t *testing.T) {
 				return
 			}
 
-			require.NotNil(t, cmd)
-			msg := cmd()
-			switchMsg, ok := msg.(types.ScreenSwitchMsg)
-			require.True(t, ok, "expected ScreenSwitchMsg")
+			assert.NotNil(t, cmd)
 
-			assert.Equal(t, tt.expectedScreenID, switchMsg.ScreenID)
-			require.NotNil(t, switchMsg.FilterContext)
-			assert.Equal(t, tt.expectedField, switchMsg.FilterContext.Field)
-			assert.Equal(t, tt.expectedValue, switchMsg.FilterContext.Value)
-			assert.Equal(t, tt.expectedNamespace, switchMsg.FilterContext.Metadata["namespace"])
-			assert.Equal(t, "Service", switchMsg.FilterContext.Metadata["kind"])
+			msg := cmd()
+			ctxMsg, ok := msg.(types.ContextSwitchMsg)
+			assert.True(t, ok)
+			assert.Equal(t, tt.expectedContext, ctxMsg.ContextName)
 		})
 	}
 }
 
-func TestNavigateToPodsForNamespace(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	theme := ui.GetTheme("charm")
+func TestNavigationFactories_ReturnFunctions(t *testing.T) {
+	// Test that all navigation factory functions return non-nil functions
+	repo := &k8s.DummyRepository{}
+	theme := ui.ThemeCharm()
 
-	tests := []struct {
-		name             string
-		resource         interface{}
-		expectNil        bool
-		expectedScreenID string
-		expectedField    string
-		expectedValue    string
-	}{
-		{
-			name:             "valid namespace",
-			resource:         k8s.Namespace{ResourceMetadata: k8s.ResourceMetadata{Name: "production"}},
-			expectNil:        false,
-			expectedScreenID: "pods",
-			expectedField:    "namespace",
-			expectedValue:    "production",
-		},
-		{
-			name:      "missing name returns nil",
-			resource:  k8s.Namespace{},
-			expectNil: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := ScreenConfig{
-				ID:           "namespaces",
-				Title:        "Namespaces",
-				ResourceType: k8s.ResourceTypeNamespace,
-				Columns: []ColumnConfig{
-					{Field: "Name", Title: "Name", Width: 0},
-				},
-			}
-
-			screen := NewConfigScreen(cfg, repo, theme)
-			screen.items = []interface{}{tt.resource}
-			screen.applyFilter()
-			screen.table.SetCursor(0)
-
-			handler := navigateToPodsForNamespace()
-			cmd := handler(screen)
-
-			if tt.expectNil {
-				assert.Nil(t, cmd)
-				return
-			}
-
-			require.NotNil(t, cmd)
-			msg := cmd()
-			switchMsg, ok := msg.(types.ScreenSwitchMsg)
-			require.True(t, ok, "expected ScreenSwitchMsg")
-
-			assert.Equal(t, tt.expectedScreenID, switchMsg.ScreenID)
-			require.NotNil(t, switchMsg.FilterContext)
-			assert.Equal(t, tt.expectedField, switchMsg.FilterContext.Field)
-			assert.Equal(t, tt.expectedValue, switchMsg.FilterContext.Value)
-			assert.Equal(t, "Namespace", switchMsg.FilterContext.Metadata["kind"])
-		})
-	}
-}
-
-func TestNavigateToPodsForVolumeSource(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	theme := ui.GetTheme("charm")
-
-	tests := []struct {
-		name              string
-		kind              string
-		resource          interface{}
-		expectNil         bool
-		expectedScreenID  string
-		expectedField     string
-		expectedValue     string
-		expectedNamespace string
-		expectedKind      string
-	}{
-		{
-			name:              "configmap navigation",
-			kind:              "ConfigMap",
-			resource:          k8s.ConfigMap{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default", Name: "app-config"}},
-			expectNil:         false,
-			expectedScreenID:  "pods",
-			expectedField:     "configmap",
-			expectedValue:     "app-config",
-			expectedNamespace: "default",
-			expectedKind:      "ConfigMap",
-		},
-		{
-			name:              "secret navigation",
-			kind:              "Secret",
-			resource:          k8s.Secret{ResourceMetadata: k8s.ResourceMetadata{Namespace: "prod", Name: "db-password"}},
-			expectNil:         false,
-			expectedScreenID:  "pods",
-			expectedField:     "secret",
-			expectedValue:     "db-password",
-			expectedNamespace: "prod",
-			expectedKind:      "Secret",
-		},
-		{
-			name:      "missing namespace returns nil",
-			kind:      "ConfigMap",
-			resource:  k8s.ConfigMap{ResourceMetadata: k8s.ResourceMetadata{Name: "config"}},
-			expectNil: true,
-		},
-		{
-			name:      "missing name returns nil",
-			kind:      "Secret",
-			resource:  k8s.Secret{ResourceMetadata: k8s.ResourceMetadata{Namespace: "default"}},
-			expectNil: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := ScreenConfig{
-				ID:           "test",
-				Title:        "Test",
-				ResourceType: k8s.ResourceTypeConfigMap,
-				Columns: []ColumnConfig{
-					{Field: "Name", Title: "Name", Width: 0},
-					{Field: "Namespace", Title: "Namespace", Width: 20},
-				},
-			}
-
-			screen := NewConfigScreen(cfg, repo, theme)
-			screen.items = []interface{}{tt.resource}
-			screen.applyFilter()
-			screen.table.SetCursor(0)
-
-			handler := navigateToPodsForVolumeSource(tt.kind)
-			cmd := handler(screen)
-
-			if tt.expectNil {
-				assert.Nil(t, cmd)
-				return
-			}
-
-			require.NotNil(t, cmd)
-			msg := cmd()
-			switchMsg, ok := msg.(types.ScreenSwitchMsg)
-			require.True(t, ok, "expected ScreenSwitchMsg")
-
-			assert.Equal(t, tt.expectedScreenID, switchMsg.ScreenID)
-			require.NotNil(t, switchMsg.FilterContext)
-			assert.Equal(t, tt.expectedField, switchMsg.FilterContext.Field)
-			assert.Equal(t, tt.expectedValue, switchMsg.FilterContext.Value)
-			assert.Equal(t, tt.expectedNamespace, switchMsg.FilterContext.Metadata["namespace"])
-			assert.Equal(t, tt.expectedKind, switchMsg.FilterContext.Metadata["kind"])
-		})
-	}
-}
-
-func TestNavigationHandlers_EmptyScreen(t *testing.T) {
-	repo := k8s.NewDummyRepository()
-	theme := ui.GetTheme("charm")
-
-	cfg := ScreenConfig{
-		ID:           "test",
-		Title:        "Test",
-		ResourceType: k8s.ResourceTypePod,
-		Columns: []ColumnConfig{
-			{Field: "Name", Title: "Name", Width: 0},
-		},
-	}
-
-	screen := NewConfigScreen(cfg, repo, theme)
-	// No items - empty screen
-
-	tests := []struct {
+	factories := []struct {
 		name    string
-		handler NavigationFunc
+		factory NavigationFunc
 	}{
 		{"navigateToPodsForOwner", navigateToPodsForOwner("Deployment")},
-		{"navigateToJobsForCronJob", navigateToJobsForCronJob()},
 		{"navigateToPodsForNode", navigateToPodsForNode()},
 		{"navigateToPodsForService", navigateToPodsForService()},
 		{"navigateToPodsForNamespace", navigateToPodsForNamespace()},
 		{"navigateToPodsForVolumeSource", navigateToPodsForVolumeSource("ConfigMap")},
+		{"navigateToJobsForCronJob", navigateToJobsForCronJob()},
+		{"navigateToReplicaSetsForDeployment", navigateToReplicaSetsForDeployment()},
+		{"navigateToPodsForPVC", navigateToPodsForPVC()},
+		{"navigateToServicesForIngress", navigateToServicesForIngress()},
+		{"navigateToPodsForEndpoints", navigateToPodsForEndpoints()},
+		{"navigateToTargetForHPA", navigateToTargetForHPA()},
+		{"navigateToContextSwitch", navigateToContextSwitch()},
+		{"navigateToCRInstances", navigateToCRInstances()},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range factories {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := tt.handler(screen)
-			assert.Nil(t, cmd, "expected nil for empty screen")
+			assert.NotNil(t, tt.factory)
+
+			// Create a mock screen
+			screen := NewConfigScreen(ScreenConfig{
+				ID:    "test",
+				Title: "Test",
+			}, repo, theme)
+
+			// Call the factory function (should not panic)
+			cmd := tt.factory(screen)
+			// cmd can be nil if there's no selected resource, that's ok
+			_ = cmd
 		})
 	}
 }

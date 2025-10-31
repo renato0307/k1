@@ -1313,7 +1313,8 @@ func TestTransformCRD(t *testing.T) {
 }
 
 func TestCreateGenericTransform(t *testing.T) {
-	transform := CreateGenericTransform("Certificate")
+	// Test without columns (generic fallback)
+	transform := CreateGenericTransform("Certificate", nil)
 
 	input := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -1342,4 +1343,150 @@ func TestCreateGenericTransform(t *testing.T) {
 	assert.Equal(t, "Certificate", generic.Kind)
 	assert.Equal(t, "test-cert", generic.Name)
 	assert.NotNil(t, generic.Data)
+	assert.Empty(t, generic.Fields) // No columns provided, Fields should be empty
+}
+
+func TestCreateGenericTransform_WithColumns(t *testing.T) {
+	// Define columns with JSONPath expressions
+	columns := []CRDColumn{
+		{
+			Name:     "Ready",
+			Type:     "string",
+			JSONPath: ".status.conditions[0].status",
+			Priority: 0,
+		},
+		{
+			Name:     "Issuer",
+			Type:     "string",
+			JSONPath: ".spec.issuerRef.name",
+			Priority: 0,
+		},
+		{
+			Name:     "Status",
+			Type:     "string",
+			JSONPath: ".status.phase",
+			Priority: 1,
+		},
+	}
+
+	transform := CreateGenericTransform("Certificate", columns)
+
+	input := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "cert-manager.io/v1",
+			"kind":       "Certificate",
+			"metadata": map[string]any{
+				"name":              "test-cert",
+				"namespace":         "default",
+				"creationTimestamp": metav1.NewTime(time.Now()).Format(time.RFC3339),
+			},
+			"spec": map[string]any{
+				"secretName": "test-secret",
+				"issuerRef": map[string]any{
+					"name": "letsencrypt",
+					"kind": "ClusterIssuer",
+				},
+			},
+			"status": map[string]any{
+				"phase": "Ready",
+				"conditions": []any{
+					map[string]any{
+						"type":   "Ready",
+						"status": "True",
+					},
+				},
+			},
+		},
+	}
+
+	common := extractMetadata(input)
+	result, err := transform(input, common)
+
+	assert.NoError(t, err)
+	generic, ok := result.(GenericResource)
+	assert.True(t, ok)
+	assert.Equal(t, "Certificate", generic.Kind)
+	assert.Equal(t, "test-cert", generic.Name)
+	assert.NotNil(t, generic.Data)
+
+	// Verify Fields map was populated correctly via JSONPath evaluation
+	assert.NotEmpty(t, generic.Fields)
+	assert.Equal(t, "True", generic.Fields["Ready"])
+	assert.Equal(t, "letsencrypt", generic.Fields["Issuer"])
+	assert.Equal(t, "Ready", generic.Fields["Status"])
+}
+
+func TestTransformCRD_WithAdditionalPrinterColumns(t *testing.T) {
+	// Test CRD with additionalPrinterColumns defined
+	input := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "apiextensions.k8s.io/v1",
+			"kind":       "CustomResourceDefinition",
+			"metadata": map[string]any{
+				"name":              "certificates.cert-manager.io",
+				"creationTimestamp": metav1.NewTime(time.Now()).Format(time.RFC3339),
+			},
+			"spec": map[string]any{
+				"group": "cert-manager.io",
+				"names": map[string]any{
+					"kind":   "Certificate",
+					"plural": "certificates",
+				},
+				"scope": "Namespaced",
+				"versions": []any{
+					map[string]any{
+						"name":    "v1",
+						"storage": true,
+						"additionalPrinterColumns": []any{
+							map[string]any{
+								"name":        "Ready",
+								"type":        "string",
+								"description": "Certificate is ready",
+								"jsonPath":    ".status.conditions[?(@.type==\"Ready\")].status",
+								"priority":    int64(0),
+							},
+							map[string]any{
+								"name":        "Issuer",
+								"type":        "string",
+								"description": "Issuer name",
+								"jsonPath":    ".spec.issuerRef.name",
+								"priority":    int64(0),
+							},
+							map[string]any{
+								"name":        "Status",
+								"type":        "string",
+								"description": "Certificate status",
+								"jsonPath":    ".status.phase",
+								"priority":    int64(1),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	common := extractMetadata(input)
+	result, err := transformCRD(input, common)
+
+	require.NoError(t, err)
+	crd, ok := result.(CustomResourceDefinition)
+	require.True(t, ok)
+	assert.Equal(t, "cert-manager.io", crd.Group)
+	assert.Equal(t, "v1", crd.Version)
+	assert.Equal(t, "Certificate", crd.Kind)
+	assert.Equal(t, "Namespaced", crd.Scope)
+	assert.Equal(t, "certificates", crd.Plural)
+
+	// Verify columns were extracted
+	assert.Len(t, crd.Columns, 3)
+	assert.Equal(t, "Ready", crd.Columns[0].Name)
+	assert.Equal(t, "string", crd.Columns[0].Type)
+	assert.Equal(t, "Certificate is ready", crd.Columns[0].Description)
+	assert.Equal(t, ".status.conditions[?(@.type==\"Ready\")].status", crd.Columns[0].JSONPath)
+	assert.Equal(t, int32(0), crd.Columns[0].Priority)
+
+	assert.Equal(t, "Issuer", crd.Columns[1].Name)
+	assert.Equal(t, "Status", crd.Columns[2].Name)
+	assert.Equal(t, int32(1), crd.Columns[2].Priority)
 }

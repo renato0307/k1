@@ -283,8 +283,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Resource: crd.Plural,
 			}
 
-			// Create generic transform
-			transform := k8s.CreateGenericTransform(crd.Kind)
+			// Create generic transform with CRD columns for JSONPath evaluation
+			transform := k8s.CreateGenericTransform(crd.Kind, crd.Columns)
 
 			// Create and register dynamic screen
 			dynamicScreen := screens.NewDynamicScreen(
