@@ -30,9 +30,15 @@
 [ ] Columns with bad sizing on daemonsets
 [ ] Columns with bad sizing on cronjobs
 [ ] Columns with bad sizing on crds
-[ ] HPAs cannot do yaml
-[ ] If cannot connect to cluster, the connecting to API Server is always spinning
 [ ] Pageup/down hides the selected row
+[ ] When filtering, the selected row is not always visible
+[ ] Show the number of items e.g. Pods (50)
+[ ] The filtered search is not sorted
+
+[ ] HPAs cannot do yaml
+
+[ ] Better error handling with multiple -context flags if we fail to connect to one of the clusters
+[ ] If cannot connect to cluster, the connecting to API Server is always spinning
+
 [X] Failed to refresh Consumer: informer not registered for jetstream.nats.io/v1beta2, Resource=consumers
 [X] CRDs are not sorted
-[ ] Better error handling with multiple -context flags if we fail to connect to one of the clusters
