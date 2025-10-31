@@ -110,7 +110,7 @@ func TestSystemScreen_Update_TickMsg(t *testing.T) {
 	theme := ui.GetTheme("charm")
 	screen := NewSystemScreen(repo, theme)
 
-	msg := tickMsg(time.Now())
+	msg := tickMsg{screenID: screen.ID(), time: time.Now()}
 	model, cmd := screen.Update(msg)
 
 	assert.NotNil(t, model)

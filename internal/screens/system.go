@@ -55,7 +55,7 @@ func (s *SystemScreen) Init() tea.Cmd {
 	return tea.Batch(
 		s.refresh(),
 		tea.Tick(time.Second, func(t time.Time) tea.Msg {
-			return tickMsg(t)
+			return tickMsg{screenID: s.ID(), time: t}
 		}),
 	)
 }
@@ -82,10 +82,14 @@ func (s *SystemScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, nil
 
 	case tickMsg:
+		// Ignore ticks from other screens (prevents multiple concurrent ticks)
+		if msg.screenID != s.ID() {
+			return s, nil
+		}
 		return s, tea.Batch(
 			s.refresh(),
 			tea.Tick(time.Second, func(t time.Time) tea.Msg {
-				return tickMsg(t)
+				return tickMsg{screenID: s.ID(), time: t}
 			}),
 		)
 	}

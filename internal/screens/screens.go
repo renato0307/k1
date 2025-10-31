@@ -43,10 +43,15 @@ func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, t
 	return func(s *ConfigScreen, msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 		case tickMsg:
+			// Ignore ticks from other screens (prevents multiple concurrent ticks)
+			if msg.screenID != s.config.ID {
+				logging.Debug("Ignoring tick from different screen", "tick_screen", msg.screenID, "current_screen", s.config.ID)
+				return s, nil
+			}
 			// Refresh and schedule next tick using screen's configured interval
 			logging.Debug("Tick received, triggering refresh", "screen", s.config.Title)
 			nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
-				return tickMsg(t)
+				return tickMsg{screenID: s.config.ID, time: t}
 			})
 			return s, tea.Batch(s.Refresh(), nextTick)
 		case types.RefreshCompleteMsg:
@@ -55,7 +60,7 @@ func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, t
 				logging.Debug("First RefreshComplete, scheduling tick", "screen", s.config.Title, "interval", s.config.RefreshInterval)
 				s.initialized = true
 				nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
-					return tickMsg(t)
+					return tickMsg{screenID: s.config.ID, time: t}
 				})
 				// Let DefaultUpdate handle the RefreshCompleteMsg, then schedule tick
 				model, cmd := s.DefaultUpdate(msg)
@@ -69,7 +74,7 @@ func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, t
 				logging.Debug("First StatusMsg, scheduling tick", "screen", s.config.Title, "interval", s.config.RefreshInterval, "msg_type", msg.Type)
 				s.initialized = true
 				nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
-					return tickMsg(t)
+					return tickMsg{screenID: s.config.ID, time: t}
 				})
 				// Let DefaultUpdate handle the StatusMsg, then schedule first tick
 				model, cmd := s.DefaultUpdate(msg)

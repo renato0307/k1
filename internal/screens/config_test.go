@@ -1387,7 +1387,7 @@ func TestConfigScreen_PeriodicRefreshContinuesAfterTick(t *testing.T) {
 	screen := NewConfigScreen(config, k8s.NewDummyRepository(), ui.GetTheme("charm"))
 
 	// Simulate a tick message
-	tickMessage := tickMsg(time.Now())
+	tickMessage := tickMsg{screenID: "pods", time: time.Now()}
 	model, cmd := screen.Update(tickMessage)
 	assert.NotNil(t, model)
 	assert.NotNil(t, cmd, "tickMsg should schedule next tick and refresh")
