@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/renato0307/k1/internal/logging"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -89,6 +90,11 @@ type statsUpdateMsg struct {
 
 // NewInformerRepositoryWithProgress creates a new informer-based repository with progress reporting
 func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress chan<- ContextLoadProgress) (*InformerRepository, error) {
+	totalStart := logging.Start("NewInformerRepositoryWithProgress")
+	defer logging.End(totalStart)
+
+	logging.Info("Creating informer repository", "context", contextName)
+
 	// Report connection phase
 	if progress != nil {
 		progress <- ContextLoadProgress{
@@ -133,20 +139,31 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	fmt.Fprintf(os.Stderr, "API config: timeout=%v, qps=%.0f, burst=%d\n", config.Timeout, config.QPS, config.Burst)
 
 	// Create clientset
+	clientsetStart := logging.Start("create typed clientset")
 	clientset, err := kubernetes.NewForConfig(config)
+	logging.End(clientsetStart)
 	if err != nil {
+		logging.Error("Failed to create clientset", "error", err)
 		return nil, fmt.Errorf("error creating clientset: %w", err)
 	}
+	logging.Debug("Typed clientset created")
 
 	// Create dynamic client
+	dynamicStart := logging.Start("create dynamic client")
 	dynamicClient, err := dynamic.NewForConfig(config)
+	logging.End(dynamicStart)
 	if err != nil {
+		logging.Error("Failed to create dynamic client", "error", err)
 		return nil, fmt.Errorf("error creating dynamic client: %w", err)
 	}
+	logging.Debug("Dynamic client created")
 
 	// Create shared informer factories with resync period
+	factoryStart := logging.Start("create informer factories")
 	factory := informers.NewSharedInformerFactory(clientset, InformerResyncPeriod)
 	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, InformerResyncPeriod)
+	logging.End(factoryStart)
+	logging.Debug("Informer factories created")
 
 	// Create pod informer and lister
 	podInformer := factory.Core().V1().Pods().Informer()
@@ -207,6 +224,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	}
 
 	fmt.Fprintf(os.Stderr, "Starting informer sync (timeout: %v)...\n", InformerSyncTimeout)
+	logging.Info("Starting informer sync", "timeout", InformerSyncTimeout.String())
 
 	// Wait for caches to sync with timeout (graceful handling of RBAC errors)
 	// Check all typed informers together with a single timeout
@@ -219,6 +237,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	// Try typed informers together (they sync in parallel)
 	// Note: ReplicaSets excluded from critical check - they're used internally by
 	// deployments but can hit load balancer timeouts on large clusters
+	typedSyncStart := logging.Start("sync typed informers (pods, deployments, services, statefulsets, daemonsets)")
 	typedSynced := cache.WaitForCacheSync(syncCtx.Done(),
 		podInformer.HasSynced,
 		deploymentInformer.HasSynced,
@@ -226,17 +245,33 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		statefulSetInformer.HasSynced,
 		daemonSetInformer.HasSynced,
 	)
+	logging.End(typedSyncStart)
 
 	// Try ReplicaSets separately (non-blocking)
 	go func() {
 		rsCtx, rsCancel := context.WithTimeout(ctx, InformerSyncTimeout)
 		defer rsCancel()
 		if !cache.WaitForCacheSync(rsCtx.Done(), replicaSetInformer.HasSynced) {
+			logging.Warn("ReplicaSet informer did not sync (timeout)")
 			fmt.Fprintf(os.Stderr, "Warning: ReplicaSet informer did not sync (timeout) - continuing without full replicaset data\n")
 		}
 	}()
 
 	if typedSynced {
+		// Log individual resource counts
+		podCount := len(podInformer.GetStore().List())
+		deploymentCount := len(deploymentInformer.GetStore().List())
+		serviceCount := len(serviceInformer.GetStore().List())
+		statefulsetCount := len(statefulSetInformer.GetStore().List())
+		daemonsetCount := len(daemonSetInformer.GetStore().List())
+
+		logging.Info("Core informers synced",
+			"pods", podCount,
+			"deployments", deploymentCount,
+			"services", serviceCount,
+			"statefulsets", statefulsetCount,
+			"daemonsets", daemonsetCount,
+		)
 		fmt.Fprintf(os.Stderr, "✓ Core informers synced successfully\n")
 	}
 
@@ -279,6 +314,8 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		}
 	}
 
+	logging.Info("Starting dynamic informer sync", "resource_count", len(dynamicInformers))
+
 	// Start syncing all dynamic informers in background goroutines
 	// Only wait for Tier 1 (critical) resources - Tier 2/3 can sync async
 	var wg sync.WaitGroup
@@ -289,20 +326,26 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 
 		// Launch sync goroutine for all resources
 		go func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, tier int) {
+			resourceSyncStart := logging.Start(fmt.Sprintf("sync %s (tier %d)", gvr.Resource, tier))
 			informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
 			defer informerCancel()
 
 			if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
+				count := len(informer.GetStore().List())
+				logging.EndWithCount(resourceSyncStart, count)
+				logging.Debug("Dynamic informer synced", "resource", gvr.Resource, "tier", tier, "count", count)
 				mu.Lock()
 				syncedInformers[gvr] = true
 				mu.Unlock()
 			} else {
+				logging.End(resourceSyncStart)
 				// Informer failed to sync (likely RBAC), remove from listers
 				mu.Lock()
 				delete(dynamicListers, gvr)
 				mu.Unlock()
 				if tier == 1 {
 					// Only warn for Tier 1 failures
+					logging.Warn("Failed to sync critical resource", "resource", gvr.Resource, "tier", tier, "timeout", InformerIndividualSyncTimeout.String())
 					fmt.Fprintf(os.Stderr, "Warning: Failed to sync critical resource %s (timeout after %v)\n", gvr, InformerIndividualSyncTimeout)
 				}
 			}
@@ -322,7 +365,10 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 
 	// Wait only for Tier 1 (critical) resources to sync
 	// Tier 2 and 3 continue syncing in background
+	tier1Start := logging.Start("wait for Tier 1 resources")
 	wg.Wait()
+	logging.End(tier1Start)
+	logging.Info("Tier 1 dynamic resources synced", "tier", 1)
 
 	// Initialize resource statistics
 	// Must read syncedInformers under mutex since Tier 2/3 are still syncing

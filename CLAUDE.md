@@ -313,6 +313,32 @@ The project has moved beyond prototyping into a structured application:
 11. **Messages**: Custom messages go in `internal/types/types.go`
 12. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
 13. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
+14. **Logging**: Use `internal/logging` package for performance analysis and debugging
+    - Logging is opt-in via `-log-file` flag (silent by default)
+    - Use appropriate log levels: DEBUG (timing details), INFO (lifecycle), WARN/ERROR (issues)
+    - Use timing helpers for performance-critical paths: `logging.Start()`/`End()`, `logging.Time()`
+    - Log execution times with resource counts for informer sync operations
+    - Example usage:
+      ```go
+      // Simple timing
+      ctx := logging.Start("operation name")
+      // ... do work ...
+      logging.End(ctx)
+
+      // With count
+      logging.EndWithCount(ctx, itemCount)
+
+      // Wrap function
+      logging.Time("operation", func() {
+          // ... do work ...
+      })
+
+      // Structured logging
+      logging.Info("Context loaded", "context", name, "duration", dur.String())
+      logging.Debug("Resource synced", "resource", "pods", "count", 100)
+      ```
+    - Critical paths to instrument: startup sequence, informer sync, context loading, expensive queries
+    - See `thoughts/shared/research/2025-10-31-startup-performance-vs-k9s.md` for performance analysis workflow
 
 ## Code Patterns and Conventions
 

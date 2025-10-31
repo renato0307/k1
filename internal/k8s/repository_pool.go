@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/renato0307/k1/internal/logging"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -48,15 +49,24 @@ type RepositoryPool struct {
 
 // NewRepositoryPool creates a new repository pool
 func NewRepositoryPool(kubeconfig string, maxSize int) (*RepositoryPool, error) {
+	timingCtx := logging.Start("NewRepositoryPool")
+	defer logging.End(timingCtx)
+
 	if maxSize <= 0 {
 		maxSize = 10 // Default limit
 	}
 
 	// Parse kubeconfig to get all contexts
+	kubeconfigStart := logging.Start("parse kubeconfig")
 	contexts, err := parseKubeconfig(kubeconfig)
+	logging.End(kubeconfigStart)
+
 	if err != nil {
+		logging.Error("Failed to parse kubeconfig", "error", err)
 		return nil, fmt.Errorf("failed to parse kubeconfig: %w", err)
 	}
+
+	logging.Debug("Repository pool initialized", "context_count", len(contexts), "max_size", maxSize)
 
 	return &RepositoryPool{
 		repos:      make(map[string]*RepositoryEntry),
@@ -69,11 +79,17 @@ func NewRepositoryPool(kubeconfig string, maxSize int) (*RepositoryPool, error) 
 
 // LoadContext loads a context into the pool (blocking operation)
 func (p *RepositoryPool) LoadContext(contextName string, progress chan<- ContextLoadProgress) error {
+	loadCtx := logging.Start("LoadContext")
+	defer logging.End(loadCtx)
+
+	logging.Info("Loading context", "context", contextName)
+
 	// Try to start loading - use LoadOrStore to coordinate concurrent attempts
 	state := &loadingState{done: make(chan struct{})}
 	actual, loaded := p.loading.LoadOrStore(contextName, state)
 
 	if loaded {
+		logging.Debug("Context already loading, waiting", "context", contextName)
 		// Another goroutine is loading this context, wait for it
 		<-actual.(*loadingState).done
 		return actual.(*loadingState).err
@@ -103,12 +119,15 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 	}
 
 	// Create repository (5-15s operation, no lock held)
+	repoStart := logging.Start("NewInformerRepositoryWithProgress")
 	repo, err := NewInformerRepositoryWithProgress(p.kubeconfig, contextName, progress)
+	logging.End(repoStart)
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if err != nil {
+		logging.Error("Failed to create repository", "context", contextName, "error", err)
 		// Cleanup partial repository if it exists
 		if repo != nil {
 			repo.Close()
@@ -142,6 +161,8 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 		}
 	}
 	p.lru.PushFront(contextName)
+
+	logging.Info("Context loaded successfully", "context", contextName)
 
 	return nil
 }
