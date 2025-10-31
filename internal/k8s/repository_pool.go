@@ -616,17 +616,6 @@ func (p *RepositoryPool) GetContexts() ([]Context, error) {
 	return result, nil
 }
 
-// sortContextsByName sorts contexts alphabetically by name
-func sortContextsByName(contexts []Context) {
-	for i := 0; i < len(contexts); i++ {
-		for j := i + 1; j < len(contexts); j++ {
-			if contexts[i].Name > contexts[j].Name {
-				contexts[i], contexts[j] = contexts[j], contexts[i]
-			}
-		}
-	}
-}
-
 // sortContextsByStatusThenName sorts contexts with loaded/loading/failed first (alphabetically within each group), then not-loaded (alphabetical)
 func sortContextsByStatusThenName(contexts []Context) {
 	// Define status priority: Loaded=0, Loading=1, Failed=2, NotLoaded=3

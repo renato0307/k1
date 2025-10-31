@@ -71,6 +71,11 @@ type InformerRepository struct {
 	resourceStats map[schema.GroupVersionResource]*ResourceStats
 	statsUpdateCh chan statsUpdateMsg
 
+	// Informer sync status tracking
+	typedInformersReady     atomic.Bool
+	typedInformersSyncError atomic.Value // stores error
+	dynamicInformerErrors   map[schema.GroupVersionResource]error
+
 	closed atomic.Bool // Atomic flag for safe close detection
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -239,10 +244,6 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 
 	logging.Info("Starting informer sync (non-blocking)")
 
-	// Track typed informer sync status (needed by screens to show loading messages)
-	typedInformersReady := &atomic.Bool{}
-	typedInformersReady.Store(false)
-
 	// Try ReplicaSets separately (non-blocking)
 	go func() {
 		rsCtx, rsCancel := context.WithTimeout(ctx, InformerSyncTimeout)
@@ -309,7 +310,6 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		podsByPVC:             make(map[string][]*corev1.Pod),
 		resourceStats:         resourceStats,
 		statsUpdateCh:         make(chan statsUpdateMsg, 1000), // Buffered channel for high-frequency events
-		typedInformersReady:   typedInformersReady,
 		dynamicInformerErrors: make(map[schema.GroupVersionResource]error),
 		ctx:                   ctx,
 		cancel:                cancel,
@@ -345,7 +345,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 
 		if typedSynced {
 			// Mark as ready
-			typedInformersReady.Store(true)
+			repo.typedInformersReady.Store(true)
 
 			// Log individual resource counts
 			podCount := len(podInformer.GetStore().List())
@@ -751,9 +751,6 @@ func (r *InformerRepository) IsInformerSynced(gvr schema.GroupVersionResource) b
 
 // AreTypedInformersReady checks if typed informers (pods, deployments, services, etc.) are synced
 func (r *InformerRepository) AreTypedInformersReady() bool {
-	if r.typedInformersReady == nil {
-		return true // Fallback for tests/dummy repo
-	}
 	return r.typedInformersReady.Load()
 }
 
