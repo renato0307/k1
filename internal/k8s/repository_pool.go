@@ -520,6 +520,30 @@ func (p *RepositoryPool) IsInformerSynced(gvr schema.GroupVersionResource) bool 
 	return repo.IsInformerSynced(gvr)
 }
 
+func (p *RepositoryPool) AreTypedInformersReady() bool {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return false
+	}
+	return repo.AreTypedInformersReady()
+}
+
+func (p *RepositoryPool) GetTypedInformersSyncError() error {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return nil
+	}
+	return repo.GetTypedInformersSyncError()
+}
+
+func (p *RepositoryPool) GetDynamicInformerSyncError(gvr schema.GroupVersionResource) error {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return nil
+	}
+	return repo.GetDynamicInformerSyncError(gvr)
+}
+
 func (p *RepositoryPool) EnsureCRInformer(gvr schema.GroupVersionResource) error {
 	repo := p.GetActiveRepository()
 	if repo == nil {

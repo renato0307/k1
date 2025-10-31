@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 	"github.com/sahilm/fuzzy"
@@ -149,42 +150,37 @@ func (s *ConfigScreen) Operations() []types.Operation {
 }
 
 func (s *ConfigScreen) Init() tea.Cmd {
-	// If already initialized (cached screen), just refresh
-	// Note: first tick scheduled after refresh completes (in Update())
-	if s.initialized {
-		return s.Refresh()
-	}
-
-	// First initialization
-	s.initialized = true
-
-	// Check if this is a Tier 0 resource that needs loading
-	needsLoading := s.needsInitialLoad()
-
-	if needsLoading {
-		// Show loading message before blocking
-		return tea.Batch(
-			func() tea.Msg {
-				return startConfigLoadingMsg{}
-			},
-		)
-	}
-
-	// Already loaded, just refresh
-	// First tick will be scheduled after refresh completes (in Update())
+	// Always refresh, but Refresh() will handle loading state
 	return s.Refresh()
 }
 
 // needsInitialLoad checks if this screen needs to show loading on first visit
 func (s *ConfigScreen) needsInitialLoad() bool {
-	// Get the resource config to check tier
+	// Safety check for tests
+	if s.repo == nil {
+		return false
+	}
+
+	// Check if this resource uses typed informers (Pods, Deployments, Services, StatefulSets, DaemonSets)
+	usesTypedInformer := s.config.ResourceType == k8s.ResourceTypePod ||
+		s.config.ResourceType == k8s.ResourceTypeDeployment ||
+		s.config.ResourceType == k8s.ResourceTypeService ||
+		s.config.ResourceType == k8s.ResourceTypeStatefulSet ||
+		s.config.ResourceType == k8s.ResourceTypeDaemonSet
+
+	if usesTypedInformer {
+		// Check if typed informers are ready (they sync in background now)
+		return !s.repo.AreTypedInformersReady()
+	}
+
+	// For dynamic informers, check tier
 	config, exists := k8s.GetResourceConfig(s.config.ResourceType)
 	if !exists {
 		return false
 	}
 
 	// Only Tier 0 (on-demand) resources need loading messages
-	// Tier 1/2/3 are already loaded at startup
+	// Tier 1/2/3 dynamic resources are already loaded at startup
 	if config.Tier != 0 {
 		return false
 	}
@@ -199,13 +195,16 @@ func (s *ConfigScreen) needsInitialLoad() bool {
 }
 
 func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Log all messages for debugging
+	logging.Debug("ConfigScreen.Update received message", "screen", s.config.Title, "msg_type", fmt.Sprintf("%T", msg))
+
 	// Handle loading message first (before custom update)
 	switch msg.(type) {
 	case startConfigLoadingMsg:
 		// Show loading message and start refresh
 		return s, tea.Batch(
 			func() tea.Msg {
-				return types.InfoMsg("Loading " + s.config.Title + "...")
+				return types.LoadingMsg("Loading " + s.config.Title + "...")
 			},
 			s.Refresh(),
 		)
@@ -213,9 +212,11 @@ func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Check for custom update handler
 	if s.config.CustomUpdate != nil {
+		logging.Debug("Calling CustomUpdate", "screen", s.config.Title)
 		return s.config.CustomUpdate(s, msg)
 	}
 
+	logging.Debug("Calling DefaultUpdate", "screen", s.config.Title)
 	return s.DefaultUpdate(msg)
 }
 
@@ -438,13 +439,37 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		// Ensure informer is loaded for on-demand resources (Tier 0)
-		// This may take 10-30 seconds for first access
-		if err := s.repo.EnsureResourceTypeInformer(s.config.ResourceType); err != nil {
-			return types.ErrorStatusMsg(fmt.Sprintf("Failed to load %s informer: %v", s.config.Title, err))
+		start := time.Now()
+
+		// Check if this is a Tier 0 (on-demand) resource
+		config, exists := k8s.GetResourceConfig(s.config.ResourceType)
+		isTier0 := exists && config.Tier == 0
+
+		// For Tier 0 resources, trigger loading if not started
+		if isTier0 {
+			if err := s.repo.EnsureResourceTypeInformer(s.config.ResourceType); err != nil {
+				logging.Error("EnsureResourceTypeInformer failed", "screen", s.config.Title, "error", err)
+				return types.ErrorStatusMsg(fmt.Sprintf("Failed to load %s informer: %v", s.config.Title, err))
+			}
 		}
 
-		start := time.Now()
+		// Check if informer is synced (non-blocking check)
+		ready := s.isInformerReady()
+		logging.Debug("Screen refresh", "screen", s.config.Title, "ready", ready)
+
+		if !ready {
+			// Check if sync failed with an error
+			if syncErr := s.getInformerSyncError(); syncErr != nil {
+				// Sync failed - show error to user
+				logging.Error("Informer sync failed", "screen", s.config.Title, "error", syncErr)
+				return types.ErrorStatusMsg(fmt.Sprintf("Cluster connection error: %v", syncErr))
+			}
+
+			// Informers not synced yet - show loading message
+			// Periodic refresh will retry automatically
+			logging.Debug("Still loading", "screen", s.config.Title)
+			return types.LoadingMsg(fmt.Sprintf("Loading %s...", s.config.Title))
+		}
 
 		var items []interface{}
 		var err error
@@ -457,14 +482,105 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 		}
 
 		if err != nil {
+			logging.Error("GetResources failed", "screen", s.config.Title, "error", err)
 			return types.ErrorStatusMsg(fmt.Sprintf("Failed to fetch %s: %v", s.config.Title, err))
 		}
 
+		logging.Debug("Screen refresh complete", "screen", s.config.Title, "items", len(items), "duration", time.Since(start))
 		s.items = items
 		s.applyFilter()
+		logging.Debug("After filter", "screen", s.config.Title, "filtered_items", len(s.filtered))
 
 		return types.RefreshCompleteMsg{Duration: time.Since(start)}
 	}
+}
+
+// waitForInformers blocks until the informers for this screen are synced
+func (s *ConfigScreen) waitForInformers() error {
+	// Check if this resource uses typed informers
+	usesTypedInformer := s.config.ResourceType == k8s.ResourceTypePod ||
+		s.config.ResourceType == k8s.ResourceTypeDeployment ||
+		s.config.ResourceType == k8s.ResourceTypeService ||
+		s.config.ResourceType == k8s.ResourceTypeStatefulSet ||
+		s.config.ResourceType == k8s.ResourceTypeDaemonSet
+
+	if usesTypedInformer {
+		// Wait for typed informers with timeout
+		timeout := time.After(30 * time.Second)
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-timeout:
+				return fmt.Errorf("timeout waiting for %s informer to sync", s.config.Title)
+			case <-ticker.C:
+				if s.repo.AreTypedInformersReady() {
+					return nil
+				}
+			}
+		}
+	}
+
+	// For dynamic informers, use existing EnsureResourceTypeInformer
+	// (it already handles the wait)
+	return nil
+}
+
+// isInformerReady checks if the informer for this screen's resource type is synced
+func (s *ConfigScreen) isInformerReady() bool {
+	// Safety check for tests
+	if s.repo == nil {
+		return true
+	}
+
+	// Check if this resource uses typed informers (Pods, Deployments, Services, StatefulSets, DaemonSets)
+	usesTypedInformer := s.config.ResourceType == k8s.ResourceTypePod ||
+		s.config.ResourceType == k8s.ResourceTypeDeployment ||
+		s.config.ResourceType == k8s.ResourceTypeService ||
+		s.config.ResourceType == k8s.ResourceTypeStatefulSet ||
+		s.config.ResourceType == k8s.ResourceTypeDaemonSet
+
+	if usesTypedInformer {
+		// Check typed informer sync status
+		return s.repo.AreTypedInformersReady()
+	}
+
+	// For dynamic informers, check if lister is registered (means sync completed)
+	gvr, ok := k8s.GetGVRForResourceType(s.config.ResourceType)
+	if !ok {
+		return true // Unknown resource, let it try and fail gracefully
+	}
+
+	return s.repo.IsInformerSynced(gvr)
+}
+
+// getInformerSyncError checks if the informer failed to sync and returns the error
+func (s *ConfigScreen) getInformerSyncError() error {
+	// Safety check for tests
+	if s.repo == nil {
+		return nil
+	}
+
+	// Check if this resource uses typed informers (Pods, Deployments, Services, StatefulSets, DaemonSets)
+	usesTypedInformer := s.config.ResourceType == k8s.ResourceTypePod ||
+		s.config.ResourceType == k8s.ResourceTypeDeployment ||
+		s.config.ResourceType == k8s.ResourceTypeService ||
+		s.config.ResourceType == k8s.ResourceTypeStatefulSet ||
+		s.config.ResourceType == k8s.ResourceTypeDaemonSet
+
+	if usesTypedInformer {
+		// Check typed informer sync error
+		return s.repo.GetTypedInformersSyncError()
+	}
+
+	// For dynamic informers, check if GVR has sync error
+	gvr, ok := k8s.GetGVRForResourceType(s.config.ResourceType)
+	if !ok {
+		return nil
+	}
+
+	return s.repo.GetDynamicInformerSyncError(gvr)
 }
 
 // refreshWithFilterContext fetches resources using filtered repository methods

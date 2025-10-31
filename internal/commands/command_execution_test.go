@@ -91,6 +91,15 @@ func (m *mockRepository) GetResourcesByGVR(gvr schema.GroupVersionResource, tran
 func (m *mockRepository) IsInformerSynced(gvr schema.GroupVersionResource) bool {
 	return true
 }
+func (m *mockRepository) AreTypedInformersReady() bool {
+	return true
+}
+func (m *mockRepository) GetTypedInformersSyncError() error {
+	return nil
+}
+func (m *mockRepository) GetDynamicInformerSyncError(gvr schema.GroupVersionResource) error {
+	return nil
+}
 func (m *mockRepository) EnsureResourceTypeInformer(resourceType k8s.ResourceType) error {
 	return nil
 }

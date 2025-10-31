@@ -3,6 +3,10 @@
 .tmp
 /k1
 coverage.out
+*.log
+
+# VHS test outputs
+test-output/
 
 # GoReleaser
 dist/

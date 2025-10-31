@@ -13,6 +13,7 @@ import (
 
 	"github.com/renato0307/k1/internal/logging"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -130,13 +131,13 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 
 	// Use protobuf for better performance
 	config.ContentType = "application/vnd.kubernetes.protobuf"
-	fmt.Fprintf(os.Stderr, "Using content type: %s\n", config.ContentType)
+	logging.Debug("Using protobuf content type", "content_type", config.ContentType)
 
 	// Increase timeout and configure for large clusters
 	config.Timeout = 90 * time.Second
 	config.QPS = 50    // Allow more requests per second
 	config.Burst = 100 // Allow bursts for initial sync
-	fmt.Fprintf(os.Stderr, "API config: timeout=%v, qps=%.0f, burst=%d\n", config.Timeout, config.QPS, config.Burst)
+	logging.Debug("API config", "timeout", config.Timeout, "qps", config.QPS, "burst", config.Burst)
 
 	// Create clientset
 	clientsetStart := logging.Start("create typed clientset")
@@ -147,6 +148,18 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		return nil, fmt.Errorf("error creating clientset: %w", err)
 	}
 	logging.Debug("Typed clientset created")
+
+	// Early auth check - fail fast instead of waiting 120s for informer timeout
+	authCheckStart := logging.Start("auth check")
+	authCtx, authCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer authCancel()
+	_, err = clientset.CoreV1().Namespaces().List(authCtx, metav1.ListOptions{Limit: 1})
+	logging.End(authCheckStart)
+	if err != nil {
+		logging.Error("Auth check failed", "error", err)
+		return nil, fmt.Errorf("failed to connect to cluster: %w", err)
+	}
+	logging.Debug("Auth check passed")
 
 	// Create dynamic client
 	dynamicStart := logging.Start("create dynamic client")
@@ -194,6 +207,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 
 	// Create dynamic informers for startup resources only (Tier > 0)
 	// Tier 0 resources are loaded on-demand
+	// NOTE: Listers are NOT added yet - they'll be added after sync completes
 	dynamicListers := make(map[schema.GroupVersionResource]cache.GenericLister)
 	dynamicInformers := make(map[schema.GroupVersionResource]cache.SharedIndexInformer)
 
@@ -203,7 +217,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 			continue
 		}
 		informer := dynamicFactory.ForResource(resCfg.GVR).Informer()
-		dynamicListers[resCfg.GVR] = dynamicFactory.ForResource(resCfg.GVR).Lister()
+		// Don't add lister yet - will be added by background goroutine after sync
 		dynamicInformers[resCfg.GVR] = informer
 	}
 
@@ -223,29 +237,11 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "Starting informer sync (timeout: %v)...\n", InformerSyncTimeout)
-	logging.Info("Starting informer sync", "timeout", InformerSyncTimeout.String())
+	logging.Info("Starting informer sync (non-blocking)")
 
-	// Wait for caches to sync with timeout (graceful handling of RBAC errors)
-	// Check all typed informers together with a single timeout
-	syncCtx, syncCancel := context.WithTimeout(ctx, InformerSyncTimeout)
-	defer syncCancel()
-
-	// Track which informers synced successfully
-	syncedInformers := make(map[schema.GroupVersionResource]bool)
-
-	// Try typed informers together (they sync in parallel)
-	// Note: ReplicaSets excluded from critical check - they're used internally by
-	// deployments but can hit load balancer timeouts on large clusters
-	typedSyncStart := logging.Start("sync typed informers (pods, deployments, services, statefulsets, daemonsets)")
-	typedSynced := cache.WaitForCacheSync(syncCtx.Done(),
-		podInformer.HasSynced,
-		deploymentInformer.HasSynced,
-		serviceInformer.HasSynced,
-		statefulSetInformer.HasSynced,
-		daemonSetInformer.HasSynced,
-	)
-	logging.End(typedSyncStart)
+	// Track typed informer sync status (needed by screens to show loading messages)
+	typedInformersReady := &atomic.Bool{}
+	typedInformersReady.Store(false)
 
 	// Try ReplicaSets separately (non-blocking)
 	go func() {
@@ -253,57 +249,10 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		defer rsCancel()
 		if !cache.WaitForCacheSync(rsCtx.Done(), replicaSetInformer.HasSynced) {
 			logging.Warn("ReplicaSet informer did not sync (timeout)")
-			fmt.Fprintf(os.Stderr, "Warning: ReplicaSet informer did not sync (timeout) - continuing without full replicaset data\n")
+		} else {
+			logging.Debug("ReplicaSet informer synced")
 		}
 	}()
-
-	if typedSynced {
-		// Log individual resource counts
-		podCount := len(podInformer.GetStore().List())
-		deploymentCount := len(deploymentInformer.GetStore().List())
-		serviceCount := len(serviceInformer.GetStore().List())
-		statefulsetCount := len(statefulSetInformer.GetStore().List())
-		daemonsetCount := len(daemonSetInformer.GetStore().List())
-
-		logging.Info("Core informers synced",
-			"pods", podCount,
-			"deployments", deploymentCount,
-			"services", serviceCount,
-			"statefulsets", statefulsetCount,
-			"daemonsets", daemonsetCount,
-		)
-		fmt.Fprintf(os.Stderr, "✓ Core informers synced successfully\n")
-	}
-
-	if !typedSynced {
-		// Check which specific informers failed by testing them individually
-		fmt.Fprintf(os.Stderr, "\nSync failed after %v. Checking individual informers:\n", InformerSyncTimeout)
-		failedTyped := []string{}
-		typedInformers := map[string]cache.InformerSynced{
-			"pods":         podInformer.HasSynced,
-			"deployments":  deploymentInformer.HasSynced,
-			"services":     serviceInformer.HasSynced,
-			"statefulsets": statefulSetInformer.HasSynced,
-			"daemonsets":   daemonSetInformer.HasSynced,
-		}
-		for name, hasSync := range typedInformers {
-			synced := hasSync()
-			if !synced {
-				failedTyped = append(failedTyped, name)
-				fmt.Fprintf(os.Stderr, "  ✗ %s: NOT SYNCED\n", name)
-			} else {
-				fmt.Fprintf(os.Stderr, "  ✓ %s: synced\n", name)
-			}
-		}
-
-		// Try to get store sizes for debugging
-		if podStore := podInformer.GetStore(); podStore != nil {
-			fmt.Fprintf(os.Stderr, "  Pod cache size: %d items\n", len(podStore.List()))
-		}
-
-		cancel()
-		return nil, fmt.Errorf("failed to sync critical resources: %v (timeout after %v) - try increasing timeout or check cluster health", failedTyped, InformerSyncTimeout)
-	}
 
 	// Report dynamic sync phase
 	if progress != nil {
@@ -314,69 +263,13 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		}
 	}
 
-	logging.Info("Starting dynamic informer sync", "resource_count", len(dynamicInformers))
-
-	// Start syncing all dynamic informers in background goroutines
-	// Only wait for Tier 1 (critical) resources - Tier 2/3 can sync async
-	var wg sync.WaitGroup
-	var mu sync.Mutex // Protect syncedInformers and dynamicListers maps
-
-	for gvr, informer := range dynamicInformers {
-		resCfg := resourceRegistry[ResourceType(gvr.Resource)]
-
-		// Launch sync goroutine for all resources
-		go func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, tier int) {
-			resourceSyncStart := logging.Start(fmt.Sprintf("sync %s (tier %d)", gvr.Resource, tier))
-			informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
-			defer informerCancel()
-
-			if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
-				count := len(informer.GetStore().List())
-				logging.EndWithCount(resourceSyncStart, count)
-				logging.Debug("Dynamic informer synced", "resource", gvr.Resource, "tier", tier, "count", count)
-				mu.Lock()
-				syncedInformers[gvr] = true
-				mu.Unlock()
-			} else {
-				logging.End(resourceSyncStart)
-				// Informer failed to sync (likely RBAC), remove from listers
-				mu.Lock()
-				delete(dynamicListers, gvr)
-				mu.Unlock()
-				if tier == 1 {
-					// Only warn for Tier 1 failures
-					logging.Warn("Failed to sync critical resource", "resource", gvr.Resource, "tier", tier, "timeout", InformerIndividualSyncTimeout.String())
-					fmt.Fprintf(os.Stderr, "Warning: Failed to sync critical resource %s (timeout after %v)\n", gvr, InformerIndividualSyncTimeout)
-				}
-			}
-		}(gvr, informer, resCfg.Tier)
-
-		// Only wait for Tier 1 (critical) resources
-		if resCfg.Tier == 1 {
-			wg.Add(1)
-			go func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer) {
-				defer wg.Done()
-				informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
-				defer informerCancel()
-				cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced)
-			}(gvr, informer)
-		}
-	}
-
-	// Wait only for Tier 1 (critical) resources to sync
-	// Tier 2 and 3 continue syncing in background
-	tier1Start := logging.Start("wait for Tier 1 resources")
-	wg.Wait()
-	logging.End(tier1Start)
-	logging.Info("Tier 1 dynamic resources synced", "tier", 1)
+	logging.Info("Starting dynamic informer sync (non-blocking)", "resource_count", len(dynamicInformers))
 
 	// Initialize resource statistics
-	// Must read syncedInformers under mutex since Tier 2/3 are still syncing
+	// All informers are syncing in background, so Synced will be false initially
+	// The background goroutines will update the synced status as they complete
 	resourceStats := make(map[schema.GroupVersionResource]*ResourceStats)
 	for _, resCfg := range resourceRegistry {
-		mu.Lock()
-		synced := syncedInformers[resCfg.GVR]
-		mu.Unlock()
 		resourceStats[resCfg.GVR] = &ResourceStats{
 			ResourceType: ResourceType(resCfg.GVR.Resource),
 			Count:        0,
@@ -384,7 +277,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 			AddEvents:    0,
 			UpdateEvents: 0,
 			DeleteEvents: 0,
-			Synced:       synced,
+			Synced:       false, // Will be updated by background sync goroutines
 			MemoryBytes:  0,
 		}
 	}
@@ -416,6 +309,8 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 		podsByPVC:             make(map[string][]*corev1.Pod),
 		resourceStats:         resourceStats,
 		statsUpdateCh:         make(chan statsUpdateMsg, 1000), // Buffered channel for high-frequency events
+		typedInformersReady:   typedInformersReady,
+		dynamicInformerErrors: make(map[schema.GroupVersionResource]error),
 		ctx:                   ctx,
 		cancel:                cancel,
 	}
@@ -429,14 +324,131 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	repo.setupReplicaSetIndexes()
 	repo.setupDynamicInformersEventTracking(dynamicInformers)
 
-	// Report completion
+	// Start background sync for typed informers (non-blocking)
+	// Launched after repo creation so it can store errors
+	go func() {
+		typedSyncStart := logging.Start("sync typed informers (pods, deployments, services, statefulsets, daemonsets)")
+		syncCtx, syncCancel := context.WithTimeout(ctx, InformerSyncTimeout)
+		defer syncCancel()
+
+		// Try typed informers together (they sync in parallel)
+		// Note: ReplicaSets excluded from critical check - they're used internally by
+		// deployments but can hit load balancer timeouts on large clusters
+		typedSynced := cache.WaitForCacheSync(syncCtx.Done(),
+			podInformer.HasSynced,
+			deploymentInformer.HasSynced,
+			serviceInformer.HasSynced,
+			statefulSetInformer.HasSynced,
+			daemonSetInformer.HasSynced,
+		)
+		logging.End(typedSyncStart)
+
+		if typedSynced {
+			// Mark as ready
+			typedInformersReady.Store(true)
+
+			// Log individual resource counts
+			podCount := len(podInformer.GetStore().List())
+			deploymentCount := len(deploymentInformer.GetStore().List())
+			serviceCount := len(serviceInformer.GetStore().List())
+			statefulsetCount := len(statefulSetInformer.GetStore().List())
+			daemonsetCount := len(daemonSetInformer.GetStore().List())
+
+			logging.Info("Core informers synced",
+				"pods", podCount,
+				"deployments", deploymentCount,
+				"services", serviceCount,
+				"statefulsets", statefulsetCount,
+				"daemonsets", daemonsetCount,
+			)
+		} else {
+			// Sync failed - try to determine why by making a test API call
+			errMsg := "Informers failed to sync within timeout"
+
+			// Try a simple API call to get a better error message
+			testCtx, testCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer testCancel()
+			_, err := clientset.CoreV1().Namespaces().List(testCtx, metav1.ListOptions{Limit: 1})
+			if err != nil {
+				errMsg = fmt.Sprintf("Failed to connect to cluster: %v", err)
+				logging.Error("Cluster connection failed", "error", err)
+			} else {
+				// API call succeeded but sync timed out - likely slow cluster
+				errMsg = fmt.Sprintf("Informers did not sync within %s - cluster may be slow or have many resources", InformerSyncTimeout.String())
+				logging.Warn("Informer sync timeout", "timeout", InformerSyncTimeout.String())
+			}
+
+			// Store the error so screens can display it
+			repo.typedInformersSyncError.Store(fmt.Errorf("%s", errMsg))
+		}
+	}()
+
+	// Start background sync for dynamic informers (non-blocking)
+	// Goroutines launched after repo creation so they can use repo.mu
+	for gvr, informer := range dynamicInformers {
+		resCfg := resourceRegistry[ResourceType(gvr.Resource)]
+
+		// Launch sync goroutine for each resource (runs in background)
+		go func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, tier int) {
+			resourceSyncStart := logging.Start(fmt.Sprintf("sync %s (tier %d)", gvr.Resource, tier))
+			informerCtx, informerCancel := context.WithTimeout(ctx, InformerIndividualSyncTimeout)
+			defer informerCancel()
+
+			if cache.WaitForCacheSync(informerCtx.Done(), informer.HasSynced) {
+				count := len(informer.GetStore().List())
+				logging.EndWithCount(resourceSyncStart, count)
+				logging.Debug("Dynamic informer synced", "resource", gvr.Resource, "tier", tier, "count", count)
+
+				// Add lister now that sync is complete (use repo.mu for consistency)
+				repo.mu.Lock()
+				repo.dynamicListers[gvr] = dynamicFactory.ForResource(gvr).Lister()
+				repo.mu.Unlock()
+
+				// Update stats
+				if stats, ok := repo.resourceStats[gvr]; ok {
+					stats.Synced = true
+					stats.Count = count
+					stats.LastUpdate = time.Now()
+				}
+			} else {
+				logging.End(resourceSyncStart)
+				// Informer failed to sync - determine why
+				errMsg := fmt.Sprintf("Failed to sync %s within %s", gvr.Resource, InformerIndividualSyncTimeout.String())
+
+				// Try a test API call to get a better error message
+				testCtx, testCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer testCancel()
+
+				// Try to list this specific resource
+				_, err := repo.dynamicClient.Resource(gvr).List(testCtx, metav1.ListOptions{Limit: 1})
+				if err != nil {
+					// Specific API error (likely RBAC)
+					errMsg = fmt.Sprintf("Cannot access %s: %v", gvr.Resource, err)
+					logging.Warn("Dynamic informer sync failed", "resource", gvr.Resource, "tier", tier, "error", err)
+				} else {
+					// API call succeeded but sync timed out
+					errMsg = fmt.Sprintf("%s informer timed out (cluster may be slow)", gvr.Resource)
+					logging.Warn("Dynamic informer sync timeout", "resource", gvr.Resource, "tier", tier, "timeout", InformerIndividualSyncTimeout.String())
+				}
+
+				// Store error for screen to display
+				repo.mu.Lock()
+				repo.dynamicInformerErrors[gvr] = fmt.Errorf("%s", errMsg)
+				repo.mu.Unlock()
+			}
+		}(gvr, informer, resCfg.Tier)
+	}
+
+	// Report completion (informers syncing in background)
 	if progress != nil {
 		progress <- ContextLoadProgress{
 			Context: contextName,
-			Message: "Context loaded successfully",
+			Message: "Starting informers in background",
 			Phase:   PhaseComplete,
 		}
 	}
+
+	logging.Info("Repository created, informers syncing in background")
 
 	return repo, nil
 }
@@ -737,32 +749,72 @@ func (r *InformerRepository) IsInformerSynced(gvr schema.GroupVersionResource) b
 	return exists
 }
 
+// AreTypedInformersReady checks if typed informers (pods, deployments, services, etc.) are synced
+func (r *InformerRepository) AreTypedInformersReady() bool {
+	if r.typedInformersReady == nil {
+		return true // Fallback for tests/dummy repo
+	}
+	return r.typedInformersReady.Load()
+}
+
+// GetTypedInformersSyncError returns the error if typed informers failed to sync
+func (r *InformerRepository) GetTypedInformersSyncError() error {
+	if errVal := r.typedInformersSyncError.Load(); errVal != nil {
+		if err, ok := errVal.(error); ok {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetDynamicInformerSyncError returns the error if a dynamic informer failed to sync
+func (r *InformerRepository) GetDynamicInformerSyncError(gvr schema.GroupVersionResource) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.dynamicInformerErrors[gvr]
+}
+
 // EnsureCRInformer registers informer for CR on-demand if not already registered
 func (r *InformerRepository) EnsureCRInformer(gvr schema.GroupVersionResource) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	_, exists := r.dynamicListers[gvr]
+	r.mu.RUnlock()
 
-	// Check if already registered
-	if _, exists := r.dynamicListers[gvr]; exists {
-		return nil // Already cached
+	if exists {
+		return nil // Already registered
 	}
 
-	// Create informer
-	informer := r.dynamicFactory.ForResource(gvr)
+	// Get informer (safe, idempotent - returns same informer if called multiple times)
+	informer := r.dynamicFactory.ForResource(gvr).Informer()
+
+	// Check if already synced (might have been loaded by another goroutine)
+	if informer.HasSynced() {
+		r.mu.Lock()
+		r.dynamicListers[gvr] = r.dynamicFactory.ForResource(gvr).Lister()
+		r.mu.Unlock()
+		return nil
+	}
 
 	// Start factory (safe, idempotent)
 	r.dynamicFactory.Start(r.ctx.Done())
 
-	// Wait for cache sync with timeout
-	syncCtx, cancel := context.WithTimeout(r.ctx, 10*time.Second)
-	defer cancel()
+	// Start background sync (non-blocking)
+	// Note: Multiple calls are safe - informer is shared, sync happens once
+	go func() {
+		syncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	if !cache.WaitForCacheSync(syncCtx.Done(), informer.Informer().HasSynced) {
-		return fmt.Errorf("failed to sync cache for %v", gvr)
-	}
-
-	// Store lister
-	r.dynamicListers[gvr] = r.dynamicFactory.ForResource(gvr).Lister()
+		if cache.WaitForCacheSync(syncCtx.Done(), informer.HasSynced) {
+			// Sync succeeded - register lister
+			r.mu.Lock()
+			r.dynamicListers[gvr] = r.dynamicFactory.ForResource(gvr).Lister()
+			r.mu.Unlock()
+			logging.Debug("On-demand resource synced", "resource", gvr.Resource)
+		} else {
+			// Sync failed or timed out
+			logging.Warn("On-demand resource sync failed", "resource", gvr.Resource)
+		}
+	}()
 
 	return nil
 }
@@ -807,8 +859,8 @@ func (r *InformerRepository) GetResourcesByGVR(
 		return nil, fmt.Errorf("failed to list %v: %w", gvr, err)
 	}
 
-	// Transform to typed objects
-	resources := make([]any, 0, len(objList))
+	// Transform to typed objects (sort by Resource interface)
+	resourceList := make([]Resource, 0, len(objList))
 	for _, obj := range objList {
 		unstr, ok := obj.(*unstructured.Unstructured)
 		if !ok {
@@ -821,7 +873,22 @@ func (r *InformerRepository) GetResourcesByGVR(
 			continue
 		}
 
-		resources = append(resources, transformed)
+		// Type assert to Resource interface for sorting
+		resource, ok := transformed.(Resource)
+		if !ok {
+			// Skip non-Resource types (shouldn't happen for CRs)
+			continue
+		}
+		resourceList = append(resourceList, resource)
+	}
+
+	// Sort by age using Resource interface (newest first)
+	sortByAge(resourceList)
+
+	// Convert back to []any for API compatibility
+	resources := make([]any, len(resourceList))
+	for i, r := range resourceList {
+		resources[i] = r
 	}
 
 	return resources, nil
