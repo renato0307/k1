@@ -730,12 +730,22 @@ func CreateGenericTransform(kind string, columns []CRDColumn) TransformFunc {
 }
 
 // CreateGenericTransform returns a transform function for unknown CRD schemas
-func CreateGenericTransform(kind string) TransformFunc {
+// If columns are provided, it evaluates JSONPath expressions to populate Fields map.
+// Otherwise, Fields will be empty and the screen will use generic columns.
+func CreateGenericTransform(kind string, columns []CRDColumn) TransformFunc {
 	return func(u *unstructured.Unstructured, common ResourceMetadata) (any, error) {
+		// Evaluate JSONPath for each column
+		fields := make(map[string]string)
+		for _, col := range columns {
+			value := EvaluateJSONPath(u, col.JSONPath)
+			fields[col.Name] = value
+		}
+
 		return GenericResource{
 			ResourceMetadata: common,
 			Kind:             kind,
 			Data:             u.Object,
+			Fields:           fields,
 		}, nil
 	}
 }
