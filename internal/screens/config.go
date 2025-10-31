@@ -17,8 +17,11 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
-// tickMsg triggers periodic refresh
-type tickMsg time.Time
+// tickMsg triggers periodic refresh for a specific screen
+type tickMsg struct {
+	screenID string
+	time     time.Time
+}
 
 // startConfigLoadingMsg triggers the loading sequence for ConfigScreen
 type startConfigLoadingMsg struct{}
@@ -150,6 +153,9 @@ func (s *ConfigScreen) Operations() []types.Operation {
 }
 
 func (s *ConfigScreen) Init() tea.Cmd {
+	// Reset initialized flag to allow fresh tick scheduling
+	// This prevents multiple concurrent ticks from previous screen visits
+	s.initialized = false
 	// Always refresh, but Refresh() will handle loading state
 	return s.Refresh()
 }
