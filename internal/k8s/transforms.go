@@ -705,7 +705,6 @@ func transformCRD(u *unstructured.Unstructured, common ResourceMetadata) (any, e
 		Columns: columns,
 	}
 
-
 	return crd, nil
 }
 

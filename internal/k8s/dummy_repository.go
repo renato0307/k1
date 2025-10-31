@@ -640,6 +640,18 @@ func (r *DummyRepository) IsInformerSynced(gvr schema.GroupVersionResource) bool
 	return true // Dummy always returns true (no actual informer)
 }
 
+func (r *DummyRepository) AreTypedInformersReady() bool {
+	return true // Dummy always returns true (no actual informers)
+}
+
+func (r *DummyRepository) GetTypedInformersSyncError() error {
+	return nil // Dummy never fails
+}
+
+func (r *DummyRepository) GetDynamicInformerSyncError(gvr schema.GroupVersionResource) error {
+	return nil // Dummy never fails
+}
+
 func (r *DummyRepository) EnsureCRInformer(gvr schema.GroupVersionResource) error {
 	return nil // Stub for testing
 }

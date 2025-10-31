@@ -172,5 +172,5 @@ func TestGenerateScreenConfigForCR_WithDateColumn(t *testing.T) {
 	dateColumn := config.Columns[2] // After Namespace and Name
 	assert.Equal(t, "Fields.LastBackup", dateColumn.Field)
 	assert.Equal(t, 10, dateColumn.Width) // Date columns get 10 chars (e.g., "5d ago")
-	assert.NotNil(t, dateColumn.Format)    // Should have FormatDate function
+	assert.NotNil(t, dateColumn.Format)   // Should have FormatDate function
 }

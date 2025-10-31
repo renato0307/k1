@@ -5,10 +5,11 @@ git_commit: 23edad435926b9e3d44fe3aed94f8a280db7d23b
 branch: feat/basic-crds
 repository: k1
 topic: "Manual Testing Guide for k1 TUI Application"
-tags: [research, testing, tui, manual-testing, bubble-tea, verification]
+tags: [research, testing, tui, manual-testing, bubble-tea, verification, vhs]
 status: complete
 last_updated: 2025-10-31
 last_updated_by: Claude
+last_updated_note: "Added VHS + PNG solution for Claude to test TUI changes"
 ---
 
 # Research: Manual Testing Guide for k1 TUI Application
@@ -27,21 +28,256 @@ screens, execute commands, and verify behavior?
 
 ## Summary
 
-Testing the k1 TUI (Terminal User Interface) application requires a
-**multi-layered approach** combining automated unit tests, integration tests,
-and manual verification. While k1 has excellent automated test coverage
-(71-76%), manual testing remains essential for verifying visual appearance,
-user experience, and end-to-end workflows.
+**Claude Code can now test the k1 TUI directly** using VHS (Video Hardware
+Store) to script terminal interactions and capture PNG screenshots. This
+enables automated verification of UI changes, layout, navigation, and
+visual appearance after making code changes.
+
+**SOLUTION: VHS + PNG Screenshots** ✅
+
+Claude uses VHS tape files to:
+1. Build and run k1 with real Kubernetes clusters
+2. Simulate keyboard input (typing, navigation, commands)
+3. Capture PNG screenshots at key points
+4. Read and verify screenshots visually
+
+**Example verification from actual test:**
+- ✅ Initial screen shows 7 pods in table with proper columns
+- ✅ Typing "nginx" enters filter mode
+- ✅ Navigation palette (`:`) shows all resource options
+- ✅ Command palette (`/`) displays available commands
+- ❌ **Bug found**: Filter displayed "nginx" but list was empty
 
 **Key Testing Approaches:**
-1. **Quick build verification**: `make build` or `go build -o k1 cmd/k1/main.go`
-2. **Run with dummy data**: Use DummyRepository for fast UI testing
-3. **Run with live cluster**: Test with real Kubernetes connection
-4. **Automated tests**: 71-76% coverage using envtest and table-driven tests
-5. **VHS recordings**: Script terminal sessions for reproducible manual tests
-6. **Terminal recording**: asciinema for capturing and replaying test sessions
+1. **VHS + PNG**: Claude's primary method for manual testing (Option 1)
+2. **Automated tests**: 71-76% coverage using envtest and table-driven tests
+3. **Unit tests**: Test Update() and business logic directly
+4. **Quick build verification**: `make build` or `go build -o k1 cmd/k1/main.go`
 
 ## Detailed Findings
+
+### 0. Claude Testing with VHS + PNG (Recommended Solution)
+
+**Claude Code can programmatically test the k1 TUI** using VHS to script
+terminal interactions and capture PNG screenshots that Claude can read and
+verify visually.
+
+#### Why This Works
+
+Claude has **multimodal capabilities** - when using the Read tool on PNG
+files, Claude can see and analyze the rendered terminal output. This enables
+visual verification of:
+- UI layout and alignment
+- Table formatting and columns
+- Color schemes and themes
+- Navigation states and palettes
+- Filter modes and command bars
+- Error messages and status indicators
+
+#### VHS Tape Files
+
+VHS uses `.tape` files to script terminal sessions. Example from
+`test-k1-manual.tape`:
+
+```tape
+# Set terminal size
+Set Width 1200
+Set Height 800
+Set FontSize 14
+
+# Build k1 first
+Type "go build -o k1 cmd/k1/main.go"
+Enter
+Sleep 2s
+
+# Run k1 (will connect to current context)
+Type "./k1"
+Enter
+
+# Wait for app to initialize and render
+Sleep 3s
+
+# Capture initial screen
+Screenshot test-output/01-initial-screen.png
+
+# Try typing to enter filter mode
+Type "nginx"
+Sleep 500ms
+Screenshot test-output/02-after-typing-nginx.png
+
+# Clear filter with Escape
+Escape
+Sleep 500ms
+Screenshot test-output/03-after-escape.png
+
+# Try navigation palette
+Type ":"
+Sleep 500ms
+Screenshot test-output/04-navigation-palette.png
+
+# Navigate to deployments
+Type "deployments"
+Enter
+Sleep 1s
+Screenshot test-output/05-deployments-screen.png
+
+# Quit the app
+Type "q"
+Sleep 500ms
+
+# Clean up
+Type "rm k1"
+Enter
+```
+
+#### Running VHS Tests
+
+```bash
+# Create test output directory
+mkdir -p test-output
+
+# Run VHS tape to generate screenshots
+vhs test-k1-manual.tape
+
+# VHS will:
+# 1. Start a virtual terminal
+# 2. Execute each command in sequence
+# 3. Capture PNG screenshots at specified points
+# 4. Output screenshots to test-output/ directory
+```
+
+**Execution time**: ~15-20 seconds for full test including k1 startup.
+
+#### What Claude Verifies from PNG Screenshots
+
+**Screenshot 1 (01-initial-screen.png) - Initial pods screen**:
+- ✅ Header shows "k1 💨 • current context: jarvis-eu-west-1"
+- ✅ Screen title "Pods • refreshing in 9s"
+- ✅ Table columns: Name, Ready, Status, Restarts, Age
+- ✅ 7 pods listed with data (metrics-server, open-webui, redis, etc.)
+- ✅ First pod highlighted in purple
+- ✅ Status bar: "[type to filter : resources / commands]"
+- ✅ Dark theme applied correctly
+
+**Screenshot 2 (02-after-typing-nginx.png) - Filter mode active**:
+- ✅ Filter input "nginx" visible at bottom
+- ✅ Table header still shows
+- ❌ **BUG FOUND**: Table body is empty (no pods matching "nginx")
+  - Expected: Should show pods with "nginx" in name
+  - Actual: Empty list suggests filter not working correctly
+- ✅ Cursor visible in filter input
+
+**Screenshot 3 (03-after-escape.png) - After clearing filter**:
+- ✅ Filter cleared (no text at bottom)
+- ✅ Pods list restored
+- ✅ Status bar shows default message
+
+**Screenshot 4 (04-navigation-palette.png) - Navigation palette**:
+- ✅ Palette opens at bottom with ":" prompt
+- ✅ Shows navigation options:
+  - :pods - Switch to Pods screen
+  - :deployments - Switch to Deployments screen
+  - :services - Switch to Services screen
+  - :configmaps - Switch to ConfigMaps screen
+  - :secrets - Switch to Secrets screen
+  - :namespaces - Switch to Namespaces screen
+  - :statefulsets - Switch to StatefulSets screen
+  - :daemonsets - Switch to DaemonSets screen
+- ✅ First item (":pods") highlighted
+- ✅ Palette shows 8 items with proper descriptions
+
+**Screenshot 5 (05-deployments-screen.png) - Deployments screen**:
+- ✅ Screen switched to "Deployments"
+- ✅ Table shows deployment-specific columns
+- ✅ Navigation worked correctly
+
+**Screenshot 6 (06-command-palette.png) - Command palette**:
+- ✅ Command palette opens with "/" prompt
+- ✅ Shows available commands for selected resource
+
+#### VHS vs. Text Output
+
+**Important**: VHS does NOT currently support text output (`.txt` or
+`.ansi` files). This feature is in development (PR #635) but **not yet
+released**.
+
+```bash
+# This does NOT work (yet):
+Screenshot test-output/test.txt
+# Error: Expected file with .png extension
+```
+
+**Why PNG is actually better for Claude:**
+- ✅ Claude can read PNG files using the Read tool
+- ✅ Visual verification catches layout bugs text wouldn't show
+- ✅ Can verify colors, alignment, styling
+- ✅ Sees exactly what users see
+- ❌ Cannot write programmatic assertions like `assert.Contains(view,
+  "nginx")`
+
+#### Complete Testing Workflow for Claude
+
+**When making changes to k1:**
+
+1. **Edit code** (screens, components, k8s layer, etc.)
+
+2. **Run unit tests** to catch business logic issues:
+   ```bash
+   make test
+   ```
+
+3. **Run VHS tape** to verify UI changes:
+   ```bash
+   vhs test-k1-manual.tape
+   ```
+
+4. **Read screenshots** using Read tool to verify:
+   ```bash
+   # Claude uses Read tool on each screenshot
+   Read("/Users/renato/Work/willful/k1/test-output/01-initial-screen.png")
+   Read("/Users/renato/Work/willful/k1/test-output/02-after-typing-nginx.png")
+   # etc.
+   ```
+
+5. **Verify visually**:
+   - Check UI elements are present
+   - Verify layout is correct
+   - Confirm navigation works
+   - Validate commands execute
+   - Spot visual regressions
+
+6. **Report findings** to user with specific screenshot references
+
+7. **Wait for user confirmation** before committing
+
+#### Limitations
+
+**VHS + PNG approach:**
+- ❌ Requires ~15-20 seconds to run full test
+- ❌ Needs real Kubernetes cluster connection (or -dummy flag restored)
+- ❌ Cannot write automated assertions (no CI/CD integration yet)
+- ❌ Terminal rendering may vary by environment
+- ✅ But catches UI bugs that unit tests miss!
+
+**VHS text output:**
+- ❌ Not available yet (PR #635 pending)
+- ❌ No timeline for release
+- ✅ Would enable programmatic text assertions when available
+
+#### Alternative Approaches Explored
+
+**Expect scripts** (tried, didn't work):
+- `expect` command can send input to interactive programs
+- Issue: Couldn't capture output reliably
+- Output showed empty sections (no terminal content captured)
+
+**Script command** (tried, didn't work):
+- `script` command records terminal sessions
+- Issue: k1 fails with "error entering raw mode: interrupted system call"
+- Not compatible with non-interactive stdin
+
+**Conclusion**: VHS + PNG is the only working solution for Claude to test
+TUIs interactively.
 
 ### 1. Running the k1 Application
 
@@ -525,12 +761,19 @@ func TestMyScreen(t *testing.T) {
 
 **Source**: github.com/charmbracelet/vhs
 **Purpose**: "Write terminal GIFs as code for integration testing and demoing"
+**Status**: ✅ **Working with PNG screenshots** (Claude's primary testing tool)
 
 **Key Features**:
 - Scriptable terminal sessions via `.tape` files
 - Reproducible test scenarios with exact timing control
 - Output in multiple formats (GIF, MP4, WebM, PNG)
 - Screenshot capability for visual regression testing
+- **Text output NOT available yet** (PR #635 pending, no release date)
+
+**Important**: VHS currently only supports PNG/GIF/MP4/WebM output. Text
+output (`.txt` and `.ansi` files) is in development but not released. For
+Claude testing, PNG screenshots are actually better because Claude can read
+and visually verify them.
 
 **Example `.tape` file**:
 
@@ -581,9 +824,11 @@ vhs test-scenario.tape
 - Onboarding videos
 
 **Limitations**:
-- Requires external dependencies (ttyd, ffmpeg)
-- Timing-sensitive (may be flaky if app response varies)
-- Better for integration tests than unit tests
+- ❌ **No text output yet** - Only PNG/GIF/MP4/WebM (PR #635 pending)
+- ❌ Requires external dependencies (ttyd, ffmpeg)
+- ❌ Timing-sensitive (may be flaky if app response varies)
+- ✅ Works great for Claude visual verification
+- ✅ Better for integration tests than unit tests
 
 #### asciinema - Terminal Recording for Manual Verification
 
@@ -1004,22 +1249,33 @@ make test                    # Full test suite (~5-10s)
 go test ./internal/screens   # Specific package
 ```
 
-**3. Build and run**
+**3. Run VHS tape for UI verification** ✅ **Claude's primary testing method**
 
 ```bash
-# Quick build check
-go build -o k1 cmd/k1/main.go && rm k1
+# Run VHS tape to capture screenshots
+vhs test-k1-manual.tape
 
-# Or build and run
-make build
-./k1
-make clean
+# Read and verify screenshots
+Read test-output/01-initial-screen.png
+Read test-output/02-after-typing-nginx.png
+Read test-output/04-navigation-palette.png
+# ... etc
 ```
 
-**4. Manual verification**
+**4. Verify from screenshots**
+
+Check each PNG for:
+- ✅ UI layout and alignment correct
+- ✅ Tables display expected data
+- ✅ Navigation works (palettes open, screens switch)
+- ✅ Filters work (input visible, results filtered)
+- ✅ Commands execute (YAML/describe shows)
+- ✅ No visual glitches or rendering issues
+
+**5. Optional: Manual verification (if VHS insufficient)**
 
 ```bash
-# Run with live cluster
+# Run with live cluster for manual testing
 go run cmd/k1/main.go
 
 # Or specific context
@@ -1028,15 +1284,6 @@ go run cmd/k1/main.go -context my-cluster
 # Or different theme
 go run cmd/k1/main.go -theme dracula
 ```
-
-**5. Verify UI behavior**
-
-- Navigate screens: `:pods`, `:deployments`, `:services`
-- Filter: Type characters for fuzzy search
-- Execute commands: `/yaml`, `/describe`, `/scale`
-- Test shortcuts: ctrl+y (yaml), ctrl+d (describe)
-- Resize terminal: Verify layout adapts
-- Test edge cases: Empty lists, long names, errors
 
 **6. Wait for user confirmation**
 
@@ -1276,17 +1523,31 @@ fmt.Println(clean)
 
 ## Conclusion
 
-**Claude can manually test the k1 TUI application** using a combination of:
+**Claude can test the k1 TUI directly using VHS + PNG screenshots** ✅
 
-1. **Automated tests** (`make test`) - Catches 71-76% of bugs quickly
-2. **Direct execution** (`go run cmd/k1/main.go`) - Verifies UI and UX
-3. **DummyRepository** - Enables fast UI testing without cluster
-4. **Manual checklists** - Systematic verification of critical flows
-5. **Terminal recording** (asciinema, VHS) - Reproducible test scenarios
+**Primary testing approach** (Option 1):
+1. **VHS + PNG** - Script terminal interactions, capture screenshots, verify
+   visually
+2. **Automated tests** (`make test`) - Catches 71-76% of bugs quickly
+3. **Unit tests** - Test Update() and business logic directly
 
-**Key workflow**: Make changes → Run tests → Build → Run app → Verify
-manually → Wait for user confirmation → Commit
+**Key workflow**: Make changes → Run tests → **Run VHS tape** → **Read PNG
+screenshots** → Verify UI → Wait for user confirmation → Commit
 
-**Most important**: The project has excellent guidelines and testing
-infrastructure. Following the documented patterns and waiting for user
+**Why VHS + PNG works for Claude**:
+- ✅ Claude can read PNG files and see the rendered TUI
+- ✅ Catches UI bugs that unit tests miss (layout, navigation, filters)
+- ✅ Reproducible test scenarios with scripted interactions
+- ✅ Sees exactly what users see (colors, alignment, styling)
+- ✅ Takes only ~15-20 seconds to run full test
+
+**What Claude verifies from screenshots**:
+- UI layout and table formatting
+- Navigation states (palettes, screen switching)
+- Filter functionality (input visible, results correct)
+- Commands execution (YAML/describe display)
+- Visual regressions (glitches, ANSI rendering)
+
+**Most important**: The VHS + PNG approach enables Claude to test UI changes
+independently. Following the documented workflow and waiting for user
 confirmation before committing ensures quality.

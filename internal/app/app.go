@@ -366,16 +366,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.StatusMsg:
 		m.statusBar.SetMessage(msg.Message, msg.Type)
-		return m, tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
-			return types.ClearStatusMsg{}
-		})
+		// Forward to screen so it can schedule periodic refresh if needed
+		model, cmd := m.currentScreen.Update(msg)
+		m.currentScreen = model.(types.Screen)
+
+		// Start spinner for loading messages
+		spinnerCmd := m.statusBar.GetSpinnerCmd()
+
+		// Only auto-clear success messages, not info/loading/error messages
+		// Loading messages persist until RefreshCompleteMsg clears them
+		// Error messages persist until user takes action
+		if msg.Type == types.MessageTypeSuccess {
+			statusCmd := tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+				return types.ClearStatusMsg{}
+			})
+			return m, tea.Batch(cmd, statusCmd, spinnerCmd)
+		}
+		return m, tea.Batch(cmd, spinnerCmd)
 
 	case types.ClearStatusMsg:
 		m.statusBar.ClearMessage()
 		return m, nil
 
 	case displayTickMsg:
-		// Update display elements (spinner, refresh time) without refreshing data
+		// Update display elements (refresh time) without refreshing data
 		m.header.AdvanceSpinner()
 
 		// Update refresh time text (already formatted by GetRefreshTimeString)
@@ -383,9 +397,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.header.SetRefreshText(refreshTime)
 
 		// Schedule next display tick
-		return m, tea.Tick(DisplayUpdateInterval, func(t time.Time) tea.Msg {
+		tickCmd := tea.Tick(DisplayUpdateInterval, func(t time.Time) tea.Msg {
 			return displayTickMsg(t)
 		})
+		return m, tea.Batch(tickCmd)
 
 	case types.ContextLoadProgressMsg:
 		// Check if loading is complete (Phase == 3 is PhaseComplete)
@@ -558,11 +573,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Forward messages to status bar for spinner tick handling
+	updatedStatusBar, statusBarCmd := m.statusBar.Update(msg)
+	m.statusBar = updatedStatusBar
+
 	// Forward messages to current screen
-	var cmd tea.Cmd
-	model, cmd := m.currentScreen.Update(msg)
+	var screenCmd tea.Cmd
+	model, screenCmd := m.currentScreen.Update(msg)
 	m.currentScreen = model.(types.Screen)
-	return m, cmd
+	return m, tea.Batch(statusBarCmd, screenCmd)
 }
 
 // pushNavigationHistory saves the current screen state to history
@@ -637,7 +656,7 @@ func (m Model) View() string {
 // switchContextCmd returns command to switch contexts asynchronously
 func (m Model) switchContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
-		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE switch
+		oldContext := m.repoPool.GetActiveContext() // Capture BEFORE switch
 		err := m.repoPool.SwitchContext(contextName, nil)
 
 		if err != nil {
@@ -648,7 +667,7 @@ func (m Model) switchContextCmd(contextName string) tea.Cmd {
 		}
 
 		return types.ContextSwitchCompleteMsg{
-			OldContext: oldContext,  // Correct value
+			OldContext: oldContext, // Correct value
 			NewContext: contextName,
 		}
 	}
@@ -657,7 +676,7 @@ func (m Model) switchContextCmd(contextName string) tea.Cmd {
 // retryContextCmd returns command to retry failed context
 func (m Model) retryContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
-		oldContext := m.repoPool.GetActiveContext()  // Capture BEFORE retry
+		oldContext := m.repoPool.GetActiveContext() // Capture BEFORE retry
 		err := m.repoPool.RetryFailedContext(contextName, nil)
 
 		if err != nil {

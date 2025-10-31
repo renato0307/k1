@@ -1,8 +1,11 @@
 package screens
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -60,7 +63,7 @@ func (s *DynamicScreen) Init() tea.Cmd {
 
 // Update handles messages for DynamicScreen
 func (s *DynamicScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case startLoadingMsg:
 		// Show loading message and start sync
 		return s, tea.Batch(
@@ -69,24 +72,79 @@ func (s *DynamicScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			},
 			s.Refresh(),
 		)
+	case tickMsg:
+		// Handle periodic refresh - call DynamicScreen's Refresh(), not ConfigScreen's
+		logging.Debug("Tick received, triggering refresh", "screen", s.config.Title)
+		nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
+			return tickMsg(t)
+		})
+		return s, tea.Batch(s.Refresh(), nextTick)
 	case types.RefreshCompleteMsg:
-		// Let ConfigScreen handle the refresh complete
-		// App will clear loading message automatically
-		return s.ConfigScreen.Update(msg)
+		// After first refresh completes, schedule the first tick
+		if !s.initialized {
+			logging.Debug("First RefreshComplete, scheduling tick", "screen", s.config.Title, "interval", s.config.RefreshInterval)
+			s.initialized = true
+			nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
+				return tickMsg(t)
+			})
+			// Let ConfigScreen handle the RefreshCompleteMsg, then schedule tick
+			model, cmd := s.ConfigScreen.Update(msg)
+			// Restore DynamicScreen wrapper
+			s.ConfigScreen = model.(*ConfigScreen)
+			return s, tea.Batch(cmd, nextTick)
+		}
+		// Non-first refresh complete - just delegate
+		model, cmd := s.ConfigScreen.Update(msg)
+		s.ConfigScreen = model.(*ConfigScreen)
+		return s, cmd
+	case types.StatusMsg:
+		// Status message (loading, error, etc.) - schedule tick to retry/continue
+		if !s.initialized {
+			logging.Debug("First StatusMsg, scheduling tick", "screen", s.config.Title, "interval", s.config.RefreshInterval, "msg_type", msg.Type)
+			s.initialized = true
+			nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
+				return tickMsg(t)
+			})
+			// Let ConfigScreen handle the StatusMsg, then schedule first tick
+			model, cmd := s.ConfigScreen.Update(msg)
+			// Restore DynamicScreen wrapper
+			s.ConfigScreen = model.(*ConfigScreen)
+			return s, tea.Batch(cmd, nextTick)
+		}
+		// Non-first status message - just delegate
+		model, cmd := s.ConfigScreen.Update(msg)
+		s.ConfigScreen = model.(*ConfigScreen)
+		return s, cmd
 	}
 
 	// Delegate to ConfigScreen for all other messages
-	return s.ConfigScreen.Update(msg)
+	model, cmd := s.ConfigScreen.Update(msg)
+	// Restore DynamicScreen wrapper after delegation
+	s.ConfigScreen = model.(*ConfigScreen)
+	return s, cmd
 }
 
 // Refresh fetches CR instances using GVR
 func (s *DynamicScreen) Refresh() tea.Cmd {
 	return func() tea.Msg {
-		// Ensure informer is registered on-demand (may take 10-30s first time)
+		// Ensure informer is registered on-demand (starts background sync if needed)
 		if err := s.repo.EnsureCRInformer(s.gvr); err != nil {
 			return types.ErrorStatusMsg("Failed to load " + s.config.Title + ": " + err.Error())
 		}
 
+		// Check if informer has synced yet (non-blocking check)
+		if !s.repo.IsInformerSynced(s.gvr) {
+			// Check if sync failed with an error
+			if syncErr := s.repo.GetDynamicInformerSyncError(s.gvr); syncErr != nil {
+				// Sync failed - show error to user
+				return types.ErrorStatusMsg(syncErr.Error())
+			}
+
+			// Still syncing - show loading message (periodic refresh will retry)
+			return types.LoadingMsg("Loading " + s.config.Title + "...")
+		}
+
+		// Informer ready - fetch data
 		resources, err := s.repo.GetResourcesByGVR(s.gvr, s.transform)
 		if err != nil {
 			return types.ErrorStatusMsg("Failed to refresh " + s.config.Title + ": " + err.Error())

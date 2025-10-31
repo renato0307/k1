@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/types"
 )
 
@@ -40,21 +41,37 @@ func GetPodsScreenConfig() ScreenConfig {
 // getPeriodicRefreshUpdate returns a shared CustomUpdate handler for periodic refresh
 func getPeriodicRefreshUpdate() func(s *ConfigScreen, msg tea.Msg) (tea.Model, tea.Cmd) {
 	return func(s *ConfigScreen, msg tea.Msg) (tea.Model, tea.Cmd) {
-		switch msg.(type) {
+		switch msg := msg.(type) {
 		case tickMsg:
 			// Refresh and schedule next tick using screen's configured interval
+			logging.Debug("Tick received, triggering refresh", "screen", s.config.Title)
 			nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
 				return tickMsg(t)
 			})
 			return s, tea.Batch(s.Refresh(), nextTick)
 		case types.RefreshCompleteMsg:
 			// After first refresh completes, schedule the first tick
-			if !s.firstRefreshDone {
-				s.firstRefreshDone = true
+			if !s.initialized {
+				logging.Debug("First RefreshComplete, scheduling tick", "screen", s.config.Title, "interval", s.config.RefreshInterval)
+				s.initialized = true
 				nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
 					return tickMsg(t)
 				})
 				// Let DefaultUpdate handle the RefreshCompleteMsg, then schedule tick
+				model, cmd := s.DefaultUpdate(msg)
+				screen := model.(*ConfigScreen)
+				return screen, tea.Batch(cmd, nextTick)
+			}
+			return s.DefaultUpdate(msg)
+		case types.StatusMsg:
+			// Status message (loading, error, etc.) - schedule tick to retry/continue
+			if !s.initialized {
+				logging.Debug("First StatusMsg, scheduling tick", "screen", s.config.Title, "interval", s.config.RefreshInterval, "msg_type", msg.Type)
+				s.initialized = true
+				nextTick := tea.Tick(s.config.RefreshInterval, func(t time.Time) tea.Msg {
+					return tickMsg(t)
+				})
+				// Let DefaultUpdate handle the StatusMsg, then schedule first tick
 				model, cmd := s.DefaultUpdate(msg)
 				screen := model.(*ConfigScreen)
 				return screen, tea.Batch(cmd, nextTick)
@@ -489,12 +506,15 @@ func GetCRDsScreenConfig() ScreenConfig {
 			{Field: "Scope", Title: "Scope", Width: 12, Priority: 3},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration, Priority: 1},
 		},
-		SearchFields: []string{"Name", "Group", "Kind"},
+		SearchFields:          []string{"Name", "Group", "Kind"},
 		Operations: []OperationConfig{
 			{ID: "describe", Name: "Describe", Description: "Describe selected CRD", Shortcut: "d"},
 			{ID: "yaml", Name: "View YAML", Description: "View CRD YAML", Shortcut: "y"},
 		},
-		NavigationHandler: navigateToCRInstances(),
+		NavigationHandler:     navigateToCRInstances(),
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
 
@@ -511,12 +531,12 @@ func GetContextsScreenConfig() ScreenConfig {
 			{Field: "User", Title: "User", Width: 0, Priority: 2},
 			{Field: "Status", Title: "Status", Width: 15, Priority: 1},
 		},
-		SearchFields: []string{"Name", "Cluster", "User", "Status"},
-		Operations:   []OperationConfig{}, // No operations - ctrl+r is global refresh
+		SearchFields:          []string{"Name", "Cluster", "User", "Status"},
+		Operations:            []OperationConfig{}, // No operations - ctrl+r is global refresh
 		NavigationHandler:     navigateToContextSwitch(),
 		TrackSelection:        true,
-		EnablePeriodicRefresh: true,                   // Auto-refresh to update loading status
-		RefreshInterval:       ContextsRefreshInterval, // Refresh every 30 seconds (contexts don't change often)
+		EnablePeriodicRefresh: true,                       // Auto-refresh to update loading status
+		RefreshInterval:       ContextsRefreshInterval,    // Refresh every 30 seconds (contexts don't change often)
 		CustomUpdate:          getPeriodicRefreshUpdate(), // Handle tick messages for refresh
 	}
 }

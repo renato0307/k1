@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/renato0307/k1/internal/logging"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -38,25 +39,34 @@ type loadingState struct {
 type RepositoryPool struct {
 	mu         sync.RWMutex
 	repos      map[string]*RepositoryEntry
-	active     string          // Current context name
-	maxSize    int             // Pool size limit
-	lru        *list.List      // LRU eviction order
+	active     string     // Current context name
+	maxSize    int        // Pool size limit
+	lru        *list.List // LRU eviction order
 	kubeconfig string
-	contexts   []*ContextInfo  // All contexts from kubeconfig
-	loading    sync.Map        // map[string]*loadingState - coordinate concurrent loads
+	contexts   []*ContextInfo // All contexts from kubeconfig
+	loading    sync.Map       // map[string]*loadingState - coordinate concurrent loads
 }
 
 // NewRepositoryPool creates a new repository pool
 func NewRepositoryPool(kubeconfig string, maxSize int) (*RepositoryPool, error) {
+	timingCtx := logging.Start("NewRepositoryPool")
+	defer logging.End(timingCtx)
+
 	if maxSize <= 0 {
 		maxSize = 10 // Default limit
 	}
 
 	// Parse kubeconfig to get all contexts
+	kubeconfigStart := logging.Start("parse kubeconfig")
 	contexts, err := parseKubeconfig(kubeconfig)
+	logging.End(kubeconfigStart)
+
 	if err != nil {
+		logging.Error("Failed to parse kubeconfig", "error", err)
 		return nil, fmt.Errorf("failed to parse kubeconfig: %w", err)
 	}
+
+	logging.Debug("Repository pool initialized", "context_count", len(contexts), "max_size", maxSize)
 
 	return &RepositoryPool{
 		repos:      make(map[string]*RepositoryEntry),
@@ -69,11 +79,17 @@ func NewRepositoryPool(kubeconfig string, maxSize int) (*RepositoryPool, error) 
 
 // LoadContext loads a context into the pool (blocking operation)
 func (p *RepositoryPool) LoadContext(contextName string, progress chan<- ContextLoadProgress) error {
+	loadCtx := logging.Start("LoadContext")
+	defer logging.End(loadCtx)
+
+	logging.Info("Loading context", "context", contextName)
+
 	// Try to start loading - use LoadOrStore to coordinate concurrent attempts
 	state := &loadingState{done: make(chan struct{})}
 	actual, loaded := p.loading.LoadOrStore(contextName, state)
 
 	if loaded {
+		logging.Debug("Context already loading, waiting", "context", contextName)
 		// Another goroutine is loading this context, wait for it
 		<-actual.(*loadingState).done
 		return actual.(*loadingState).err
@@ -103,12 +119,15 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 	}
 
 	// Create repository (5-15s operation, no lock held)
+	repoStart := logging.Start("NewInformerRepositoryWithProgress")
 	repo, err := NewInformerRepositoryWithProgress(p.kubeconfig, contextName, progress)
+	logging.End(repoStart)
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if err != nil {
+		logging.Error("Failed to create repository", "context", contextName, "error", err)
 		// Cleanup partial repository if it exists
 		if repo != nil {
 			repo.Close()
@@ -142,6 +161,8 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 		}
 	}
 	p.lru.PushFront(contextName)
+
+	logging.Info("Context loaded successfully", "context", contextName)
 
 	return nil
 }
@@ -189,7 +210,7 @@ func (p *RepositoryPool) SwitchContext(contextName string, progress chan<- Conte
 	// Switch to newly loaded context
 	p.mu.Lock()
 	p.active = contextName
-	p.markUsed(contextName)  // Update LRU
+	p.markUsed(contextName) // Update LRU
 	p.mu.Unlock()
 
 	return nil
@@ -499,6 +520,30 @@ func (p *RepositoryPool) IsInformerSynced(gvr schema.GroupVersionResource) bool 
 	return repo.IsInformerSynced(gvr)
 }
 
+func (p *RepositoryPool) AreTypedInformersReady() bool {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return false
+	}
+	return repo.AreTypedInformersReady()
+}
+
+func (p *RepositoryPool) GetTypedInformersSyncError() error {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return nil
+	}
+	return repo.GetTypedInformersSyncError()
+}
+
+func (p *RepositoryPool) GetDynamicInformerSyncError(gvr schema.GroupVersionResource) error {
+	repo := p.GetActiveRepository()
+	if repo == nil {
+		return nil
+	}
+	return repo.GetDynamicInformerSyncError(gvr)
+}
+
 func (p *RepositoryPool) EnsureCRInformer(gvr schema.GroupVersionResource) error {
 	repo := p.GetActiveRepository()
 	if repo == nil {
@@ -569,17 +614,6 @@ func (p *RepositoryPool) GetContexts() ([]Context, error) {
 	sortContextsByStatusThenName(result)
 
 	return result, nil
-}
-
-// sortContextsByName sorts contexts alphabetically by name
-func sortContextsByName(contexts []Context) {
-	for i := 0; i < len(contexts); i++ {
-		for j := i + 1; j < len(contexts); j++ {
-			if contexts[i].Name > contexts[j].Name {
-				contexts[i], contexts[j] = contexts[j], contexts[i]
-			}
-		}
-	}
 }
 
 // sortContextsByStatusThenName sorts contexts with loaded/loading/failed first (alphabetically within each group), then not-loaded (alphabetical)

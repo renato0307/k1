@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/stretchr/testify v1.11.1
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
 	k8s.io/cli-runtime v0.34.1

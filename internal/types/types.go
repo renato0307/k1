@@ -126,6 +126,7 @@ const (
 	MessageTypeInfo MessageType = iota
 	MessageTypeSuccess
 	MessageTypeError
+	MessageTypeLoading // Loading state with spinner
 )
 
 type StatusMsg struct {
@@ -150,6 +151,11 @@ func SuccessMsg(message string) StatusMsg {
 // ErrorMsg creates an error status message
 func ErrorStatusMsg(message string) StatusMsg {
 	return StatusMsg{Message: message, Type: MessageTypeError}
+}
+
+// LoadingMsg creates a loading status message (with spinner)
+func LoadingMsg(message string) StatusMsg {
+	return StatusMsg{Message: message, Type: MessageTypeLoading}
 }
 
 type FilterUpdateMsg struct {

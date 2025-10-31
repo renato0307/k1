@@ -122,5 +122,9 @@ func GenerateScreenConfigForCR(crd k8s.CustomResourceDefinition) ScreenConfig {
 				Description: "View " + crd.Kind + " YAML",
 				Shortcut:    "y"},
 		},
+		EnablePeriodicRefresh: true,
+		RefreshInterval:       RefreshInterval,
+		TrackSelection:        true,
+		CustomUpdate:          getPeriodicRefreshUpdate(),
 	}
 }
