@@ -180,6 +180,16 @@ func TestScreenConfigs(t *testing.T) {
 			minSearchFields:  3,
 			minOperations:    2,
 		},
+		{
+			name:             "CustomResourceDefinitions",
+			getConfig:        GetCRDsScreenConfig,
+			expectedID:       "customresourcedefinitions",
+			expectedTitle:    "Custom Resource Definitions",
+			expectedResource: k8s.ResourceTypeCRD,
+			minColumns:       5,
+			minSearchFields:  3,
+			minOperations:    2,
+		},
 	}
 
 	for _, tt := range tests {

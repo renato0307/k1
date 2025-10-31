@@ -27,6 +27,7 @@ const (
 	ResourceTypeIngress               ResourceType = "ingresses"
 	ResourceTypeEndpoints             ResourceType = "endpoints"
 	ResourceTypeHPA                   ResourceType = "horizontalpodautoscalers"
+	ResourceTypeCRD                   ResourceType = "customresourcedefinitions"
 	ResourceTypeContext               ResourceType = "contexts"
 )
 
@@ -44,6 +45,7 @@ func GetGVRForResourceType(resourceType ResourceType) (schema.GroupVersionResour
 		ResourceTypeJob:         {Group: "batch", Version: "v1", Resource: "jobs"},
 		ResourceTypeCronJob:     {Group: "batch", Version: "v1", Resource: "cronjobs"},
 		ResourceTypeNode:        {Group: "", Version: "v1", Resource: "nodes"},
+		ResourceTypeCRD:         {Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"},
 	}
 
 	gvr, ok := gvrMap[resourceType]
@@ -55,7 +57,7 @@ type ResourceConfig struct {
 	GVR        schema.GroupVersionResource
 	Name       string
 	Namespaced bool
-	Tier       int // 1=critical (block UI), 2=background, 3=deferred
+	Tier       int // 0=on-demand only, 1=critical (block UI), 2=background, 3=deferred
 	Transform  TransformFunc
 }
 
@@ -80,6 +82,13 @@ type ResourceStats struct {
 type Repository interface {
 	// Generic resource access (config-driven)
 	GetResources(resourceType ResourceType) ([]any, error)
+
+	// Dynamic CRD instance access (for on-demand informers)
+	GetResourcesByGVR(gvr schema.GroupVersionResource, transform TransformFunc) ([]any, error)
+	EnsureCRInformer(gvr schema.GroupVersionResource) error
+	IsInformerSynced(gvr schema.GroupVersionResource) bool
+	// Ensure informer for resource type is loaded (for on-demand Tier 0 resources)
+	EnsureResourceTypeInformer(resourceType ResourceType) error
 
 	// Typed convenience methods (preserved for compatibility)
 	GetPods() ([]Pod, error)

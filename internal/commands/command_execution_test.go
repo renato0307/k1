@@ -82,6 +82,18 @@ func (m *mockRepository) GetResourceStats() []k8s.ResourceStats {
 	return nil
 }
 func (m *mockRepository) Close() {}
+func (m *mockRepository) EnsureCRInformer(gvr schema.GroupVersionResource) error {
+	return nil
+}
+func (m *mockRepository) GetResourcesByGVR(gvr schema.GroupVersionResource, transform k8s.TransformFunc) ([]any, error) {
+	return nil, nil
+}
+func (m *mockRepository) IsInformerSynced(gvr schema.GroupVersionResource) bool {
+	return true
+}
+func (m *mockRepository) EnsureResourceTypeInformer(resourceType k8s.ResourceType) error {
+	return nil
+}
 
 // newTestRepositoryPool creates a test pool with a mock repository
 // Uses the repository_pool's SetTestRepository which properly initializes the pool

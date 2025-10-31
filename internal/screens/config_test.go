@@ -313,11 +313,102 @@ func TestGetFieldValue(t *testing.T) {
 			fieldName: "Ready",
 			expected:  "2/2",
 		},
+		{
+			name: "dot notation for Fields map - existing key",
+			item: k8s.GenericResource{
+				ResourceMetadata: k8s.ResourceMetadata{Name: "issuer1", Namespace: "default"},
+				Kind:             "Issuer",
+				Fields: map[string]string{
+					"Ready":  "True",
+					"Status": "Issuer is ready",
+				},
+			},
+			fieldName: "Fields.Ready",
+			expected:  "True",
+		},
+		{
+			name: "dot notation for Fields map - non-existent key",
+			item: k8s.GenericResource{
+				ResourceMetadata: k8s.ResourceMetadata{Name: "issuer1"},
+				Kind:             "Issuer",
+				Fields: map[string]string{
+					"Ready": "True",
+				},
+			},
+			fieldName: "Fields.NonExistent",
+			expected:  "",
+		},
+		{
+			name: "dot notation for Fields map - empty map",
+			item: k8s.GenericResource{
+				ResourceMetadata: k8s.ResourceMetadata{Name: "issuer1"},
+				Kind:             "Issuer",
+				Fields:           map[string]string{},
+			},
+			fieldName: "Fields.Ready",
+			expected:  "",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getFieldValue(tt.item, tt.fieldName)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestFormatDate(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{
+			name:     "RFC3339 string - recent",
+			input:    time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
+			expected: "5m ago",
+		},
+		{
+			name:     "RFC3339 string - hours",
+			input:    time.Now().Add(-3 * time.Hour).Format(time.RFC3339),
+			expected: "3h ago",
+		},
+		{
+			name:     "RFC3339 string - days",
+			input:    time.Now().Add(-2 * 24 * time.Hour).Format(time.RFC3339),
+			expected: "2d ago",
+		},
+		{
+			name:     "time.Time value",
+			input:    time.Now().Add(-10 * time.Minute),
+			expected: "10m ago",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "<none>",
+		},
+		{
+			name:     "zero time",
+			input:    time.Time{},
+			expected: "<none>",
+		},
+		{
+			name:     "invalid format string",
+			input:    "not a valid timestamp",
+			expected: "not a valid timestamp",
+		},
+		{
+			name:     "non-string non-time value",
+			input:    123,
+			expected: "123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatDate(tt.input)
 			assert.Equal(t, tt.expected, got)
 		})
 	}

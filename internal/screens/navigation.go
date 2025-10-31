@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/types"
 )
 
@@ -369,6 +370,48 @@ func navigateToContextSwitch() NavigationFunc {
 		return func() tea.Msg {
 			return types.ContextSwitchMsg{
 				ContextName: contextName,
+			}
+		}
+	}
+}
+
+// navigateToCRInstances creates navigation handler for CRD -> CR instances
+func navigateToCRInstances() NavigationFunc {
+	return func(s *ConfigScreen) tea.Cmd {
+		resource := s.GetSelectedResource()
+		if resource == nil {
+			return nil
+		}
+
+		// Extract CRD fields from map
+		group, _ := resource["group"].(string)
+		version, _ := resource["version"].(string)
+		kind, _ := resource["kind"].(string)
+		plural, _ := resource["plural"].(string)
+		scope, _ := resource["scope"].(string)
+
+		// Extract columns field (slice of CRDColumn)
+		var columns []k8s.CRDColumn
+		if columnsInterface, ok := resource["columns"]; ok {
+			if columnSlice, ok := columnsInterface.([]k8s.CRDColumn); ok {
+				columns = columnSlice
+			}
+		}
+
+		// Build CRD from extracted fields
+		crd := k8s.CustomResourceDefinition{
+			Group:   group,
+			Version: version,
+			Kind:    kind,
+			Plural:  plural,
+			Scope:   scope,
+			Columns: columns,
+		}
+
+		// Trigger dynamic screen creation
+		return func() tea.Msg {
+			return types.DynamicScreenCreateMsg{
+				CRD: crd,
 			}
 		}
 	}

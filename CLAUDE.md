@@ -718,6 +718,62 @@ func navigateToPodsForOwner(kind string) NavigationFunc { ... }
 - Ask if they want it done now
 - Assume user wants planning when they clearly want action
 
+### Planning Review Checklist
+
+**Problem**: When creating implementation plans from research documents, it's
+easy to blindly follow proposed architectures without critically evaluating
+whether they fit k1's existing patterns.
+
+**Example failure** (2025-10-28, CRD support planning):
+- Research document proposed `DynamicResourceManager` component
+- I copied it into plan without questioning necessity
+- User caught it: "Why do we need a manager? Why can't we do it like any
+  other resource?"
+- **Root cause**: Didn't compare proposed solution against existing patterns
+
+**Mandatory review before finalizing plans**:
+
+After drafting each phase, ask these questions:
+
+1. ✅ **Pattern Match**: Do similar resources use this pattern?
+   ```
+   Question: "We're adding DynamicResourceManager. Do Pods have
+             PodManager?"
+   Answer: No → RED FLAG, remove it
+   ```
+
+2. ✅ **YAGNI Check**: What problem does this solve that existing
+   components can't?
+   ```
+   Question: "Manager caches configs. Are configs expensive to
+             generate?"
+   Answer: No (trivial structs) → REMOVE IT
+   ```
+
+3. ✅ **Simplicity Test**: Can I explain this in one sentence without
+   saying "manager" or "coordinator"?
+   ```
+   Good: "Screens fetch data via Repository using GVR"
+   Bad: "DynamicResourceManager coordinates config lifecycle management"
+   ```
+
+4. ✅ **Code Comparison**: Show side-by-side with existing
+   implementation
+   ```
+   "Here's how Deployments work. Here's how CRD instances will work.
+    Spot the difference? Minimize it."
+   ```
+
+**k1's core patterns** (stick to these unless compelling reason to deviate):
+- **Repository**: Handles informers + data fetching
+- **Screen configs**: Define display (generate at runtime if needed)
+- **Transform functions**: Convert unstructured → typed
+- **No managers/coordinators**: Data flows Repository → Screen → Display
+
+**Apply this to research documents too**: Research documents propose
+architectures based on analysis, but they're not gospel. Validate against
+codebase reality.
+
 ## Quick Reference
 
 ### Global Keybindings

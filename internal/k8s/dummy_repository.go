@@ -634,3 +634,21 @@ func (r *DummyRepository) GetContexts() ([]Context, error) {
 		},
 	}, nil
 }
+
+// EnsureCRInformer stub for testing (dummy repository doesn't support dynamic CRs)
+func (r *DummyRepository) IsInformerSynced(gvr schema.GroupVersionResource) bool {
+	return true // Dummy always returns true (no actual informer)
+}
+
+func (r *DummyRepository) EnsureCRInformer(gvr schema.GroupVersionResource) error {
+	return nil // Stub for testing
+}
+
+func (r *DummyRepository) EnsureResourceTypeInformer(resourceType ResourceType) error {
+	return nil // Stub for testing
+}
+
+// GetResourcesByGVR stub for testing (dummy repository doesn't support dynamic CRs)
+func (r *DummyRepository) GetResourcesByGVR(gvr schema.GroupVersionResource, transform TransformFunc) ([]any, error) {
+	return []any{}, nil // Return empty list for testing
+}

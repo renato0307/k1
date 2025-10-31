@@ -135,6 +135,18 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 				Execute:     NavigationCommand("horizontalpodautoscalers"),
 			},
 			{
+				Name:        "customresourcedefinitions",
+				Description: "Switch to Custom Resource Definitions screen",
+				Category:    CategoryResource,
+				Execute:     NavigationCommand("customresourcedefinitions"),
+			},
+			{
+				Name:        "crds",
+				Description: "Switch to Custom Resource Definitions screen (alias)",
+				Category:    CategoryResource,
+				Execute:     NavigationCommand("customresourcedefinitions"),
+			},
+			{
 				Name:        "system-resources",
 				Description: "View system resource statistics",
 				Category:    CategoryResource,

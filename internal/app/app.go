@@ -5,11 +5,13 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/components"
 	"github.com/renato0307/k1/internal/components/commandbar"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/screens"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
@@ -78,6 +80,7 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 	registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, theme))
 	registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, theme))
 	registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, theme))
+	registry.Register(screens.NewConfigScreen(screens.GetCRDsScreenConfig(), repo, theme))
 
 	// Tier 3: Less common resources
 	registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, theme))
@@ -260,11 +263,53 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, barCmd
 
+	case types.DynamicScreenCreateMsg:
+		// Extract CRD
+		crd, ok := msg.CRD.(k8s.CustomResourceDefinition)
+		if !ok {
+			return m, messages.ErrorCmd("Invalid CRD type")
+		}
+
+		// Generate screen config
+		screenConfig := screens.GenerateScreenConfigForCR(crd)
+		screenID := screenConfig.ID
+
+		// Check if screen already registered
+		if _, exists := m.registry.Get(screenID); !exists {
+			// Construct GVR from CRD
+			gvr := schema.GroupVersionResource{
+				Group:    crd.Group,
+				Version:  crd.Version,
+				Resource: crd.Plural,
+			}
+
+			// Create generic transform with CRD columns for JSONPath evaluation
+			transform := k8s.CreateGenericTransform(crd.Kind, crd.Columns)
+
+			// Create and register dynamic screen
+			dynamicScreen := screens.NewDynamicScreen(
+				screenConfig,
+				gvr,
+				transform,
+				m.repoPool.GetActiveRepository(),
+				m.theme,
+			)
+			m.registry.Register(dynamicScreen)
+		}
+
+		// Use ScreenSwitchMsg to handle all the switching logic
+		// PushHistory=true so ESC goes back to CRD list
+		return m.Update(types.ScreenSwitchMsg{
+			ScreenID:    screenID,
+			PushHistory: true,
+		})
+
 	case types.ScreenSwitchMsg:
 		if screen, ok := m.registry.Get(msg.ScreenID); ok {
-			// Push current state to history if this is contextual navigation
-			// (FilterContext present and not a back navigation)
-			if !msg.IsBackNav && msg.FilterContext != nil {
+			// Push current state to history if:
+			// 1. PushHistory flag is set (explicit request), OR
+			// 2. FilterContext present and not a back navigation (contextual nav)
+			if (!msg.IsBackNav && msg.FilterContext != nil) || msg.PushHistory {
 				m.pushNavigationHistory()
 			}
 
@@ -313,6 +358,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.RefreshTime = msg.Duration
 		m.header.SetLastRefresh(time.Now())
 		// Forward to screen so it can schedule first tick for periodic refresh
+		// Also clear any loading message that might be showing
+		m.statusBar.ClearMessage()
 		model, cmd := m.currentScreen.Update(msg)
 		m.currentScreen = model.(types.Screen)
 		return m, cmd
@@ -641,6 +688,7 @@ func (m *Model) initializeScreens() {
 	m.registry.Register(screens.NewConfigScreen(screens.GetConfigMapsScreenConfig(), repo, m.theme))
 	m.registry.Register(screens.NewConfigScreen(screens.GetSecretsScreenConfig(), repo, m.theme))
 	m.registry.Register(screens.NewConfigScreen(screens.GetNamespacesScreenConfig(), repo, m.theme))
+	m.registry.Register(screens.NewConfigScreen(screens.GetCRDsScreenConfig(), repo, m.theme))
 
 	// Tier 3: Less common resources
 	m.registry.Register(screens.NewConfigScreen(screens.GetStatefulSetsScreenConfig(), repo, m.theme))
