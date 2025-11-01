@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -76,7 +77,7 @@ func (e *KubectlExecutor) Execute(args []string, opts ExecuteOptions) (string, e
 	case err := <-done:
 		// Command completed
 		if err != nil {
-			stderrStr := stderr.String()
+			stderrStr := strings.TrimSpace(stderr.String())
 			if stderrStr != "" {
 				return "", fmt.Errorf("kubectl error: %s", stderrStr)
 			}

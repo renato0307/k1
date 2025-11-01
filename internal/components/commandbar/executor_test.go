@@ -187,12 +187,12 @@ func TestExecutor_ViewResult(t *testing.T) {
 
 	// Success result
 	view := exec.ViewResult("Operation completed", true)
-	assert.Contains(t, view, "✓")
+	assert.Contains(t, view, "⏺")
 	assert.Contains(t, view, "Operation completed")
 
 	// Error result
 	view = exec.ViewResult("Operation failed", false)
-	assert.Contains(t, view, "✗")
+	assert.Contains(t, view, "⏺")
 	assert.Contains(t, view, "Operation failed")
 }
 

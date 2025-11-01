@@ -106,7 +106,7 @@ func (h *Header) GetRefreshTimeString() string {
 	remaining := h.refreshInterval - elapsed
 
 	if remaining <= 0 {
-		return "refreshing..."
+		return "refreshing…"
 	}
 
 	seconds := int(remaining.Seconds())

@@ -6,6 +6,7 @@ import (
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
 
@@ -205,26 +206,17 @@ func (e *Executor) ViewLLMPreview() string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
-// ViewResult renders result message.
+// ViewResult renders result message using the shared ui.RenderMessage function.
+// This ensures consistent message styling across all components (DRY).
 func (e *Executor) ViewResult(message string, success bool) string {
-	var color lipgloss.AdaptiveColor
+	// Convert boolean success parameter to MessageType
+	var msgType types.MessageType
 	if success {
-		color = e.theme.Success
+		msgType = types.MessageTypeSuccess
 	} else {
-		color = e.theme.Error
+		msgType = types.MessageTypeError
 	}
 
-	resultStyle := lipgloss.NewStyle().
-		Foreground(color).
-		Background(e.theme.Background).
-		Width(e.width).
-		Padding(0, 1).
-		Bold(true)
-
-	icon := "✓"
-	if !success {
-		icon = "✗"
-	}
-
-	return resultStyle.Render(icon + " " + message)
+	// Delegate to shared rendering function (no spinner for command bar results)
+	return ui.RenderMessage(message, msgType, e.theme, "", e.width)
 }
