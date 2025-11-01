@@ -1,16 +1,18 @@
 # Plan: Update Message Styling to Match Claude Code
 
 **Date**: 2025-10-31
-**Status**: TODO
+**Status**: COMPLETE
 **Author**: @renato0307
 
 ## Goal
 
 Update k1's message display to match Claude Code's visual style:
 - **Loading**: Orange spinner (asterisk-style) + orange text
-- **Error**: Red circle (⏺) + white text
-- **Info**: Blue circle (⏺) + white text
-- **Success**: Green circle (⏺) + white text
+- **Error**: Red circle (⏺) + red text
+- **Info**: Blue circle (⏺) + blue text
+- **Success**: Green circle (⏺) + green text
+
+**Note**: Text color changed to match circle color for consistency.
 
 ## Current Implementation
 
@@ -106,30 +108,84 @@ rendered := circleStyle.Render(prefix) + textStyle.Render(sb.message)
 
 ### Phase 3: Update Spinner Style
 
-**File**: `internal/components/statusbar.go`
+**File**: `internal/components/usermessage.go` (renamed from statusbar.go)
 
-Current: Bubble Tea's `spinner.Dot` style
-Target: Asterisk-style rotating animation (match Claude Code's "✢")
+**Implemented**: Custom spinner with exact Claude Code symbols
+- Symbols: ✽ ✻ ✶ · ✢
+- FPS: 6 frames per second (slower animation)
+- Color: theme.MessageLoading (orange)
 
-Options to explore:
-1. Try Bubble Tea's built-in spinner styles (Points, Globe, etc.)
-2. Create custom spinner with rotating characters: `✢ ✣ ✤ ✥` or similar
-3. Use existing Braille spinner from header.go: `⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧`
+Applied to loading messages only, rendered via spinnerView parameter.
 
-Apply orange color (theme.MessageLoading) to spinner characters.
+### Phase 4: Architectural Refactoring (Added During Implementation)
 
-Test animation smoothness and visual appearance.
+**Purpose**: Eliminate code duplication and follow Single Responsibility
+Principle
 
-### Phase 4: Testing & Verification
+**Changes**:
+1. Created `internal/ui/message.go` - Pure rendering function
+   - `RenderMessage()` - Shared rendering logic for all message types
+   - Stateless function accepting text, type, theme, spinnerView
+   - Single source of truth for message styling
+
+2. Renamed `internal/components/statusbar.go` → `usermessage.go`
+   - Component name: StatusBar → UserMessage
+   - Better semantic meaning (it's user-facing messages, not just status)
+   - Delegates rendering to ui.RenderMessage()
+
+3. Updated `internal/components/commandbar/executor.go`
+   - ViewResult() now uses ui.RenderMessage()
+   - Eliminated duplicate rendering logic
+   - Consistent styling between command bar and status area
+
+4. Updated `internal/app/app.go`
+   - Renamed all statusBar references → userMessage
+   - Added messageID tracking for timer anti-race pattern
+   - Fixed bug: messages disappearing prematurely due to timer conflicts
+   - Increment messageID on new message, only clear if ID matches
+
+**Architecture**:
+```
+ui.RenderMessage() (pure function, DRY)
+    ↑
+    ├── UserMessage.View() (main status display)
+    └── Executor.ViewResult() (command bar results)
+```
+
+### Phase 5: Message Truncation (Added During Implementation)
+
+**Purpose**: Prevent long messages from pushing title line off screen
+
+**Changes**:
+1. Updated `ui.RenderMessage()` to accept terminal width parameter
+2. Truncates messages to `width - 7` (prefix + margins)
+3. Adds "…" ellipsis when truncated
+4. Minimum length of 20 characters for small terminals
+
+**Callers updated**:
+- `UserMessage.View()` passes `um.width`
+- `Executor.ViewResult()` passes `e.width`
+
+### Phase 6: Error Logging (Added During Implementation)
+
+**Purpose**: Preserve full error messages for debugging after truncation
+
+**Changes**:
+1. Added error logging in `internal/app/app.go`
+2. Logs full error message before truncation
+3. Available in log file when running with `-log-file` flag
+4. Format: `level=ERROR msg="User error message" message="..."`
+
+### Phase 7: Testing & Verification
 
 Test all message types:
-1. Success message (green circle, white text, auto-clear after 5s)
-2. Error message (red circle, white text, persists)
-3. Info message (blue circle, white text, persists)
+1. Success message (green circle, green text, auto-clear after 5s)
+2. Error message (red circle, red text, persists)
+3. Info message (blue circle, blue text, persists)
 4. Loading message (orange spinner, orange text, clears on complete)
 
 Verify across all 8 themes:
-- White text readable on all theme backgrounds
+- Text color matches circle color for all themes
 - Circle colors consistent with theme palette
 - Spinner animation smooth and visible
 - No background color artifacts
@@ -139,27 +195,59 @@ Test message lifecycle:
 - Errors persist until explicitly cleared
 - Loading clears on RefreshCompleteMsg
 
+Test message truncation:
+- Long messages truncated to fit terminal width
+- Ellipsis added when truncated
+- Title line never pushed off screen
+- Full error available in log file
+
 ## Files Modified
 
-- `internal/ui/theme.go` - Add 5 new color fields to all themes
-- `internal/components/statusbar.go` - Update rendering logic and spinner
-- No changes to message creation (`internal/messages/helpers.go`)
-- No changes to message types (`internal/types/types.go`)
+- `internal/ui/theme.go` - Added 4 message color fields to all 8 themes
+- `internal/ui/message.go` - NEW: Pure rendering function with truncation
+- `internal/components/statusbar.go` → `usermessage.go` - RENAMED
+- `internal/components/commandbar/executor.go` - Uses shared renderer
+- `internal/components/commandbar/executor_test.go` - Updated expectations
+- `internal/app/app.go` - Renamed references, messageID tracking, error logging
+- `internal/types/types.go` - Added MessageID to ClearStatusMsg
+- `internal/commands/executor.go` - Trimmed kubectl stderr output
 
 ## Success Criteria
 
-- [ ] All 8 themes have new message color fields defined
-- [ ] Messages render with colored circle + white text (no background)
-- [ ] Spinner uses asterisk-style animation with orange color
-- [ ] Visual appearance matches Claude Code style
-- [ ] Message lifecycle behavior unchanged (auto-clear, persistence)
-- [ ] White text readable across all themes and terminal backgrounds
-- [ ] All existing tests pass
+- [x] All 8 themes have new message color fields defined
+- [x] Messages render with colored circle + colored text (no background)
+- [x] Text color matches circle color for consistency
+- [x] Spinner uses exact Claude Code symbols (✽ ✻ ✶ · ✢)
+- [x] Visual appearance matches Claude Code style
+- [x] Message timer bugs fixed (messageID anti-race pattern)
+- [x] Code duplication eliminated (DRY with ui.RenderMessage)
+- [x] Single Responsibility Principle followed (UserMessage component)
+- [x] Long messages truncated based on terminal width
+- [x] Full error messages logged for debugging
+- [x] Title line never pushed off screen
+- [x] All existing tests pass
 
 ## Notes
 
-- Keep existing message helpers and types unchanged (backward compatible)
-- Maintain spinner update mechanism via Update() method
-- Consider terminal background contrast (white text on light backgrounds)
-- Document new theme color fields in theme.go
+### Implementation Changes
+- Changed text color from white to match circle color (user feedback)
+- Renamed StatusBar → UserMessage for better semantics
+- Created ui.RenderMessage() pure function for DRY
+- Fixed message timer race condition with messageID tracking
+
+### Backward Compatibility
+- Message helpers and types unchanged (backward compatible)
+- Spinner update mechanism maintained via Update() method
 - No breaking changes to message API
+
+### Key Learnings
+- UTF-8 encoding: Used bash heredoc for circle bullet character (⏺)
+- Spinner symbols: Exact match to Claude Code (✽ ✻ ✶ · ✢)
+- Timer coordination: messageID prevents old timers from clearing new
+  messages
+- Architecture: SRP separation of rendering (pure function) from state
+  management (component)
+- Message truncation: Must use terminal width, not hardcoded values
+- Logging: Preserve full error messages before truncation for debugging
+- Bubble Tea layout: Long messages can push content off screen if not
+  truncated

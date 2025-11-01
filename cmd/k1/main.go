@@ -89,7 +89,7 @@ func main() {
 	if err := checkKubectlAvailable(); err != nil {
 		fmt.Printf("Warning: %v\n", err)
 		fmt.Println("Some commands (delete, scale, etc.) will not work without kubectl.")
-		fmt.Println("Continuing with read-only access...")
+		fmt.Println("Continuing with read-only access…")
 		fmt.Println()
 	}
 

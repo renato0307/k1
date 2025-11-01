@@ -134,7 +134,9 @@ type StatusMsg struct {
 	Type    MessageType
 }
 
-type ClearStatusMsg struct{}
+type ClearStatusMsg struct {
+	MessageID int // Only clear if this matches the current message ID
+}
 
 // Helper functions for creating status messages
 

@@ -11,6 +11,7 @@ import (
 	"github.com/renato0307/k1/internal/components"
 	"github.com/renato0307/k1/internal/components/commandbar"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/screens"
 	"github.com/renato0307/k1/internal/types"
@@ -55,13 +56,14 @@ type Model struct {
 	currentScreen     types.Screen
 	header            *components.Header
 	layout            *components.Layout
-	statusBar         *components.StatusBar
+	userMessage       *components.UserMessage
 	commandBar        *commandbar.CommandBar
 	fullScreen        *components.FullScreen
 	fullScreenMode    bool
 	navigationHistory []NavigationState
 	repoPool          *k8s.RepositoryPool
 	theme             *ui.Theme
+	messageID         int // Track current message to prevent old timers from clearing new messages
 }
 
 func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
@@ -117,8 +119,8 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 	cmdBar.SetWidth(80)
 	cmdBar.SetScreen("pods") // Set initial screen context
 
-	statusBar := components.NewStatusBar(theme)
-	statusBar.SetWidth(80)
+	userMessage := components.NewUserMessage(theme)
+	userMessage.SetWidth(80)
 
 	layout := components.NewLayout(80, 24, theme)
 	layout.SetContext(pool.GetActiveContext()) // Set initial context on title line
@@ -139,7 +141,7 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 		currentScreen:     initialScreen,
 		header:            header,
 		layout:            layout,
-		statusBar:         statusBar,
+		userMessage:       userMessage,
 		commandBar:        cmdBar,
 		navigationHistory: make([]NavigationState, 0, MaxNavigationHistorySize),
 		repoPool:          pool,
@@ -163,7 +165,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.Height = msg.Height
 		m.layout.SetSize(msg.Width, msg.Height)
 		m.header.SetWidth(msg.Width)
-		m.statusBar.SetWidth(msg.Width)
+		m.userMessage.SetWidth(msg.Width)
 		m.commandBar.SetWidth(msg.Width)
 
 		bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
@@ -358,34 +360,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.RefreshTime = msg.Duration
 		m.header.SetLastRefresh(time.Now())
 		// Forward to screen so it can schedule first tick for periodic refresh
-		// Also clear any loading message that might be showing
-		m.statusBar.ClearMessage()
+		// Only clear loading messages (preserve success/error/info messages)
+		if m.userMessage.IsLoadingMessage() {
+			m.messageID++ // Invalidate any loading message timer
+			m.userMessage.ClearMessage()
+		}
 		model, cmd := m.currentScreen.Update(msg)
 		m.currentScreen = model.(types.Screen)
 		return m, cmd
 
 	case types.StatusMsg:
-		m.statusBar.SetMessage(msg.Message, msg.Type)
+		m.messageID++ // Increment to invalidate any pending clear timers
+		currentID := m.messageID
+
+		// Log error messages for debugging (preserves full message before truncation)
+		if msg.Type == types.MessageTypeError {
+			logging.Error("User error message", "message", msg.Message)
+		}
+
+		m.userMessage.SetMessage(msg.Message, msg.Type)
 		// Forward to screen so it can schedule periodic refresh if needed
 		model, cmd := m.currentScreen.Update(msg)
 		m.currentScreen = model.(types.Screen)
 
 		// Start spinner for loading messages
-		spinnerCmd := m.statusBar.GetSpinnerCmd()
+		spinnerCmd := m.userMessage.GetSpinnerCmd()
 
 		// Only auto-clear success messages, not info/loading/error messages
 		// Loading messages persist until RefreshCompleteMsg clears them
 		// Error messages persist until user takes action
 		if msg.Type == types.MessageTypeSuccess {
 			statusCmd := tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
-				return types.ClearStatusMsg{}
+				return types.ClearStatusMsg{MessageID: currentID}
 			})
 			return m, tea.Batch(cmd, statusCmd, spinnerCmd)
 		}
 		return m, tea.Batch(cmd, spinnerCmd)
 
 	case types.ClearStatusMsg:
-		m.statusBar.ClearMessage()
+		// Only clear if this timer belongs to the current message
+		if msg.MessageID == m.messageID {
+			m.userMessage.ClearMessage()
+		}
 		return m, nil
 
 	case displayTickMsg:
@@ -427,23 +443,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.ContextLoadFailedMsg:
 		// Only show errors (critical feedback)
-		m.statusBar.SetMessage(
+		m.messageID++
+		currentID := m.messageID
+		m.userMessage.SetMessage(
 			fmt.Sprintf("Failed to load context %s: %v", msg.Context, msg.Error),
 			types.MessageTypeError,
 		)
 		return m, tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
-			return types.ClearStatusMsg{}
+			return types.ClearStatusMsg{MessageID: currentID}
 		})
 
 	case types.ContextSwitchMsg:
 		// Check if context is already loaded
 		contexts, err := m.repoPool.GetContexts()
 		if err != nil {
-			m.statusBar.SetMessage(
-				fmt.Sprintf("Failed to get contexts: %v", err),
-				types.MessageTypeError,
-			)
-			return m, nil
+			return m, messages.ErrorCmd("Failed to get contexts: %v", err)
 		}
 
 		// Find the target context
@@ -460,27 +474,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Mark context as loading BEFORE refresh so UI shows it
 			m.repoPool.MarkAsLoading(msg.ContextName)
 
-			m.statusBar.SetMessage(
-				fmt.Sprintf("Loading context %s...", msg.ContextName),
-				types.MessageTypeInfo,
-			)
+			// Show info message (doesn't auto-clear)
+			infoCmd := messages.InfoCmd("Loading context %s…", msg.ContextName)
 			// Refresh current screen to show updated status
 			if m.currentScreen.ID() == "contexts" {
 				refreshCmd := m.currentScreen.(*screens.ConfigScreen).Refresh()
-				return m, tea.Batch(refreshCmd, m.switchContextCmd(msg.ContextName))
+				return m, tea.Batch(infoCmd, refreshCmd, m.switchContextCmd(msg.ContextName))
 			}
+			// Initiate context switch asynchronously with info message
+			return m, tea.Batch(infoCmd, m.switchContextCmd(msg.ContextName))
 		}
 
 		// Initiate context switch asynchronously
 		return m, m.switchContextCmd(msg.ContextName)
 
 	case types.ContextSwitchCompleteMsg:
-		// Context switch completed - refresh current screen
-		m.statusBar.SetMessage(
-			fmt.Sprintf("Switched to context: %s", msg.NewContext),
-			types.MessageTypeSuccess,
-		)
-
+		// Context switch completed
 		// Update header and layout with new context
 		m.header.SetContext(msg.NewContext)
 		m.layout.SetContext(msg.NewContext)
@@ -514,18 +523,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					screenWithSize.SetSize(m.state.Width, bodyHeight)
 				}
 
-				return m, tea.Batch(
-					screen.(interface{ Refresh() tea.Cmd }).Refresh(),
-					tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
-						return types.ClearStatusMsg{}
-					}),
-				)
+				return m, screen.(interface{ Refresh() tea.Cmd }).Refresh()
 			}
 
 			// Fallback if pods screen not found
-			return m, tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
-				return types.ClearStatusMsg{}
-			})
+			return m, nil
 		}
 
 		// Re-register screens with new repository
@@ -543,12 +545,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			screenWithSize.SetSize(m.state.Width, bodyHeight)
 		}
 
-		return m, tea.Batch(
-			m.currentScreen.Init(),
-			tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
-				return types.ClearStatusMsg{}
-			}),
-		)
+		return m, m.currentScreen.Init()
 
 	case types.ContextRetryMsg:
 		// Retry failed context
@@ -574,14 +571,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Forward messages to status bar for spinner tick handling
-	updatedStatusBar, statusBarCmd := m.statusBar.Update(msg)
-	m.statusBar = updatedStatusBar
+	updatedUserMessage, userMessageCmd := m.userMessage.Update(msg)
+	m.userMessage = updatedUserMessage
 
 	// Forward messages to current screen
 	var screenCmd tea.Cmd
 	model, screenCmd := m.currentScreen.Update(msg)
 	m.currentScreen = model.(types.Screen)
-	return m, tea.Batch(statusBarCmd, screenCmd)
+	return m, tea.Batch(userMessageCmd, screenCmd)
 }
 
 // pushNavigationHistory saves the current screen state to history
@@ -641,13 +638,13 @@ func (m Model) View() string {
 	// Build main layout
 	header := m.header.View()
 	body := m.currentScreen.View()
-	statusBar := m.statusBar.View()
+	userMessage := m.userMessage.View()
 	commandBar := m.commandBar.View()
 	paletteItems := m.commandBar.ViewPaletteItems()
 	hints := m.commandBar.ViewHints()
 	loadingText := m.header.GetLoadingText()
 
-	baseView := m.layout.Render(header, body, statusBar, commandBar, paletteItems, hints, loadingText)
+	baseView := m.layout.Render(header, body, userMessage, commandBar, paletteItems, hints, loadingText)
 
 	// Return layout directly - it's already sized correctly via body height calculations
 	return baseView

@@ -25,6 +25,12 @@ type Theme struct {
 	Subtle     lipgloss.AdaptiveColor // Subtle UI elements
 	Background lipgloss.AdaptiveColor // Background for overlays
 
+	// Message colors (Claude Code style)
+	MessageSuccess lipgloss.AdaptiveColor // Green circle/text
+	MessageError   lipgloss.AdaptiveColor // Red circle/text
+	MessageInfo    lipgloss.AdaptiveColor // Blue circle/text
+	MessageLoading lipgloss.AdaptiveColor // Orange spinner/text
+
 	// Component styles
 	Table     TableStyles
 	AppTitle  lipgloss.Style // App title with background
@@ -71,6 +77,11 @@ func ThemeCharm() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "241", Dark: "241"}
 	t.Background = lipgloss.AdaptiveColor{Light: "254", Dark: "235"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -131,6 +142,11 @@ func ThemeDracula() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "#44475a", Dark: "#44475a"}
 	t.Background = lipgloss.AdaptiveColor{Light: "#f8f8f2", Dark: "#282a36"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -193,6 +209,11 @@ func ThemeCatppuccin() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "#7c7f93", Dark: "#585b70"}
 	t.Background = lipgloss.AdaptiveColor{Light: "#eff1f5", Dark: "#1e1e2e"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles - softer, more pastel feel
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -255,6 +276,11 @@ func ThemeNord() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "#434c5e", Dark: "#434c5e"}
 	t.Background = lipgloss.AdaptiveColor{Light: "#eceff4", Dark: "#2e3440"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -317,6 +343,11 @@ func ThemeGruvbox() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "#665c54", Dark: "#665c54"}
 	t.Background = lipgloss.AdaptiveColor{Light: "#fbf1c7", Dark: "#282828"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -379,6 +410,11 @@ func ThemeTokyoNight() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "#414868", Dark: "#414868"}
 	t.Background = lipgloss.AdaptiveColor{Light: "#d5d6db", Dark: "#1a1b26"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -441,6 +477,11 @@ func ThemeSolarized() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "#657b83", Dark: "#657b83"}
 	t.Background = lipgloss.AdaptiveColor{Light: "#fdf6e3", Dark: "#002b36"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -503,6 +544,11 @@ func ThemeMonokai() *Theme {
 	t.Subtle = lipgloss.AdaptiveColor{Light: "#49483e", Dark: "#49483e"}
 	t.Background = lipgloss.AdaptiveColor{Light: "#f8f8f2", Dark: "#272822"}
 
+	// Message colors (Claude Code style)
+	t.MessageSuccess = t.Success
+	t.MessageError = t.Error
+	t.MessageInfo = t.Primary
+	t.MessageLoading = lipgloss.AdaptiveColor{Light: "#FF8800", Dark: "#FF8800"}
 	// Table styles
 	t.Table.Header = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
