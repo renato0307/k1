@@ -359,6 +359,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.LastRefresh = time.Now()
 		m.state.RefreshTime = msg.Duration
 		m.header.SetLastRefresh(time.Now())
+		// Update item count in header if screen is ConfigScreen
+		if configScreen, ok := m.currentScreen.(*screens.ConfigScreen); ok {
+			m.header.SetItemCount(configScreen.GetItemCount())
+		}
 		// Forward to screen so it can schedule first tick for periodic refresh
 		// Only clear loading messages (preserve success/error/info messages)
 		if m.userMessage.IsLoadingMessage() {

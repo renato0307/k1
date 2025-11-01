@@ -31,27 +31,6 @@ const (
 	ResourceTypeContext               ResourceType = "contexts"
 )
 
-// GetGVRForResourceType returns the GroupVersionResource for a resource type
-func GetGVRForResourceType(resourceType ResourceType) (schema.GroupVersionResource, bool) {
-	gvrMap := map[ResourceType]schema.GroupVersionResource{
-		ResourceTypePod:         {Group: "", Version: "v1", Resource: "pods"},
-		ResourceTypeDeployment:  {Group: "apps", Version: "v1", Resource: "deployments"},
-		ResourceTypeService:     {Group: "", Version: "v1", Resource: "services"},
-		ResourceTypeConfigMap:   {Group: "", Version: "v1", Resource: "configmaps"},
-		ResourceTypeSecret:      {Group: "", Version: "v1", Resource: "secrets"},
-		ResourceTypeNamespace:   {Group: "", Version: "v1", Resource: "namespaces"},
-		ResourceTypeStatefulSet: {Group: "apps", Version: "v1", Resource: "statefulsets"},
-		ResourceTypeDaemonSet:   {Group: "apps", Version: "v1", Resource: "daemonsets"},
-		ResourceTypeJob:         {Group: "batch", Version: "v1", Resource: "jobs"},
-		ResourceTypeCronJob:     {Group: "batch", Version: "v1", Resource: "cronjobs"},
-		ResourceTypeNode:        {Group: "", Version: "v1", Resource: "nodes"},
-		ResourceTypeCRD:         {Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"},
-	}
-
-	gvr, ok := gvrMap[resourceType]
-	return gvr, ok
-}
-
 // ResourceConfig defines configuration for a resource type
 type ResourceConfig struct {
 	GVR        schema.GroupVersionResource
