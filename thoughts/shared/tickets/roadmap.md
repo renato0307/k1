@@ -26,19 +26,22 @@
 
 ## Bugs
 
-[ ] Columns with bad sizing on configmaps
-[ ] Columns with bad sizing on daemonsets
-[ ] Columns with bad sizing on cronjobs
-[ ] Columns with bad sizing on crds
-[ ] Pageup/down hides the selected row
-[ ] When filtering, the selected row is not always visible
-[ ] Show the number of items e.g. Pods (50)
-[ ] The filtered search is not sorted
+[X] Columns with bad sizing on configmaps (Fixed: Phase 1)
+[X] Columns with bad sizing on daemonsets (Fixed: Phase 1)
+[X] Columns with bad sizing on cronjobs (Fixed: Phase 1)
+[X] Columns with bad sizing on crds (Fixed: Phase 1)
+[X] Pageup/down hides the selected row (Fixed: Phase 2)
+[X] When filtering, the selected row is not always visible (Fixed: Phase 2)
+[X] Show the number of items e.g. Pods (50) (Fixed: Phase 1)
+[X] The filtered search is not sorted (Fixed: Phase 3)
 
-[ ] HPAs cannot do yaml
+[X] HPAs cannot do yaml (Fixed: Phase 5 - also fixed ReplicaSets, PVCs, Ingresses, Endpoints)
+[X] Missing Spec field in describe output (Fixed: Phase 5)
 
 [ ] Better error handling with multiple -context flags if we fail to connect to one of the clusters
 [ ] If cannot connect to cluster, the connecting to API Server is always spinning
 
 [X] Failed to refresh Consumer: informer not registered for jetstream.nats.io/v1beta2, Resource=consumers
 [X] CRDs are not sorted
+
+[ ] Context fails and the error is not shown

@@ -162,3 +162,20 @@ func (s *DynamicScreen) Refresh() tea.Cmd {
 		return types.RefreshCompleteMsg{}
 	}
 }
+
+// GetSelectedResource returns the selected resource with GVR metadata included
+// This allows commands (like /yaml, /describe) to work with dynamic CRD instances
+func (s *DynamicScreen) GetSelectedResource() map[string]interface{} {
+	// Get base resource from ConfigScreen
+	resource := s.ConfigScreen.GetSelectedResource()
+	if resource == nil {
+		return nil
+	}
+
+	// Add GVR metadata for command execution
+	resource["__gvr_group"] = s.gvr.Group
+	resource["__gvr_version"] = s.gvr.Version
+	resource["__gvr_resource"] = s.gvr.Resource
+
+	return resource
+}

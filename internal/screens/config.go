@@ -191,13 +191,8 @@ func (s *ConfigScreen) needsInitialLoad() bool {
 		return false
 	}
 
-	// Check if informer is already synced
-	gvr, ok := k8s.GetGVRForResourceType(s.config.ResourceType)
-	if !ok {
-		return false
-	}
-
-	return !s.repo.IsInformerSynced(gvr)
+	// Check if informer is already synced (reuse config from above)
+	return !s.repo.IsInformerSynced(config.GVR)
 }
 
 func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -229,18 +224,33 @@ func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s *ConfigScreen) DefaultUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case types.RefreshCompleteMsg:
-		if s.config.TrackSelection {
+		// Don't restore cursor when filter is active - cursor should be at position 0
+		if s.config.TrackSelection && s.filter == "" {
 			s.restoreCursorPosition()
 		}
 		return s, nil
 
 	case types.FilterUpdateMsg:
 		s.SetFilter(msg.Filter)
-		return s, nil
+		// Return RefreshCompleteMsg to trigger item count update
+		return s, func() tea.Msg {
+			return types.RefreshCompleteMsg{Duration: 0}
+		}
 
 	case types.ClearFilterMsg:
 		s.SetFilter("")
-		return s, nil
+		// Reset cursor to first row when clearing filter
+		if len(s.filtered) > 0 {
+			s.table.SetCursor(0)
+			// Update tracked selection to row 0 so restoreCursorPosition doesn't undo this
+			if s.config.TrackSelection {
+				s.updateSelectedKey()
+			}
+		}
+		// Return RefreshCompleteMsg to trigger item count update
+		return s, func() tea.Msg {
+			return types.RefreshCompleteMsg{Duration: 0}
+		}
 
 	case tea.KeyMsg:
 		// Intercept Enter for contextual navigation
@@ -250,8 +260,17 @@ func (s *ConfigScreen) DefaultUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Track if this is a page navigation key
+		isPageNav := msg.Type == tea.KeyPgUp || msg.Type == tea.KeyPgDown
+
 		var cmd tea.Cmd
 		s.table, cmd = s.table.Update(msg)
+
+		// After page navigation, ensure cursor is visible
+		if isPageNav {
+			s.ensureCursorVisible()
+		}
+
 		if s.config.TrackSelection {
 			s.updateSelectedKey()
 		}
@@ -553,12 +572,12 @@ func (s *ConfigScreen) isInformerReady() bool {
 	}
 
 	// For dynamic informers, check if lister is registered (means sync completed)
-	gvr, ok := k8s.GetGVRForResourceType(s.config.ResourceType)
+	config, ok := k8s.GetResourceConfig(s.config.ResourceType)
 	if !ok {
 		return true // Unknown resource, let it try and fail gracefully
 	}
 
-	return s.repo.IsInformerSynced(gvr)
+	return s.repo.IsInformerSynced(config.GVR)
 }
 
 // getInformerSyncError checks if the informer failed to sync and returns the error
@@ -581,12 +600,12 @@ func (s *ConfigScreen) getInformerSyncError() error {
 	}
 
 	// For dynamic informers, check if GVR has sync error
-	gvr, ok := k8s.GetGVRForResourceType(s.config.ResourceType)
+	config, ok := k8s.GetResourceConfig(s.config.ResourceType)
 	if !ok {
 		return nil
 	}
 
-	return s.repo.GetDynamicInformerSyncError(gvr)
+	return s.repo.GetDynamicInformerSyncError(config.GVR)
 }
 
 // refreshWithFilterContext fetches resources using filtered repository methods
@@ -701,6 +720,11 @@ func (s *ConfigScreen) GetRefreshInterval() time.Duration {
 	return s.config.RefreshInterval
 }
 
+// GetItemCount returns the number of filtered items currently displayed
+func (s *ConfigScreen) GetItemCount() int {
+	return len(s.filtered)
+}
+
 // SetFilter applies a filter to the resource list
 func (s *ConfigScreen) SetFilter(filter string) {
 	s.filter = filter
@@ -711,12 +735,19 @@ func (s *ConfigScreen) SetFilter(filter string) {
 	}
 
 	s.applyFilter()
+
+	// When filter is active, always select first row
+	// This ONLY happens when user types (SetFilter), not on refresh
+	if s.filter != "" && len(s.filtered) > 0 {
+		s.table.SetCursor(0)
+	}
 }
 
 // applyFilter filters items based on fuzzy search
 func (s *ConfigScreen) applyFilter() {
 	if s.filter == "" {
 		s.filtered = s.items
+		// Unfiltered list: keep original order from repository (already sorted by age)
 	} else {
 		// Build search strings using reflection on configured fields
 		searchStrings := make([]string, len(s.items))
@@ -747,10 +778,66 @@ func (s *ConfigScreen) applyFilter() {
 		} else {
 			// Normal fuzzy search for all screens
 			matches := fuzzy.Find(s.filter, searchStrings)
+
+			// Sort matches: score (desc) → age (desc) → name (asc)
+			sort.Slice(matches, func(i, j int) bool {
+				// If scores are different, sort by score (higher score first)
+				if matches[i].Score != matches[j].Score {
+					return matches[i].Score > matches[j].Score
+				}
+
+				itemI := s.items[matches[i].Index]
+				itemJ := s.items[matches[j].Index]
+
+				// Same score: sort by age (newest first)
+				ageI := getFieldValue(itemI, "Age")
+				ageJ := getFieldValue(itemJ, "Age")
+
+				// Age is time.Time, compare timestamps
+				timeI, okI := ageI.(time.Time)
+				timeJ, okJ := ageJ.(time.Time)
+
+				// Both have valid times: compare them
+				if okI && okJ && !timeI.IsZero() && !timeJ.IsZero() {
+					if !timeI.Equal(timeJ) {
+						return timeI.After(timeJ) // Newer items first
+					}
+				}
+
+				// Same score and age (or age not available): sort alphabetically by name
+				nameI := getFieldValue(itemI, "Name")
+				nameJ := getFieldValue(itemJ, "Name")
+				return strings.ToLower(fmt.Sprint(nameI)) < strings.ToLower(fmt.Sprint(nameJ))
+			})
+
 			s.filtered = make([]interface{}, len(matches))
 			for i, m := range matches {
 				s.filtered[i] = s.items[m.Index]
 			}
+		}
+
+		// Sort negation results by age, then name
+		if strings.HasPrefix(s.filter, "!") {
+			sort.Slice(s.filtered, func(i, j int) bool {
+				// Sort by age (newest first)
+				ageI := getFieldValue(s.filtered[i], "Age")
+				ageJ := getFieldValue(s.filtered[j], "Age")
+
+				timeI, okI := ageI.(time.Time)
+				timeJ, okJ := ageJ.(time.Time)
+
+				// Both have valid times: compare them
+				if okI && okJ && !timeI.IsZero() && !timeJ.IsZero() {
+					if !timeI.Equal(timeJ) {
+						return timeI.After(timeJ) // Newer items first
+					}
+				}
+
+				// Same age or age not available: sort alphabetically by name
+				nameI := getFieldValue(s.filtered[i], "Name")
+				nameJ := getFieldValue(s.filtered[j], "Name")
+				return strings.ToLower(fmt.Sprint(nameI)) < strings.ToLower(fmt.Sprint(nameJ))
+			})
 		}
 	}
 
@@ -779,13 +866,35 @@ func (s *ConfigScreen) updateTable() {
 
 	s.table.SetRows(rows)
 
-	// Ensure cursor is at a valid position
-	// If we have rows and cursor is out of bounds, move to first row
+	// Ensure cursor is at a valid position (bounds checking only)
 	if len(rows) > 0 {
 		cursor := s.table.Cursor()
 		if cursor < 0 || cursor >= len(rows) {
 			s.table.SetCursor(0)
 		}
+	}
+
+	// Ensure cursor is visible in viewport after table rebuild
+	s.ensureCursorVisible()
+}
+
+// ensureCursorVisible ensures the cursor is at a valid position within the
+// filtered items. The Bubble Tea table handles viewport scrolling automatically,
+// so we just need to ensure the cursor is within bounds and at position 0
+// if the list was filtered/updated.
+func (s *ConfigScreen) ensureCursorVisible() {
+	rowCount := len(s.filtered)
+	if rowCount == 0 {
+		return
+	}
+
+	cursor := s.table.Cursor()
+
+	// Ensure cursor is within bounds
+	if cursor < 0 {
+		s.table.SetCursor(0)
+	} else if cursor >= rowCount {
+		s.table.SetCursor(rowCount - 1)
 	}
 }
 

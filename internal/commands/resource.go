@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	_ "k8s.io/cli-runtime/pkg/printers"
 	_ "k8s.io/kubectl/pkg/describe"
 
@@ -44,10 +45,25 @@ func YamlCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 			displayName = resourceName
 		}
 
-		// Get GVR for the resource type
-		gvr, ok := k8s.GetGVRForResourceType(ctx.ResourceType)
-		if !ok {
-			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
+		// Get GVR - either from selected resource (dynamic CRD instances) or config (static resources)
+		var gvr schema.GroupVersionResource
+
+		// Check if this is a dynamic CRD instance (has GVR metadata in selected resource)
+		if group, hasGroup := ctx.Selected["__gvr_group"].(string); hasGroup {
+			version, _ := ctx.Selected["__gvr_version"].(string)
+			resource, _ := ctx.Selected["__gvr_resource"].(string)
+			gvr = schema.GroupVersionResource{
+				Group:    group,
+				Version:  version,
+				Resource: resource,
+			}
+		} else {
+			// Static resource - look up via config
+			config, ok := k8s.GetResourceConfig(ctx.ResourceType)
+			if !ok {
+				return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
+			}
+			gvr = config.GVR
 		}
 
 		// Get active repository at execution time
@@ -94,10 +110,25 @@ func DescribeCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 			displayName = resourceName
 		}
 
-		// Get GVR for the resource type
-		gvr, ok := k8s.GetGVRForResourceType(ctx.ResourceType)
-		if !ok {
-			return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
+		// Get GVR - either from selected resource (dynamic CRD instances) or config (static resources)
+		var gvr schema.GroupVersionResource
+
+		// Check if this is a dynamic CRD instance (has GVR metadata in selected resource)
+		if group, hasGroup := ctx.Selected["__gvr_group"].(string); hasGroup {
+			version, _ := ctx.Selected["__gvr_version"].(string)
+			resource, _ := ctx.Selected["__gvr_resource"].(string)
+			gvr = schema.GroupVersionResource{
+				Group:    group,
+				Version:  version,
+				Resource: resource,
+			}
+		} else {
+			// Static resource - look up via config
+			config, ok := k8s.GetResourceConfig(ctx.ResourceType)
+			if !ok {
+				return messages.ErrorCmd("Unknown resource type: %s", ctx.ResourceType)
+			}
+			gvr = config.GVR
 		}
 
 		// Get active repository at execution time

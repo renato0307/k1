@@ -237,6 +237,10 @@ func TestInformerRepository_DescribeResource(t *testing.T) {
 	assert.Contains(t, describe, "app=test")
 	assert.Contains(t, describe, "tier=backend")
 
+	// Validate spec section
+	assert.Contains(t, describe, "Spec:")
+	assert.Contains(t, describe, "nginx") // Container name from spec
+
 	// Validate status section
 	assert.Contains(t, describe, "Status:")
 

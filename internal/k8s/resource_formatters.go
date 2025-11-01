@@ -116,6 +116,21 @@ func (r *InformerRepository) DescribeResource(gvr schema.GroupVersionResource, n
 	// Add creation timestamp
 	buf.WriteString(fmt.Sprintf("Created:      %s\n", obj.GetCreationTimestamp().String()))
 
+	// Add spec if present, formatted as YAML
+	spec, found, err := unstructured.NestedFieldCopy(obj.Object, "spec")
+	if found && err == nil {
+		specYAML, err := yaml.Marshal(spec)
+		if err == nil {
+			buf.WriteString("\nSpec:\n")
+			// Indent spec YAML by 2 spaces
+			for _, line := range strings.Split(string(specYAML), "\n") {
+				if line != "" {
+					buf.WriteString("  " + line + "\n")
+				}
+			}
+		}
+	}
+
 	// Add status if present, formatted as YAML
 	status, found, err := unstructured.NestedFieldCopy(obj.Object, "status")
 	if found && err == nil {
