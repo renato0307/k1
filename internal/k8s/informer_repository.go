@@ -105,7 +105,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	if progress != nil {
 		progress <- ContextLoadProgress{
 			Context: contextName,
-			Message: "Connecting to API server...",
+			Message: "Connecting to API server…",
 			Phase:   PhaseConnecting,
 		}
 	}
@@ -237,7 +237,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	if progress != nil {
 		progress <- ContextLoadProgress{
 			Context: contextName,
-			Message: "Syncing core resources...",
+			Message: "Syncing core resources…",
 			Phase:   PhaseSyncingCore,
 		}
 	}
@@ -259,7 +259,7 @@ func NewInformerRepositoryWithProgress(kubeconfig, contextName string, progress 
 	if progress != nil {
 		progress <- ContextLoadProgress{
 			Context: contextName,
-			Message: "Syncing dynamic resources...",
+			Message: "Syncing dynamic resources…",
 			Phase:   PhaseSyncingDynamic,
 		}
 	}

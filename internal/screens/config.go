@@ -90,7 +90,7 @@ type ConfigScreen struct {
 
 	// Column visibility tracking (Phase 2: responsive display)
 	visibleColumns []ColumnConfig // Columns currently visible
-	hiddenCount    int             // Number of hidden columns
+	hiddenCount    int            // Number of hidden columns
 
 	// Track initialization for loading messages and periodic refresh
 	initialized bool
@@ -210,7 +210,7 @@ func (s *ConfigScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Show loading message and start refresh
 		return s, tea.Batch(
 			func() tea.Msg {
-				return types.LoadingMsg("Loading " + s.config.Title + "...")
+				return types.LoadingMsg("Loading " + s.config.Title + "…")
 			},
 			s.Refresh(),
 		)
@@ -474,7 +474,7 @@ func (s *ConfigScreen) Refresh() tea.Cmd {
 			// Informers not synced yet - show loading message
 			// Periodic refresh will retry automatically
 			logging.Debug("Still loading", "screen", s.config.Title)
-			return types.LoadingMsg(fmt.Sprintf("Loading %s...", s.config.Title))
+			return types.LoadingMsg(fmt.Sprintf("Loading %s…", s.config.Title))
 		}
 
 		var items []interface{}

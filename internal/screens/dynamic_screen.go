@@ -68,7 +68,7 @@ func (s *DynamicScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Show loading message and start sync
 		return s, tea.Batch(
 			func() tea.Msg {
-				return types.InfoMsg("Loading " + s.config.Title + "...")
+				return types.InfoMsg("Loading " + s.config.Title + "…")
 			},
 			s.Refresh(),
 		)
@@ -146,7 +146,7 @@ func (s *DynamicScreen) Refresh() tea.Cmd {
 			}
 
 			// Still syncing - show loading message (periodic refresh will retry)
-			return types.LoadingMsg("Loading " + s.config.Title + "...")
+			return types.LoadingMsg("Loading " + s.config.Title + "…")
 		}
 
 		// Informer ready - fetch data
