@@ -42,7 +42,7 @@ func SuccessCmd(format string, args ...any) tea.Cmd {
 //
 // Example:
 //
-//	return messages.InfoCmd("Refreshing resource list...")
+//	return messages.InfoCmd("Refreshing resource list…")
 func InfoCmd(format string, args ...any) tea.Cmd {
 	msg := fmt.Sprintf(format, args...)
 	return func() tea.Msg {
@@ -65,4 +65,3 @@ func WrapError(err error, format string, args ...any) error {
 	context := fmt.Sprintf(format, args...)
 	return fmt.Errorf("%s: %w", context, err)
 }
-

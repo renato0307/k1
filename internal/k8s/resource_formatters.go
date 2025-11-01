@@ -202,7 +202,7 @@ func (r *InformerRepository) formatEvents(events []corev1.Event) string {
 
 		// Truncate message if too long
 		if len(message) > 80 {
-			message = message[:77] + "..."
+			message = message[:77] + "…"
 		}
 
 		buf.WriteString(fmt.Sprintf("  %-7s %-9s %-22s %s\n", eventType, reason, age, message))

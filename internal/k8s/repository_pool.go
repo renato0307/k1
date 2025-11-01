@@ -114,7 +114,7 @@ func (p *RepositoryPool) LoadContext(contextName string, progress chan<- Context
 	if progress != nil {
 		progress <- ContextLoadProgress{
 			Context: contextName,
-			Message: "Connecting to API server...",
+			Message: "Connecting to API server…",
 		}
 	}
 
