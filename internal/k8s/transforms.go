@@ -425,6 +425,22 @@ func transformNode(u *unstructured.Unstructured, common ResourceMetadata) (any, 
 		osImage = "<none>"
 	}
 
+	// Extract allocatable resources
+	pods, _, _ := unstructured.NestedString(u.Object, "status", "allocatable", "pods")
+	if pods == "" {
+		pods = "<none>"
+	}
+
+	cpu, _, _ := unstructured.NestedString(u.Object, "status", "allocatable", "cpu")
+	if cpu == "" {
+		cpu = "<none>"
+	}
+
+	memory, _, _ := unstructured.NestedString(u.Object, "status", "allocatable", "memory")
+	if memory == "" {
+		memory = "<none>"
+	}
+
 	return Node{
 		ResourceMetadata: ResourceMetadata{
 			Namespace: common.Namespace,
@@ -439,6 +455,9 @@ func transformNode(u *unstructured.Unstructured, common ResourceMetadata) (any, 
 		InstanceType: instanceType,
 		Zone:         zone,
 		NodePool:     nodePool,
+		Pods:         pods,
+		CPU:          cpu,
+		Memory:       memory,
 		OSImage:      osImage,
 	}, nil
 }

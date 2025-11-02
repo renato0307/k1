@@ -30,7 +30,15 @@ type startConfigLoadingMsg struct{}
 type ColumnConfig struct {
 	Field    string                   // Field name in resource struct
 	Title    string                   // Column display title
-	Width    int                      // 0 = dynamic, >0 = fixed
+
+	// Width fields (backward compatible):
+	// NEW: Set MinWidth/MaxWidth/Weight for weighted distribution
+	// OLD: Set Width for fixed width (backward compatible during migration)
+	Width    int     // DEPRECATED: 0 = dynamic, >0 = fixed
+	MinWidth int     // NEW: Minimum width (readability)
+	MaxWidth int     // NEW: Maximum width (prevent domination)
+	Weight   float64 // NEW: Growth weight (higher = more space)
+
 	Format   func(interface{}) string // Optional custom formatter
 	Priority int                      // 1=critical, 2=important, 3=optional
 }
@@ -339,9 +347,204 @@ func (s *ConfigScreen) SetSize(width, height int) {
 	s.height = height
 	s.table.SetHeight(height)
 
+	// 1. Determine visible columns (use existing Priority logic)
+	visibleColumns := s.calculateVisibleColumns(width)
+	s.visibleColumns = visibleColumns
+	s.hiddenCount = len(s.config.Columns) - len(visibleColumns)
+
+	// 2. Calculate widths using weighted distribution
+	widths := s.calculateWeightedWidths(visibleColumns, width)
+
+	// 3. Build table columns
+	columns := make([]table.Column, len(visibleColumns))
+	for i, col := range visibleColumns {
+		columns[i] = table.Column{
+			Title: col.Title,
+			Width: widths[i],
+		}
+	}
+
+	// 4. Update table
+	// Clear rows BEFORE setting columns to prevent panic
+	// SetColumns() internally triggers rendering, so we need empty rows first
+	s.table.SetRows([]table.Row{})
+	s.table.SetColumns(columns)
+	s.table.SetWidth(width)
+
+	// Now rebuild rows with correct number of columns
+	s.updateTable()
+}
+
+// calculateWeightedWidths implements weighted proportional distribution
+// with min/max constraints. Returns final widths for each visible column.
+func (s *ConfigScreen) calculateWeightedWidths(
+	visible []ColumnConfig,
+	terminalWidth int,
+) []int {
+	// 1. Check for backward compatibility (old Width-based configs)
+	usesWeights := false
+	for _, col := range visible {
+		if col.Weight > 0 {
+			usesWeights = true
+			break
+		}
+	}
+
+	// Fall back to old algorithm if no weights specified
+	if !usesWeights {
+		return s.calculateLegacyWidths(visible, terminalWidth)
+	}
+
+	// 2. Calculate padding
+	padding := len(visible) * 2
+	available := terminalWidth - padding
+	if available <= 0 {
+		// Fallback: equal distribution
+		minWidths := make([]int, len(visible))
+		for i := range visible {
+			minWidths[i] = 10 // Emergency minimum
+		}
+		return minWidths
+	}
+
+	// 3. Allocate minimums
+	totalMin := 0
+	for _, col := range visible {
+		totalMin += col.MinWidth
+	}
+
+	remaining := available - totalMin
+	if remaining < 0 {
+		// Not enough space for minimums, return minimums anyway
+		widths := make([]int, len(visible))
+		for i, col := range visible {
+			widths[i] = col.MinWidth
+		}
+		return widths
+	}
+
+	// 4. Distribute remaining space using Largest Remainder Method
+	// This guarantees full width usage by handling integer truncation properly
+	widths := make([]int, len(visible))
+	for i, col := range visible {
+		widths[i] = col.MinWidth
+	}
+
+	if remaining <= 0 {
+		return widths
+	}
+
+	// Calculate total weight
+	totalWeight := 0.0
+	for _, col := range visible {
+		totalWeight += col.Weight
+	}
+
+	if totalWeight == 0 {
+		// No weights specified, distribute equally
+		perColumn := remaining / len(visible)
+		extra := remaining % len(visible)
+		for i := range widths {
+			widths[i] += perColumn
+			if i < extra {
+				widths[i] += 1
+			}
+		}
+		return widths
+	}
+
+	// Phase 1: Calculate integer shares and track fractional remainders
+	type allocation struct {
+		index     int
+		allocated int
+		remainder float64
+	}
+
+	allocations := make([]allocation, len(visible))
+	totalAllocated := 0
+
+	for i, col := range visible {
+		ideal := float64(remaining) * (col.Weight / totalWeight)
+		integer := int(ideal)
+		remainder := ideal - float64(integer)
+
+		allocations[i] = allocation{
+			index:     i,
+			allocated: integer,
+			remainder: remainder,
+		}
+		totalAllocated += integer
+	}
+
+	// Phase 2: Distribute leftover pixels to columns with largest remainders
+	leftover := remaining - totalAllocated
+
+	// Sort by remainder (descending) to prioritize columns that lost most to truncation
+	sort.Slice(allocations, func(i, j int) bool {
+		return allocations[i].remainder > allocations[j].remainder
+	})
+
+	// Give 1 pixel to top N columns (where N = leftover)
+	for i := 0; i < leftover && i < len(allocations); i++ {
+		allocations[i].allocated += 1
+	}
+
+	// Apply allocations to widths
+	for _, alloc := range allocations {
+		widths[alloc.index] += alloc.allocated
+	}
+
+	return widths
+}
+
+// calculateLegacyWidths implements old Width-based algorithm for backward
+// compatibility. DEPRECATED: Will be removed after all screens migrate.
+func (s *ConfigScreen) calculateLegacyWidths(
+	visible []ColumnConfig,
+	terminalWidth int,
+) []int {
+	// Replicate old algorithm from SetSize() (lines 358-377)
+	fixedTotal := 0
+	dynamicCount := 0
+
+	for _, col := range visible {
+		if col.Width > 0 {
+			fixedTotal += col.Width
+		} else {
+			dynamicCount++
+		}
+	}
+
+	// Recalculate padding for visible columns only
+	visiblePadding := len(visible) * 2
+	dynamicWidth := 20 // Default minimum
+	if dynamicCount > 0 {
+		dynamicWidth = (terminalWidth - fixedTotal - visiblePadding) / dynamicCount
+		if dynamicWidth < 20 {
+			dynamicWidth = 20
+		}
+	}
+
+	widths := make([]int, len(visible))
+	for i, col := range visible {
+		if col.Width > 0 {
+			widths[i] = col.Width
+		} else {
+			widths[i] = dynamicWidth
+		}
+	}
+
+	return widths
+}
+
+// calculateVisibleColumns determines which columns fit based on Priority.
+// Reuses existing logic from SetSize() but extracted for clarity.
+func (s *ConfigScreen) calculateVisibleColumns(
+	terminalWidth int,
+) []ColumnConfig {
 	// Calculate padding
 	padding := len(s.config.Columns) * 2
-	availableWidth := width - padding
+	availableWidth := terminalWidth - padding
 
 	// Sort columns by priority (1 first, then 2, then 3)
 	sorted := make([]ColumnConfig, len(s.config.Columns))
@@ -355,86 +558,44 @@ func (s *ConfigScreen) SetSize(width, height int) {
 	usedWidth := 0
 
 	for _, col := range sorted {
-		exclude := s.shouldExcludeColumn(col, availableWidth, usedWidth)
+		// Use MinWidth if available, otherwise estimate
+		estimatedWidth := col.MinWidth
+		if estimatedWidth == 0 {
+			if col.Width > 0 {
+				estimatedWidth = col.Width
+			} else {
+				estimatedWidth = 20 // Legacy estimate for dynamic
+			}
+		}
 
+		exclude := s.shouldExcludeColumn(col, availableWidth, usedWidth, estimatedWidth)
 		if exclude {
 			continue
 		}
 
 		visibleColumns = append(visibleColumns, col)
-		colWidth := col.Width
-		if colWidth == 0 {
-			colWidth = 20 // Estimate for dynamic
-		}
-		usedWidth += colWidth
+		usedWidth += estimatedWidth
 	}
 
 	// Restore original column order
-	s.visibleColumns = s.restoreColumnOrder(visibleColumns)
-	s.hiddenCount = len(s.config.Columns) - len(visibleColumns)
-
-	// Calculate dynamic widths for visible columns only
-	fixedTotal := 0
-	dynamicCount := 0
-
-	for _, col := range s.visibleColumns {
-		if col.Width > 0 {
-			fixedTotal += col.Width
-		} else {
-			dynamicCount++
-		}
-	}
-
-	// Recalculate padding for visible columns only
-	visiblePadding := len(s.visibleColumns) * 2
-	dynamicWidth := 20 // Default minimum
-	if dynamicCount > 0 {
-		dynamicWidth = (width - fixedTotal - visiblePadding) / dynamicCount
-		if dynamicWidth < 20 {
-			dynamicWidth = 20
-		}
-	}
-
-	// Build table columns from visible columns only
-	columns := make([]table.Column, len(s.visibleColumns))
-	for i, col := range s.visibleColumns {
-		w := col.Width
-		if w == 0 {
-			w = dynamicWidth
-		}
-		columns[i] = table.Column{
-			Title: col.Title,
-			Width: w,
-		}
-	}
-
-	// Clear rows BEFORE setting columns to prevent panic
-	// SetColumns() internally triggers rendering, so we need empty rows first
-	s.table.SetRows([]table.Row{})
-
-	s.table.SetColumns(columns)
-	s.table.SetWidth(width)
-
-	// Now rebuild rows with correct number of columns
-	s.updateTable()
+	return s.restoreColumnOrder(visibleColumns)
 }
 
 // shouldExcludeColumn determines if a column should be hidden based on
-// priority and available width. Called during SetSize() to calculate which
-// columns fit in the terminal.
-func (s *ConfigScreen) shouldExcludeColumn(col ColumnConfig, availableWidth int, usedWidth int) bool {
-	colWidth := col.Width
-	if colWidth == 0 {
-		colWidth = 20 // Minimum for dynamic columns
-	}
-
+// priority and available width. Now accepts estimatedWidth parameter.
+func (s *ConfigScreen) shouldExcludeColumn(
+	col ColumnConfig,
+	availableWidth int,
+	usedWidth int,
+	estimatedWidth int,
+) bool {
 	// Priority 1 (critical) always shows, even if squished
 	if col.Priority == 1 {
 		return false
 	}
 
 	// Priority 2 and 3 only show if they fit
-	return usedWidth+colWidth > availableWidth
+	return usedWidth+estimatedWidth > availableWidth
 }
 
 // restoreColumnOrder restores the original column order after sorting by
