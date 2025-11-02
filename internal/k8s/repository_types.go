@@ -114,6 +114,9 @@ type Node struct {
 	InstanceType string
 	Zone         string
 	NodePool     string
+	Pods         string // Allocatable pods capacity
+	CPU          string // Allocatable CPU
+	Memory       string // Allocatable memory
 	OSImage      string
 }
 
