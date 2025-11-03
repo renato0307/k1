@@ -19,9 +19,13 @@ import (
 )
 
 const (
-	// StatusBarDisplayDuration is how long status messages (success, error,
-	// info) are displayed before automatically clearing.
+	// StatusBarDisplayDuration is how long success messages are displayed
+	// before automatically clearing.
 	StatusBarDisplayDuration = 5 * time.Second
+
+	// ErrorMessageDisplayDuration is how long error messages are displayed
+	// before automatically clearing (longer than success for readability).
+	ErrorMessageDisplayDuration = 10 * time.Second
 
 	// MaxNavigationHistorySize limits the navigation history stack
 	MaxNavigationHistorySize = 50
@@ -64,6 +68,7 @@ type Model struct {
 	repoPool          *k8s.RepositoryPool
 	theme             *ui.Theme
 	messageID         int // Track current message to prevent old timers from clearing new messages
+	outputBuffer      *components.OutputBuffer
 }
 
 func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
@@ -100,6 +105,10 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 
 	// System screen
 	registry.Register(screens.NewSystemScreen(repo, theme))
+
+	// Output screen (special - uses outputBuffer)
+	outputBuffer := components.NewOutputBuffer()
+	registry.Register(screens.NewConfigScreen(screens.GetOutputScreenConfig(outputBuffer), pool, theme))
 
 	// Contexts screen (special - uses pool directly)
 	registry.Register(screens.NewConfigScreen(screens.GetContextsScreenConfig(), pool, theme))
@@ -146,6 +155,7 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 		navigationHistory: make([]NavigationState, 0, MaxNavigationHistorySize),
 		repoPool:          pool,
 		theme:             theme,
+		outputBuffer:      outputBuffer,
 	}
 }
 
@@ -333,6 +343,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.pushNavigationHistory()
 			}
 
+			// Clear any sticky error/status messages when switching screens
+			m.userMessage.ClearMessage()
+
 			m.currentScreen = screen
 			m.state.CurrentScreen = msg.ScreenID
 
@@ -406,6 +419,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.userMessage.SetMessage(msg.Message, msg.Type)
+
+		// Capture command output for history
+		if msg.TrackInHistory && msg.HistoryMetadata != nil {
+			entry := components.CommandOutput{
+				Command:        msg.HistoryMetadata.Command,
+				KubectlCommand: msg.HistoryMetadata.KubectlCommand,
+				Output:         msg.Message, // Full message (before truncation)
+				Status:         messageTypeToStatus(msg.Type),
+				Context:        msg.HistoryMetadata.Context,
+				ResourceType:   string(msg.HistoryMetadata.ResourceType),
+				ResourceName:   msg.HistoryMetadata.ResourceName,
+				Namespace:      msg.HistoryMetadata.Namespace,
+				Timestamp:      msg.HistoryMetadata.Timestamp,
+				Duration:       msg.HistoryMetadata.Duration,
+			}
+			m.outputBuffer.Add(entry)
+
+			// Debug logging to verify history tracking (remove after Phase 2)
+			logging.Info("History entry added",
+				"command", entry.Command,
+				"context", entry.Context,
+				"status", entry.Status,
+				"duration", entry.Duration.String(),
+				"buffer_count", m.outputBuffer.Count(),
+			)
+		}
+
 		// Forward to screen so it can schedule periodic refresh if needed
 		model, cmd := m.currentScreen.Update(msg)
 		m.currentScreen = model.(types.Screen)
@@ -413,11 +453,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Start spinner for loading messages
 		spinnerCmd := m.userMessage.GetSpinnerCmd()
 
-		// Only auto-clear success messages, not info/loading/error messages
+		// Auto-clear success and error messages with appropriate durations
 		// Loading messages persist until RefreshCompleteMsg clears them
-		// Error messages persist until user takes action
-		if msg.Type == types.MessageTypeSuccess {
-			statusCmd := tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
+		// Info messages persist until user takes action
+		if msg.Type == types.MessageTypeSuccess || msg.Type == types.MessageTypeError {
+			duration := StatusBarDisplayDuration // 5s for success
+			if msg.Type == types.MessageTypeError {
+				duration = ErrorMessageDisplayDuration // 10s for errors
+			}
+			statusCmd := tea.Tick(duration, func(t time.Time) tea.Msg {
 				return types.ClearStatusMsg{MessageID: currentID}
 			})
 			cmds = append(cmds, cmd, statusCmd, spinnerCmd)
@@ -693,40 +737,72 @@ func (m Model) View() string {
 // switchContextCmd returns command to switch contexts asynchronously
 func (m Model) switchContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
+		start := time.Now() // Track start time for history
 		oldContext := m.repoPool.GetActiveContext() // Capture BEFORE switch
 		err := m.repoPool.SwitchContext(contextName, nil)
 
-		if err != nil {
-			return types.ContextLoadFailedMsg{
-				Context: contextName,
-				Error:   err,
-			}
+		// Build history metadata
+		metadata := &types.CommandMetadata{
+			Command:        fmt.Sprintf("Load context %s", contextName),
+			KubectlCommand: "", // Context switching doesn't use kubectl
+			Context:        contextName,
+			Duration:       time.Since(start),
+			Timestamp:      time.Now(),
 		}
 
-		return types.ContextSwitchCompleteMsg{
-			OldContext: oldContext, // Correct value
+		if err != nil {
+			// Return error message with history tracking
+			errMsg := messages.ErrorCmd("Failed to load context %s: %v", contextName, err)
+			return messages.WithHistory(errMsg, metadata)()
+		}
+
+		// Success - return both ContextSwitchCompleteMsg and success message with history
+		switchComplete := types.ContextSwitchCompleteMsg{
+			OldContext: oldContext,
 			NewContext: contextName,
 		}
+		successMsg := messages.SuccessCmd("Loaded context %s", contextName)
+
+		return tea.Batch(
+			func() tea.Msg { return switchComplete },
+			messages.WithHistory(successMsg, metadata),
+		)()
 	}
 }
 
 // retryContextCmd returns command to retry failed context
 func (m Model) retryContextCmd(contextName string) tea.Cmd {
 	return func() tea.Msg {
+		start := time.Now() // Track start time for history
 		oldContext := m.repoPool.GetActiveContext() // Capture BEFORE retry
 		err := m.repoPool.RetryFailedContext(contextName, nil)
 
-		if err != nil {
-			return types.ContextLoadFailedMsg{
-				Context: contextName,
-				Error:   err,
-			}
+		// Build history metadata
+		metadata := &types.CommandMetadata{
+			Command:        fmt.Sprintf("Retry context %s", contextName),
+			KubectlCommand: "", // Context switching doesn't use kubectl
+			Context:        contextName,
+			Duration:       time.Since(start),
+			Timestamp:      time.Now(),
 		}
 
-		return types.ContextSwitchCompleteMsg{
+		if err != nil {
+			// Return error message with history tracking
+			errMsg := messages.ErrorCmd("Failed to retry context %s: %v", contextName, err)
+			return messages.WithHistory(errMsg, metadata)()
+		}
+
+		// Success - return both ContextSwitchCompleteMsg and success message with history
+		switchComplete := types.ContextSwitchCompleteMsg{
 			OldContext: oldContext,
 			NewContext: contextName,
 		}
+		successMsg := messages.SuccessCmd("Retried context %s", contextName)
+
+		return tea.Batch(
+			func() tea.Msg { return switchComplete },
+			messages.WithHistory(successMsg, metadata),
+		)()
 	}
 }
 
@@ -763,6 +839,25 @@ func (m *Model) initializeScreens() {
 	// System screen
 	m.registry.Register(screens.NewSystemScreen(repo, m.theme))
 
+	// Output screen (special - uses outputBuffer from model)
+	m.registry.Register(screens.NewConfigScreen(screens.GetOutputScreenConfig(m.outputBuffer), m.repoPool, m.theme))
+
 	// Contexts screen (special - uses pool directly)
 	m.registry.Register(screens.NewConfigScreen(screens.GetContextsScreenConfig(), m.repoPool, m.theme))
+}
+
+// messageTypeToStatus converts MessageType to status string for history
+func messageTypeToStatus(t types.MessageType) string {
+	switch t {
+	case types.MessageTypeSuccess:
+		return "success"
+	case types.MessageTypeError:
+		return "error"
+	case types.MessageTypeInfo:
+		return "info"
+	case types.MessageTypeLoading:
+		return "loading"
+	default:
+		return "unknown"
+	}
 }

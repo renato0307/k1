@@ -23,9 +23,10 @@ const (
 
 // CommandContext provides context for command execution
 type CommandContext struct {
-	ResourceType k8s.ResourceType // Type of resource (pods, deployments, services)
-	Selected     map[string]any   // Selected resource data (name, namespace, etc.)
-	Args         string           // Additional command arguments (inline args string)
+	ResourceType    k8s.ResourceType // Type of resource (pods, deployments, services)
+	Selected        map[string]any   // Selected resource data (name, namespace, etc.)
+	Args            string           // Additional command arguments (inline args string)
+	OriginalCommand string           // Original command string as typed by user (e.g., "/scale deployment nginx 3")
 }
 
 // GetResourceInfo extracts resource identification from the context

@@ -40,11 +40,12 @@ func (e *Executor) SetWidth(width int) {
 }
 
 // BuildContext creates a CommandContext for command execution.
-func (e *Executor) BuildContext(resourceType k8s.ResourceType, selected map[string]any, args string) commands.CommandContext {
+func (e *Executor) BuildContext(resourceType k8s.ResourceType, selected map[string]any, args string, originalCommand string) commands.CommandContext {
 	return commands.CommandContext{
-		ResourceType: resourceType,
-		Selected:     selected,
-		Args:         args,
+		ResourceType:    resourceType,
+		Selected:        selected,
+		Args:            args,
+		OriginalCommand: originalCommand,
 	}
 }
 
@@ -64,9 +65,12 @@ func (e *Executor) Execute(cmdName string, category commands.CommandCategory, ct
 		return nil, true // Needs confirmation
 	}
 
-	// Execute command
+	// Execute command with loading message
 	if cmd.Execute != nil {
-		return cmd.Execute(ctx), false
+		loadingMsg := func() tea.Msg {
+			return types.LoadingMsg("Running " + ctx.OriginalCommand + "…")
+		}
+		return tea.Batch(loadingMsg, cmd.Execute(ctx)), false
 	}
 
 	return nil, false
@@ -81,12 +85,17 @@ func (e *Executor) ExecutePending(ctx commands.CommandContext) tea.Cmd {
 
 	// Use stored args
 	ctx.Args = e.pendingArgs
+
+	// Execute command with loading message
+	loadingMsg := func() tea.Msg {
+		return types.LoadingMsg("Running " + ctx.OriginalCommand + "…")
+	}
 	cmd := e.pendingCommand.Execute(ctx)
 
 	// Clear pending state
 	e.ClearPending()
 
-	return cmd
+	return tea.Batch(loadingMsg, cmd)
 }
 
 // CancelPending cancels the pending command.

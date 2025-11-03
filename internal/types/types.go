@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/renato0307/k1/internal/k8s"
 )
 
 // Screen represents a view in the application
@@ -129,9 +130,23 @@ const (
 	MessageTypeLoading // Loading state with spinner
 )
 
+// CommandMetadata contains rich context for command history
+type CommandMetadata struct {
+	Command        string           // "/scale deployment nginx 3"
+	KubectlCommand string           // "kubectl scale deployment nginx --replicas=3"
+	Context        string           // Kubernetes context name
+	ResourceType   k8s.ResourceType // "deployments"
+	ResourceName   string           // "nginx"
+	Namespace      string           // "default"
+	Duration       time.Duration    // Execution time
+	Timestamp      time.Time        // When executed
+}
+
 type StatusMsg struct {
-	Message string
-	Type    MessageType
+	Message         string
+	Type            MessageType
+	TrackInHistory  bool              // Explicit opt-in flag for history tracking
+	HistoryMetadata *CommandMetadata  // Optional rich metadata for history
 }
 
 type ClearStatusMsg struct {

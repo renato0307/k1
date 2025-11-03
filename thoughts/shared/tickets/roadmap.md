@@ -20,11 +20,71 @@
 
 1. [ ] Show something on the pod list if it is the first screen
 2. [ ] Allow user to say which screen to show first
+3. [ ] Search: support "nginx !default"
 
 ## Nice to have
 
 1. [ ] AI assistant for generating kubectl commands
 2. [ ] Screens by configuration
+
+## Refactor/Tech Debt
+
+1. [ ] app.go contains too much logic, specially about contexts; we should refactor it into smaller components, needs a research on how to best do it
+
+2. [ ]  Lack of encapsulation: The height calculation contract between app.go and screens is implicit, not explicit. Each screen
+  reimplements sizing logic independently, leading to:
+
+  1. ❌ Inconsistent behavior (Pods fills space, Output doesn't)
+  2. ❌ Easy to make mistakes (double subtraction)
+  3. ❌ Hard to change (must update all screens)
+  4. ❌ No compile-time guarantees
+
+  This is a classic case where composition over inheritance would help, but Go requires more explicit patterns to achieve it.
+
+3. [ ] Context Deadline Exceeded
+
+  1. Context Deadline Exceeded (Main Issue)
+  Lines 216-273 show widespread timeout errors across all resource types:
+  time=2025-11-02T18:59:24.007Z level=WARN msg="Dynamic informer sync failed"
+  resource=endpoints tier=1
+  error="Get \"https://.../api/v1/endpoints?limit=1&timeout=1m30s\": context deadline exceeded"
+
+  This affects: endpoints, pods, deployments, services, jobs, configmaps, secrets, nodes, replicasets,
+  horizontalpodautoscalers, daemonsets, cronjobs
+
+  Root Causes:
+  1. Large cluster - Line 18 shows ~1008 pods, 798 deployments, 642 services
+  2. Network latency - EKS clusters in us-east-1, slow API responses
+  3. Parallel informer sync - Line 7: "resource_count=16" - all syncing simultaneously
+  4. Short timeout - 90-second timeout (timeout=1m30s) insufficient for initial list operations
+
+  2. Permission Errors (Expected)
+  Lines 20, 21, 70, 72, 104, 105, 138, 139, 196, 197, 257:
+  "secrets is forbidden: User \"readonly-users\" cannot list resource \"secrets\""
+  This is expected for read-only users.
+
+  3. ReplicaSet Informer Timeouts
+  Lines 76, 175-176, 237-238: ReplicaSet informers not syncing within timeout window.
+
+  This is NOT related to Phase 3 changes
+
+  My Phase 3 work only touched:
+  - CommandContext struct (added OriginalCommand field)
+  - Command implementations (scale, restart, describe)
+  - BuildContext call sites
+
+  None of these affect informer timeouts or API client configuration.
+
+  The Real Problem
+
+  The dynamic informer implementation in internal/k8s/ has aggressive timeouts that don't scale well for:
+  - Large clusters (1000+ pods)
+  - High network latency (remote EKS clusters)
+  - Parallel resource syncing (16 resources at once)
+
+  This is a pre-existing infrastructure issue, not caused by the command output history feature.
+
+4. [ ] All screens list based must use ConfigScreen
 
 ## Bugs
 

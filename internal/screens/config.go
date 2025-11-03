@@ -1239,3 +1239,32 @@ func FormatDate(val interface{}) string {
 		return fmt.Sprint(val)
 	}
 }
+
+// FormatTime formats a timestamp as HH:MM:SS
+func FormatTime(val interface{}) string {
+	t, ok := val.(time.Time)
+	if !ok {
+		return fmt.Sprint(val)
+	}
+	return t.Format("15:04:05")
+}
+
+// FormatStatus converts status string to icon
+func FormatStatus(val interface{}) string {
+	status, ok := val.(string)
+	if !ok {
+		return "?"
+	}
+	switch status {
+	case "success":
+		return "✅"
+	case "error":
+		return "❌"
+	case "info":
+		return "ℹ️"
+	case "loading":
+		return "⏳"
+	default:
+		return "?"
+	}
+}

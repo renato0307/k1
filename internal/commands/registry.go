@@ -328,6 +328,12 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Execute:     ContextsCommand(),
 		},
 		{
+			Name:        "output",
+			Description: "View command output history",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("output"),
+		},
+		{
 			Name:        "context",
 			Description: "Switch Kubernetes context",
 			Category:    CategoryAction,

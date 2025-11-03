@@ -32,10 +32,11 @@ func TestExecutor_BuildContext(t *testing.T) {
 		"namespace": "default",
 	}
 
-	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "arg1 arg2")
+	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "arg1 arg2", "/test command")
 	assert.Equal(t, k8s.ResourceTypePod, ctx.ResourceType)
 	assert.Equal(t, selected, ctx.Selected)
 	assert.Equal(t, "arg1 arg2", ctx.Args)
+	assert.Equal(t, "/test command", ctx.OriginalCommand)
 }
 
 func TestExecutor_Execute(t *testing.T) {
@@ -44,7 +45,7 @@ func TestExecutor_Execute(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypePod, nil, "")
+	ctx := exec.BuildContext(k8s.ResourceTypePod, nil, "", "/yaml")
 
 	// Test executing a command that doesn't need confirmation
 	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, ctx)
@@ -63,7 +64,7 @@ func TestExecutor_Execute_NeedsConfirmation(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
+	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3", "/delete")
 
 	// Test executing delete command (needs confirmation)
 	cmd, needsConfirm := exec.Execute("delete", commands.CategoryAction, ctx)
@@ -80,7 +81,7 @@ func TestExecutor_ExecutePending(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
+	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3", "/delete")
 
 	// Setup pending command
 	_, needsConfirm := exec.Execute("delete", commands.CategoryAction, ctx)
@@ -99,7 +100,7 @@ func TestExecutor_CancelPending(t *testing.T) {
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
-	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3")
+	ctx := exec.BuildContext(k8s.ResourceTypeDeployment, nil, "3", "/delete")
 
 	// Setup pending command
 	exec.Execute("delete", commands.CategoryAction, ctx)
@@ -143,7 +144,7 @@ func TestExecutor_ViewConfirmation(t *testing.T) {
 	assert.Equal(t, "", view)
 
 	// With pending command
-	ctx := exec.BuildContext("deployments", nil, "")
+	ctx := exec.BuildContext("deployments", nil, "", "/delete")
 	exec.Execute("delete", commands.CategoryAction, ctx)
 
 	view = exec.ViewConfirmation()
@@ -220,7 +221,7 @@ func TestExecutor_ExecuteReturnsCmd(t *testing.T) {
 		"name":      "test-pod",
 		"namespace": "default",
 	}
-	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "")
+	ctx := exec.BuildContext(k8s.ResourceTypePod, selected, "", "/yaml")
 
 	// Execute yaml command which should return a cmd
 	cmd, needsConfirm := exec.Execute("yaml", commands.CategoryAction, ctx)

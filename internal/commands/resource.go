@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -91,6 +92,7 @@ func YamlCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 // DescribeCommand returns execute function for viewing kubectl describe output
 func DescribeCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 	return func(ctx CommandContext) tea.Cmd {
+		start := time.Now() // Track start time for history
 		resourceName := "unknown"
 		namespace := ""
 		displayName := ""
@@ -139,17 +141,40 @@ func DescribeCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 
 		// Get describe output from repository
 		describeContent, err := repo.DescribeResource(gvr, namespace, resourceName)
-		if err != nil {
-			return messages.ErrorCmd("Failed to describe resource: %v", err)
+
+		// Build history metadata
+		metadata := &types.CommandMetadata{
+			Command:        ctx.OriginalCommand,
+			KubectlCommand: "", // Describe uses repo.DescribeResource, not direct kubectl
+			Context:        repo.GetContext(),
+			ResourceType:   ctx.ResourceType,
+			ResourceName:   resourceName,
+			Namespace:      namespace,
+			Duration:       time.Since(start),
+			Timestamp:      time.Now(),
 		}
 
-		return func() tea.Msg {
-			return types.ShowFullScreenMsg{
-				ViewType:     1, // Describe
-				ResourceName: displayName,
-				Content:      describeContent,
-			}
+		if err != nil {
+			return messages.WithHistory(
+				messages.ErrorCmd("Failed to describe resource: %v", err),
+				metadata,
+			)
 		}
+
+		// Success: Send status message with history tracking, then show full screen
+		return tea.Batch(
+			messages.WithHistory(
+				messages.InfoCmd("Showing describe for %s", displayName),
+				metadata,
+			),
+			func() tea.Msg {
+				return types.ShowFullScreenMsg{
+					ViewType:     1, // Describe
+					ResourceName: displayName,
+					Content:      describeContent,
+				}
+			},
+		)
 	}
 }
 
