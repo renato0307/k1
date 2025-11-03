@@ -1,890 +1,365 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Development guidelines for Claude Code when working with k1 - the supersonic Kubernetes TUI.
 
-## Project Overview
+**For user documentation**, see [README.md](README.md).
 
-k1 💨 - The supersonic Kubernetes TUI. Built with Go and Bubble Tea for blazing-fast cluster management at Mach 1 speed.
-
-## Quality Guidelines and Process
+## Quality Guidelines
 
 **IMPORTANT**: Read `design/PROCESS-IMPROVEMENTS.md` for comprehensive quality guidelines.
 
 ### Quality Gates (Mandatory)
 
-**File Size Limits:**
-- 500 lines: Warning (consider refactoring)
-- 800 lines: STOP - refactoring required before new features
-- 150 lines per function: STOP - decompose before continuing
-
-**Test Coverage Requirements:**
-- New components: 70% minimum
-- Modified components: Cannot decrease coverage
-- Critical paths: 80% minimum
-- Write tests DURING implementation, not after
-
-**Code Duplication:**
-- 3+ repetitions: Extract abstraction/helper function immediately
+- **File Size**: 500 lines warning, 800 lines STOP, 150 lines/function STOP
+- **Test Coverage**: New components 70% min, critical paths 80% min, cannot decrease existing
+- **Code Duplication**: 3+ repetitions → extract immediately
 
 ### Claude Code Commitments
 
-When implementing features, I will:
-1. **Flag quality gate violations** as they occur (not after)
-2. **Suggest refactoring pauses** when components grow too large
-3. **Include quality checks** in every plan (refactoring needs, test coverage targets)
-4. **Perform post-feature reviews** and proactively report findings
-5. **Be honest about technical debt** instead of hiding it for velocity
+1. Flag quality gate violations as they occur
+2. Suggest refactoring pauses when components grow too large
+3. Include quality checks in every plan
+4. Perform post-feature reviews and proactively report findings
+5. Be honest about technical debt
 
 ### After Every Major Feature
 
-I will automatically perform quality check:
 - Check largest file sizes (flag if >500 lines)
 - Run `make test-coverage` and report coverage
 - Identify new duplication introduced
 - Suggest refactoring if needed
 
-**Hold me accountable**: If I don't proactively flag issues, remind me of `design/PROCESS-IMPROVEMENTS.md`.
-
 ## Development Setup
 
 Go version: 1.24.0+
 
-### Running the Application
+### Key Commands
 
 ```bash
-# Run with live Kubernetes connection (default theme)
-go run cmd/k1/main.go
+# Build and test
+make build              # Build the application
+make test              # Run all tests
+make test-coverage     # Generate coverage report
+make run               # Run with live cluster
+make run-dummy         # Run with mock data
 
-# Run with specific Kubernetes context
-go run cmd/k1/main.go -context my-cluster
-
-# Run with custom kubeconfig path
-go run cmd/k1/main.go -kubeconfig /path/to/kubeconfig
-
-# Run with specific theme (8 available: charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
-go run cmd/k1/main.go -theme dracula
-go run cmd/k1/main.go -theme nord
-go run cmd/k1/main.go -theme gruvbox
-
-# Run with dummy data (no cluster connection)
-go run cmd/k1/main.go -dummy
-
-# Build and test (clean up binary after)
-go build -o k1 cmd/k1/main.go
-./k1
-rm k1
-
-# Fix dependencies
-go mod tidy
+# Quick verification
+go build -o k1 cmd/k1/main.go && ./k1 && rm k1
+go run cmd/k1/main.go -dummy  # UI dev without cluster
 ```
 
-### Running Tests
+### Testing Strategy
 
-**IMPORTANT**: Always use Makefile targets for testing:
-
-```bash
-# One-time setup: Install envtest binaries
-make setup-envtest
-
-# Run all tests (preferred method)
-make test
-
-# Run tests with coverage report
-make test-coverage
-
-# View coverage in browser
-make test-coverage-html
-
-# Build the application
-make build
-
-# Clean build artifacts
-make clean
-
-# Run with dummy data
-make run-dummy
-
-# Run with live cluster
-make run
-```
-
-Manual commands (only use when necessary):
-```bash
-# Manually run tests (if Makefile is not available)
-export KUBEBUILDER_ASSETS=$(setup-envtest use -p path)
-go test -v ./... -timeout 60s
-```
-
-**Testing Strategy:**
-- Tests use [envtest](https://book.kubebuilder.io/reference/envtest.html) which runs a real Kubernetes API server locally
-- **Shared TestMain pattern**: envtest starts once per test suite (~5s), not per test
-- **Namespace isolation**: Each test creates a unique `test-*` namespace to prevent conflicts
-- **Table-driven tests** with `testify/assert` for cleaner assertions
-- First run downloads Kubernetes binaries (~50MB, then cached)
+- **envtest**: Real K8s API server locally (~5s startup, then cached)
+- **Shared TestMain**: Start envtest once per suite, not per test
+- **Namespace isolation**: Each test uses unique `test-*` namespace
+- **Table-driven tests** with `testify/assert`
 - Test suite runs in ~5-10 seconds total
 
-See design documents in `design/` folder for detailed testing architecture.
+## Performance Architecture
+
+- **Informers**: Client-side caching, 1-2s initial sync, microsecond queries
+- **Protobuf**: 60-70% size reduction vs JSON
+- **Metadata-only**: 70-90% faster for list views, fetch full on-demand
+- **Unstructured**: Dynamic client, no typed imports needed
 
 ## Key Dependencies
 
-- **Bubble Tea** (github.com/charmbracelet/bubbletea): TUI framework
-- **Bubbles** (github.com/charmbracelet/bubbles): Pre-built components (table, list, etc.)
-- **Lipgloss** (github.com/charmbracelet/lipgloss): Styling and layout
-- **Fuzzy** (github.com/sahilm/fuzzy): Fuzzy search for filtering
-- **Overlay** (github.com/rmhubbert/bubbletea-overlay): Modal overlays
-- **Kubernetes client-go**: Kubernetes API client
-  - k8s.io/client-go/metadata: Metadata-only informers (70-90% faster)
-  - k8s.io/client-go/tools/cache: Informer cache implementation
+- **Bubble Tea**: TUI framework
+- **Bubbles**: Pre-built components (table, list)
+- **Lipgloss**: Styling and layout
+- **Fuzzy**: Fuzzy search for filtering
+- **Overlay**: Modal overlays
+- **client-go**: K8s API (metadata informers, cache)
 
 ## Architecture
 
 ### Project Structure
 
 ```
-cmd/
-  k1/main.go                - Main application entry point (binary: k1)
-
+cmd/k1/main.go                 # Binary entry point
 internal/
-  app/app.go                - Root Bubble Tea model with screen routing
-  screens/                  - Screen implementations (pods, deployments, services)
-  components/               - Reusable UI components (header, layout, commandbar)
-  k8s/repository.go         - Kubernetes data access layer
-  types/types.go            - Shared types (Screen interface, messages)
-  ui/theme.go               - Theme definitions and styling
+  app/app.go                   # Root model with screen routing
+  screens/                     # Screen implementations
+  components/                  # Reusable UI components
+  k8s/repository.go            # Data access layer
+  types/types.go               # Shared types (Screen interface, messages)
+  ui/theme.go                  # Theme definitions
 ```
 
-### Key Patterns
+### Core Patterns
 
-1. **Root Model**: `internal/app/app.go` contains the main application model that:
-   - Routes messages to current screen and command bar
-   - Manages global state (window size, layout dimensions)
-   - Handles global keybindings (ctrl+c, q)
-   - Coordinates screen switching and dynamic body height calculations
+1. **Root Model** (`app.go`): Routes messages, manages state, handles global keys
+2. **Screen Interface**: All screens implement `types.Screen` (Init/Update/View, ID, Title, HelpText, Operations)
+3. **Repository Pattern**: Abstracts data access (DummyRepository for dev, InformerRepository for live)
+4. **Theme System**: 8 themes (charm default, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
+5. **Command Bar**: State machine (Hidden/Filter/Palette/Input/Confirmation/LLMPreview/Result)
 
-2. **Screen Interface**: All screens implement `types.Screen` interface:
-   ```go
-   type Screen interface {
-       tea.Model                    // Init, Update, View
-       ID() string                  // Unique screen identifier
-       Title() string               // Display title
-       HelpText() string            // Help bar text
-       Operations() []Operation     // Available commands
-   }
-   ```
+### Key Messages
 
-3. **Repository Pattern**: `k8s.Repository` interface abstracts data access:
-   - Currently uses `DummyRepository` for development
-   - Future: implement live Kubernetes client with informers
-   - Screens depend on repository interface, not concrete implementation
+- `tea.WindowSizeMsg`: Update dimensions
+- `types.ScreenSwitchMsg`: Change screen
+- `types.RefreshCompleteMsg`: Data updated
+- `types.ErrorMsg`: Show error
+- `types.FilterUpdateMsg`/`ClearFilterMsg`: Filter operations
 
-4. **Theme System**: `internal/ui/theme.go` defines themes:
-   - Themes are structs with color definitions and lipgloss styles
-   - Applied to components via factory functions (`ToTableStyles()`)
-   - Supports 8 themes: charm (default), dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai
-   - Passed to screens at initialization
+## Implementation Status
 
-5. **Command Bar**: `internal/components/commandbar.go` provides expandable bottom UI:
-   - State machine: Hidden, Filter, SuggestionPalette, Input, Confirmation, LLMPreview, Result
-   - Filter mode: just start typing to filter current list with fuzzy search
-   - Palette mode: `:` for navigation, `/` for commands
-   - Dynamic height calculation with proper body coordination
-   - Arrow keys navigate palette when active, list otherwise
+**✅ Complete**: Bubble Tea app, 11 resource types (Pods, Deployments, Services, ConfigMaps, Secrets, Namespaces, StatefulSets, DaemonSets, Jobs, CronJobs, Nodes), command bar, themes, repository with informers, 76.7% k8s / 71.0% screens coverage
 
-### Message Flow
-
-- `tea.WindowSizeMsg`: Updates dimensions throughout app
-- `types.ScreenSwitchMsg`: Triggers screen change
-- `types.RefreshCompleteMsg`: Updates after data refresh
-- `types.ErrorMsg`: Displays temporary error message
-- `types.FilterUpdateMsg`: Updates filter on current screen (from command bar)
-- `types.ClearFilterMsg`: Clears filter on current screen
-
-## Current Status
-
-The project has moved beyond prototyping into a structured application:
-
-### ✅ Implemented
-- Core Bubble Tea application structure with screen routing
-- Screen registry system for managing multiple views
-- **Config-driven architecture** with 3-level customization (PLAN-04 complete)
-- **11 resource screens**: Pods, Deployments, Services, ConfigMaps, Secrets, Namespaces, StatefulSets, DaemonSets, Jobs, CronJobs, Nodes
-- Enhanced Nodes screen with 10 columns (Name, Status, Roles, Hostname, InstanceType, Zone, NodePool, Version, OSImage, Age)
-- **Command bar component** with expandable states (Phase 1 complete)
-- Filter mode: real-time fuzzy search with negation support
-- Suggestion palette: `:` for navigation, `/` for commands
-- **Resource-specific commands**: cordon/drain (nodes), endpoints (services), restart (deployments), scale (deployments/statefulsets)
-- **Resource detail commands**: /yaml (kubectl YAMLPrinter), /describe (simplified format with on-demand events)
-- Shortcuts: ctrl+y (yaml), ctrl+d (describe)
-- On-demand event fetching for describe (zero memory overhead, 50-100ms latency)
-- Theming system with 8 themes (charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)
-- Global keybindings: quit (q/ctrl+c)
-- Header component with refresh time display
-- Layout component with dynamic body height calculation
-- Repository pattern with both dummy and live Kubernetes data sources
-- Live Kubernetes integration via informers (Pods only, with protobuf)
-- Dynamic client with unstructured resources for all 11 resource types
-- Command-line flags: -kubeconfig, -context, -theme, -dummy
-- **Comprehensive test suite** with envtest (shared TestMain, namespace isolation, table-driven tests)
-- **Test coverage**: 76.7% (k8s), 71.0% (screens)
-- **Makefile** with test/build/run targets
-
-### 🚧 In Progress / To Do
-- Command registry and palette filtering (Phase 2)
-- Navigation commands (:pods, :deployments, :services) (Phase 3)
-- Resource commands (/delete)
-- Command history (Phase 5)
-- Real-time updates (1-second refresh ticker)
-- Live informers for Deployments and Services
-- Persistent configuration (~/.config/k1/)
-- Additional screens (Namespaces, ConfigMaps, Secrets, etc.)
-- Detail view for resources
-- Log streaming for pods
-
-### 📚 Reference Documentation
-- **CLAUDE.md**: This file - development guidelines and project overview
+**🚧 Planned**: Persistent config, resource editing, log streaming, enhanced AI commands, command history
 
 ## Development Guidelines
 
-1. **Git Workflow**: ALWAYS create a new branch from main before starting work on a new plan or feature
-   ```bash
-   git checkout main
-   git pull
-   git checkout -b feat/plan-XX-short-description
-   ```
-   **If you realize you're on the wrong branch:**
+### Git Workflow
 
-   **Option A: Stash (simpler, preferred):**
-   ```bash
-   # NEVER use git reset --hard with uncommitted work!
-   # Save work with stash:
-   git stash
-
-   # Switch to correct branch:
-   git checkout main
-   git pull
-   git checkout -b feat/correct-branch-name
-
-   # Apply stashed changes:
-   git stash pop  # May have conflicts - resolve them manually
-
-   # If conflicts occur, resolve them and continue:
-   git add .
-   # Then continue implementation
-   ```
-
-   **Option B: Commit and cherry-pick (when stash conflicts are complex):**
-   ```bash
-   # Commit on wrong branch:
-   git add .
-   git commit -m "temp: implementation on wrong branch"
-
-   # Create correct branch and cherry-pick:
-   git checkout main
-   git pull
-   git checkout -b feat/correct-branch-name
-   git cherry-pick <commit-hash>
-   ```
-
-2. **Testing and Commits**: NEVER commit code without user testing first
-   - After implementing features, build and wait for user to test
-   - User will verify functionality works as expected
-   - Only create commits AFTER user confirms testing is complete
-   - If user finds issues during testing, fix them before committing
-   - **CRITICAL**: Do NOT add "🤖 Generated with Claude Code" or "Co-Authored-By: Claude" signatures to commits
-   - Example workflow:
-     ```bash
-     # After implementation:
-     go build -o k1 cmd/k1/main.go && rm k1  # Build to verify compilation
-     git add -A && git status                 # Stage changes and show status
-     # WAIT for user to test
-     # User confirms: "tests passed, commit it"
-     git commit -m "feat: your commit message"
-     # NO signatures at the end!
-     ```
-
-3. **Prefer Makefile**: Always use Makefile targets when available (e.g., `make test`, `make build`, `make run`)
-4. **Build and Clean**: After building with `go build`, always delete the binary (or use `make build` + `make clean`)
-5. **Dependencies**: Run `go mod tidy` after adding/removing imports
-6. **External Downloads**: Save external repos to `.tmp/` directory
-7. **Screens**: New screens go in `internal/screens/`, implement `types.Screen` interface
-8. **Modals**: New modals go in `internal/modals/`, follow existing pattern
-9. **Components**: Reusable UI elements go in `internal/components/`
-10. **Themes**: Add theme styles to `internal/ui/theme.go`
-11. **Messages**: Custom messages go in `internal/types/types.go`
-12. **Testing**: Use envtest with shared TestMain, create unique namespaces per test, use `testify/assert` for assertions
-13. **Table-Driven Tests**: Prefer table-driven tests for multiple test cases (only skip when complexity is very high)
-14. **Logging**: Use `internal/logging` package for performance analysis and debugging
-    - Logging is opt-in via `-log-file` flag (silent by default)
-    - Use appropriate log levels: DEBUG (timing details), INFO (lifecycle), WARN/ERROR (issues)
-    - Use timing helpers for performance-critical paths: `logging.Start()`/`End()`, `logging.Time()`
-    - Log execution times with resource counts for informer sync operations
-    - Example usage:
-      ```go
-      // Simple timing
-      ctx := logging.Start("operation name")
-      // ... do work ...
-      logging.End(ctx)
-
-      // With count
-      logging.EndWithCount(ctx, itemCount)
-
-      // Wrap function
-      logging.Time("operation", func() {
-          // ... do work ...
-      })
-
-      // Structured logging
-      logging.Info("Context loaded", "context", name, "duration", dur.String())
-      logging.Debug("Resource synced", "resource", "pods", "count", 100)
-      ```
-    - Critical paths to instrument: startup sequence, informer sync, context loading, expensive queries
-    - See `thoughts/shared/research/2025-10-31-startup-performance-vs-k9s.md` for performance analysis workflow
-
-## Code Patterns and Conventions
-
-### Constants Organization
-
-**Pattern**: Use per-package constants to avoid circular dependencies.
-
-**DO**:
-```go
-// internal/components/constants.go
-package components
-
-const (
-    MaxPaletteItems = 8
-    FullScreenReservedLines = 3
-)
+**ALWAYS** create new branch from main before starting work:
+```bash
+git checkout main && git pull && git checkout -b feat/plan-XX-description
 ```
 
-**DON'T**:
-```go
-// internal/constants/constants.go - AVOID central constants package
-package constants
+**If on wrong branch**:
+```bash
+# Option A (preferred): Stash
+git stash
+git checkout main && git pull && git checkout -b feat/correct-name
+git stash pop
 
-const MaxPaletteItems = 8  // Creates import cycles
+# Option B: Cherry-pick
+git add . && git commit -m "temp: work on wrong branch"
+git checkout main && git pull && git checkout -b feat/correct-name
+git cherry-pick <commit-hash>
 ```
 
-**Rationale**: Central constants package creates circular dependencies when packages need to import each other. Per-package constants keep dependencies clean.
+### Testing and Commits
 
-**Existing constant files**:
-- `internal/components/constants.go` - UI constants
-- `internal/k8s/constants.go` - Kubernetes client constants
-- `internal/commands/constants.go` - Command execution constants
-- `internal/screens/constants.go` - Screen configuration constants
+**NEVER commit without user testing first**
+- Build and wait for user to test: `go build -o k1 cmd/k1/main.go && rm k1`
+- User confirms: "tests passed, commit it"
+- **CRITICAL**: Do NOT add "🤖 Generated with Claude Code" or "Co-Authored-By: Claude" signatures
 
-### Message Helpers for Commands
+### General Rules
 
-**Pattern**: Use message helpers from `internal/messages` for consistent command responses.
+3. Prefer Makefile targets (`make test`, `make build`)
+4. Delete binary after `go build` (or use `make clean`)
+5. Run `go mod tidy` after imports change
+6. External downloads → `.tmp/` directory
+7. New screens → `internal/screens/`, implement `types.Screen`
+8. New modals → `internal/modals/`
+9. Components → `internal/components/`
+10. Custom messages → `internal/types/types.go`
+11. Use envtest with shared TestMain, unique namespaces
+12. Prefer table-driven tests
+13. **Logging**: Use `internal/logging` for performance analysis
+    - Opt-in via `-log-file` flag (silent by default)
+    - Levels: DEBUG (timing), INFO (lifecycle), WARN/ERROR (issues)
+    - Helpers: `logging.Start()`/`End()`, `logging.Time()`, `logging.EndWithCount()`
+    - Instrument: startup, informer sync, context loading, expensive queries
 
-**Command layer pattern**:
-```go
-import "github.com/renato0307/k1/internal/messages"
+## How-To Guides
 
-func ScaleCommand(repo k8s.Repository) ExecuteFunc {
-    return func(ctx CommandContext) tea.Cmd {
-        if err := validateArgs(); err != nil {
-            return messages.ErrorCmd("Invalid args: %v", err)
-        }
+### Add a Screen
 
-        // ... execute operation ...
+1. Create config in `internal/screens/screens.go`: `GetMyResourceScreenConfig()`
+2. Implement transform: `transformMyResource(u *unstructured.Unstructured, common commonFields) (any, error)`
+3. Register in `internal/app/app.go`: `screens["myresource"] = screens.NewConfigScreen(...)`
+4. Add tests in `internal/screens/screens_test.go`
 
-        if err != nil {
-            return messages.ErrorCmd("Scale failed: %v", err)
-        }
-        return messages.SuccessCmd("Scaled %s to %d replicas", name, count)
-    }
-}
+### Add a Command
+
+1. Create in `internal/commands/`: `func MyCommand(repo k8s.Repository) ExecuteFunc`
+2. Register in `internal/commands/registry.go`
+3. Add to screen operations in `internal/screens/config.go` (if needed)
+4. Add tests: `internal/commands/mycommand_test.go`
+
+### Add a Resource Type
+
+1. Add GVR constant in `internal/k8s/constants.go`
+2. Create screen config (see "Add a Screen")
+3. Add transform function
+4. Test with real cluster: `go run cmd/k1/main.go`
+
+### Debug TUI Issues
+
+**Common pitfalls**:
+- Screen not updating: Check `Update()` returns modified model, messages sent
+- Layout issues: Verify `WindowSizeMsg` handling, height calculations
+- Keybindings: Check event bubbling, no component consuming key
+- Command bar: Gets keys first when active, `Esc` deactivates
+
+**Debug workflow**:
+```bash
+go run cmd/k1/main.go -log-file /tmp/k1.log
+tail -f /tmp/k1.log  # in another terminal
 ```
 
-**Available helpers**:
-- `messages.ErrorCmd(format, args...)` - Red error message
-- `messages.SuccessCmd(format, args...)` - Green success message
-- `messages.InfoCmd(format, args...)` - Blue info message
-- `messages.WrapError(err, format, args...)` - Wrap errors with context (repository layer)
+### Add a Theme
 
-**Repository layer pattern**:
+1. Define in `internal/ui/theme.go`: `func NewMyTheme() Theme`
+2. Register: `var themes = map[string]func() Theme{"mytheme": NewMyTheme}`
+3. Test: `go run cmd/k1/main.go -theme mytheme`
+4. Update README.md and CLAUDE.md
+
+## Code Patterns
+
+### Structural Patterns
+
+**Constants Organization**: Per-package constants to avoid circular deps
+- `internal/components/constants.go`, `internal/k8s/constants.go`, etc.
+- ❌ Central `internal/constants/` package creates import cycles
+
+**Visibility**: Private by default (lowercase) unless needs export
+- Factory/helper functions used only within package → private
+- Export only what's called from other packages
+
+**Method Encapsulation**: Functions operating on type's data should be methods
 ```go
-func (r *Repository) GetPods() ([]Pod, error) {
-    pods, err := r.lister.List()
-    if err != nil {
-        return nil, fmt.Errorf("failed to list pods: %w", err)
-    }
-    return pods, nil
-}
+// ❌ func getFilterContextDescription(ctx *FilterContext) string
+// ✅ func (f *FilterContext) Description() string
 ```
 
-See `internal/messages/doc.go` for complete patterns and guidelines.
+### Performance Patterns
 
-### Helper Function Philosophy
-
-**Only create helpers that reduce boilerplate**. Avoid unnecessary abstractions.
-
-**Good helpers** (reduce repetitive code):
-- `messages.ErrorCmd()` - Wraps `tea.Cmd` + `types.ErrorStatusMsg` boilerplate
-- `messages.WrapError()` - Makes error wrapping intent explicit
-
-**Bad helpers** (unnecessary aliases):
-- `NewError()` - Just use `fmt.Errorf()` directly (everyone knows it)
-- `StringContains()` - Just use `strings.Contains()` directly
-
-**Rule of thumb**: If the helper is just calling one standard library function, it's probably not worth it.
-
-### Go Idioms
-
-**Use modern Go types**:
+**Extract to Caller**: Move expensive repeated operations to caller
 ```go
-// DO (Go 1.18+)
-func Format(format string, args ...any) string
-
-// DON'T (outdated)
-func Format(format string, args ...interface{}) string
-```
-
-**Prefer standard library over custom implementations**:
-- Use `strings.ToLower()` not custom `toLower()`
-- Use `fmt.Errorf()` not custom error builders
-- Use `strconv.Itoa()` not custom number formatters
-
-### Method Encapsulation
-
-**Pattern**: Functions that operate on a type's data should be methods of that type.
-
-**Example from FilterContext**:
-```go
-// BEFORE (package-level function):
-func getFilterContextDescription(ctx *FilterContext) string {
-    if ctx == nil {
-        return ""
-    }
-    kind := ctx.Metadata["kind"]
-    return "filtered by " + kind + ": " + ctx.Value
-}
-
-// Usage: filterText := getFilterContextDescription(msg.FilterContext)
-
-// AFTER (method on type):
-func (f *FilterContext) Description() string {
-    if f == nil {
-        return ""
-    }
-    kind := f.Metadata["kind"]
-    return "filtered by " + kind + ": " + f.Value
-}
-
-// Usage: filterText := msg.FilterContext.Description()
-```
-
-**Benefits**:
-- More intuitive API (`ctx.Description()` vs `getFilterContextDescription(ctx)`)
-- Better discoverability (shows up in IDE autocomplete for the type)
-- Clearer ownership (the type owns its behavior)
-- More reusable (can be called from any package that imports the type)
-
-**When to use**:
-- Function operates primarily on the type's data
-- Function doesn't need to operate on multiple types
-- Function is a natural behavior of the type
-
-**When NOT to use**:
-- Function operates on multiple types equally
-- Function is a factory/constructor (use `New` prefix instead)
-- Function has side effects beyond the type
-
-### Performance Optimization Patterns
-
-**Extract common operations to the caller, not the callee**:
-
-When multiple functions perform the same expensive operation on the same data,
-move that operation to the caller and pass the result as a parameter.
-
-**Example from transforms.go**:
-```go
-// BEFORE (inefficient):
-// Each transform function extracts common fields independently
-func transformPod(u *unstructured.Unstructured) (any, error) {
-    common := extractCommonFields(u)  // Called 11 times per resource!
-    // ... use common fields
-}
-
-// AFTER (optimized):
-// Caller extracts once, passes to all transforms
-func GetResources(resourceType ResourceType) ([]any, error) {
-    for _, obj := range objList {
-        common := extractCommonFields(unstr)  // Called once per resource
-        transformed, err := config.Transform(unstr, common)
-    }
-}
-
-// Transform function signature changed:
+// Before: Each transform calls extractCommonFields (O(11n))
+// After: Caller extracts once, passes to all transforms (O(n))
 type TransformFunc func(*unstructured.Unstructured, commonFields) (any, error)
 ```
 
-**Performance impact**: Reduces O(11n) to O(n) for field extraction on large clusters.
+**Why Not Reflection?**: Performance critical (1000+ resources), reflection 10-100x slower
 
-**When to apply this pattern**:
-- Multiple functions need the same derived data
-- The extraction is non-trivial (reflection, parsing, nested field access)
-- The operation is called frequently (hot path)
+### Extensibility Patterns
 
-**When NOT to apply**:
-- The extraction is trivial (single field access)
-- Functions need different subsets of the data
-- The pattern increases coupling unnecessarily
-
-**Why not use reflection for transforms?**:
-- Reflection is 10-100x slower than direct field access
-- Critical for large clusters (1000+ resources on every list operation)
-- Explicit code is easier to debug and maintains type safety
-- Common field extraction already eliminates most duplication
-
-### Table-Driven Pattern for Reducing Duplication
-
-**Use data structures instead of nearly-identical functions**:
-
-When you have multiple functions that differ only in data values, replace them
-with a single function and a data structure (map, slice, struct).
-
-**Example from navigation.go**:
+**Table-Driven**: Data structure instead of nearly-identical functions
 ```go
-// BEFORE (11 nearly-identical functions):
-func PodsCommand() ExecuteFunc {
-    return func(ctx CommandContext) tea.Cmd {
-        return func() tea.Msg {
-            return types.ScreenSwitchMsg{ScreenID: "pods"}
-        }
-    }
-}
-func DeploymentsCommand() ExecuteFunc { /* same but screenID: "deployments" */ }
-// ... 9 more identical functions
-
-// AFTER (single function + data registry):
-var navigationRegistry = map[string]string{
-    "pods":        "pods",
-    "deployments": "deployments",
-    // ... 9 more entries
-}
-
-func NavigationCommand(screenID string) ExecuteFunc {
-    return func(ctx CommandContext) tea.Cmd {
-        return func() tea.Msg {
-            return types.ScreenSwitchMsg{ScreenID: screenID}
-        }
-    }
-}
-
-// Legacy functions now just delegate:
-func PodsCommand() ExecuteFunc { return NavigationCommand("pods") }
+// Before: 11 functions differing only in screenID constant
+// After: map[string]string + single function
+var navigationRegistry = map[string]string{"pods": "pods", ...}
+func NavigationCommand(screenID string) ExecuteFunc { ... }
 ```
 
-**Benefits**:
-- Eliminates ~30 lines of boilerplate per pattern
-- Changes to behavior require updating one function, not 11
-- New entries require one line of data, not 8 lines of code
-- Easier to test (test one function with table-driven tests)
-
-**When to apply**:
-- 3+ functions with identical structure but different constants
-- The only difference is data values (strings, numbers, etc.)
-- No complex conditional logic per case
-
-**When NOT to apply**:
-- Functions have genuinely different logic
-- Each case needs custom error handling or validation
-- The abstraction makes the code harder to understand
-
-### Config-Driven Pattern for Extensibility
-
-**Problem**: Component knows about all concrete types (N-way switch statement).
-
-**Solution**: Use function pointers in config to delegate behavior to each type.
-
-**Example from navigation refactoring** (2025-10-08):
-
+**Config-Driven**: Function pointers in config vs N-way switch
 ```go
-// BEFORE (God Object - knows all types)
-func (s *ConfigScreen) handleEnterKey() tea.Cmd {
-    switch s.config.ID {
-    case "deployments": return s.navigateToPodsForDeployment()
-    case "services": return s.navigateToPodsForService()
-    case "nodes": return s.navigateToPodsForNode()
-    // ... 11 cases total
-    }
-}
-
-// 11 navigation methods embedded in ConfigScreen
-func (s *ConfigScreen) navigateToPodsForDeployment() tea.Cmd { ... }
-func (s *ConfigScreen) navigateToPodsForService() tea.Cmd { ... }
-// ... 9 more methods
-
-// AFTER (Config-Driven - delegates)
 type NavigationFunc func(*ConfigScreen) tea.Cmd
-
 type ScreenConfig struct {
-    NavigationHandler NavigationFunc  // Optional function pointer
+    NavigationHandler NavigationFunc  // Optional
 }
-
-func (s *ConfigScreen) handleEnterKey() tea.Cmd {
-    if s.config.NavigationHandler != nil {
-        return s.config.NavigationHandler(s)
-    }
-    return nil  // 5 lines total, from 30+
-}
-
-// Each screen configures itself
-func GetDeploymentsScreenConfig() ScreenConfig {
-    return ScreenConfig{
-        NavigationHandler: navigateToPodsForOwner("Deployment"),
-        // ... other config
-    }
-}
-
-// Factory functions in separate file (navigation.go)
-func navigateToPodsForOwner(kind string) NavigationFunc {
-    return func(s *ConfigScreen) tea.Cmd {
-        resource := s.GetSelectedResource()
-        // ... navigation logic
-    }
-}
+// Screen configures itself:
+GetDeploymentsScreenConfig() { NavigationHandler: navigateToPodsForOwner(...) }
 ```
 
-**Benefits**:
-- ✅ Open/Closed Principle satisfied (new types don't modify core component)
-- ✅ Each type configures its own behavior
-- ✅ No switch statements or coupling
-- ✅ Easy to test navigation strategies independently
-- ✅ Reduced file size (800+ lines → 597 lines)
+### Development Workflow Patterns
 
-**When to apply**:
-- Component has N-way switch based on types (N > 5)
-- Each case has similar structure but different behavior
-- Want to add new types without modifying core component
-- Each type should own its behavior
+**Complete Test Coverage**: Create test file IMMEDIATELY with implementation
+1. Test functions themselves (`navigation_test.go`)
+2. Test configuration/wiring (`screens_test.go`)
 
-**When NOT to apply**:
-- Only 2-3 cases (switch is fine)
-- Cases have wildly different signatures
-- Behavior changes frequently across all types (centralized is better)
+**User Intent "Do It Now"**: "do it now"/"now"/"i want you to refactor" = implement immediately, not plan
+- ✅ Implement, test, mark COMPLETE in plan
+- ❌ Add to "Future Refactoring" or ask if they want it
 
-### Visibility Rules: Private by Default
+**Planning Review Checklist**: Before finalizing plans, ask:
+1. Pattern Match: Do similar resources use this? (No PodManager → no DynamicResourceManager)
+2. YAGNI Check: What problem does this solve that existing components can't?
+3. Simplicity Test: Explain in one sentence without "manager"/"coordinator"
+4. Code Comparison: Side-by-side with existing implementation
 
-**Pattern**: Functions within a package should be private (lowercase) unless they need to be exported.
+**k1's core patterns**: Repository → Screen configs → Transform functions. NO managers/coordinators.
 
-**User will catch this**: If you make something public unnecessarily, user will ask "why is this public?"
+### Code Quality
 
-**Example from navigation refactoring** (2025-10-08):
+**Helper Philosophy**: Only create helpers that reduce boilerplate
+- ✅ `messages.ErrorCmd()` - wraps boilerplate
+- ❌ `NewError()` - just use `fmt.Errorf()`
+
+**Go Idioms**: Use `...any` not `...interface{}`, prefer stdlib over custom
+
+**Message Helpers**: Use `internal/messages` for commands
+- `messages.ErrorCmd()`, `messages.SuccessCmd()`, `messages.InfoCmd()`
+- Repository layer: `fmt.Errorf("failed: %w", err)`
+
+## Testing Guidelines
+
+### Strategy by Component
+
+| Component | Approach | Coverage | Focus |
+|-----------|----------|----------|-------|
+| k8s/* | envtest | 80%+ | CRUD, errors, edge cases |
+| screens/* | Mock repo | 70%+ | Config, transforms, operations |
+| commands/* | Mock repo | 70%+ | Validation, messages, success |
+| components/* | Extract handlers | 50-60% | Pure functions, handlers |
+
+**envtest**: Repository layer, real K8s behavior, informers
+**mocks**: Screens, commands, pure functions, speed critical
+
+### Coverage Check
+
+```bash
+make test-coverage        # Generate report
+make test-coverage-html   # View in browser
+```
+
+**Current**: 76.7% (k8s), 71.0% (screens) ✅
+
+### Testing Keybindings
+
+Extract handlers from `Update()` to make testable:
 ```go
-// WRONG (public, but only used within screens package)
-func NavigateToPodsForOwner(kind string) NavigationFunc { ... }
-
-// RIGHT (private, internal to screens package)
-func navigateToPodsForOwner(kind string) NavigationFunc { ... }
+func (m Model) handleEnterKey() tea.Cmd { /* logic */ }
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    if key == "enter" { return m, m.handleEnterKey() }
+}
+// Test handleEnterKey() directly
 ```
 
-**Rules**:
-- Factory functions used only within package → private
-- Helper functions → private
-- Only export (uppercase) what needs to be called from other packages
-- When in doubt, start private (easier to make public later)
+### Performance Testing
 
-### Complete Test Coverage for New Files
-
-**Pattern**: When creating a new file with functionality, ALWAYS create corresponding test file immediately.
-
-**User will catch this**: If you create a new file without tests, user will ask "don't we need to add tests?"
-
-**Example from navigation refactoring** (2025-10-08):
-- Created `navigation.go` but forgot tests
-- User: "don't we need to add tests to navigation.go?"
-- Created `navigation_test.go`, but missed testing configuration
-- User: "don't we need to add tests to screens_test.go?"
-
-**Complete test coverage requires**:
-1. **Implementation tests**: Test the functions themselves
-   - New file: `internal/screens/navigation.go` (factory functions)
-   - Need: `internal/screens/navigation_test.go` (test factories)
-2. **Configuration tests**: Test that it's wired correctly
-   - Also need: Update `internal/screens/screens_test.go` (test configs use factories)
-
-**Process**:
-1. Create the test file IMMEDIATELY when creating implementation file
-2. Test both implementation AND configuration/wiring
-3. Run tests before claiming "done"
-4. Don't wait for user to ask
-
-### User Intent: "Do It Now"
-
-**Pattern**: When user says variations of "do it now", they want immediate implementation, not planning.
-
-**User signals**:
-- "do it now"
-- "now"
-- "i want you to refactor the code too"
-- Repeating the request after you've only documented it
-
-**This means**: Implement immediately, not plan for later.
-
-**Example from navigation refactoring** (2025-10-08):
-- User: "about the internal/screens/config.go I'm concern that we are creating a god file"
-- Me: Started to document as "Future Refactoring" in plan
-- User: "no, do it now, update the plan to reflect this for future researches"
-- User: "i want you to refactor the code too"
-- User: "now"
-- User: "when you finish, review the plan again as something done, not something to do in the future"
-
-**Right response**:
-1. Implement the refactoring immediately
-2. Test it thoroughly
-3. Mark as COMPLETE in plan (not future work)
-4. Update documentation to reflect what was DONE
-
-**Wrong response**:
-- Add to "Future Refactoring" section
-- Add to "TODO" list
-- Ask if they want it done now
-- Assume user wants planning when they clearly want action
-
-### Planning Review Checklist
-
-**Problem**: When creating implementation plans from research documents, it's
-easy to blindly follow proposed architectures without critically evaluating
-whether they fit k1's existing patterns.
-
-**Example failure** (2025-10-28, CRD support planning):
-- Research document proposed `DynamicResourceManager` component
-- I copied it into plan without questioning necessity
-- User caught it: "Why do we need a manager? Why can't we do it like any
-  other resource?"
-- **Root cause**: Didn't compare proposed solution against existing patterns
-
-**Mandatory review before finalizing plans**:
-
-After drafting each phase, ask these questions:
-
-1. ✅ **Pattern Match**: Do similar resources use this pattern?
-   ```
-   Question: "We're adding DynamicResourceManager. Do Pods have
-             PodManager?"
-   Answer: No → RED FLAG, remove it
-   ```
-
-2. ✅ **YAGNI Check**: What problem does this solve that existing
-   components can't?
-   ```
-   Question: "Manager caches configs. Are configs expensive to
-             generate?"
-   Answer: No (trivial structs) → REMOVE IT
-   ```
-
-3. ✅ **Simplicity Test**: Can I explain this in one sentence without
-   saying "manager" or "coordinator"?
-   ```
-   Good: "Screens fetch data via Repository using GVR"
-   Bad: "DynamicResourceManager coordinates config lifecycle management"
-   ```
-
-4. ✅ **Code Comparison**: Show side-by-side with existing
-   implementation
-   ```
-   "Here's how Deployments work. Here's how CRD instances will work.
-    Spot the difference? Minimize it."
-   ```
-
-**k1's core patterns** (stick to these unless compelling reason to deviate):
-- **Repository**: Handles informers + data fetching
-- **Screen configs**: Define display (generate at runtime if needed)
-- **Transform functions**: Convert unstructured → typed
-- **No managers/coordinators**: Data flows Repository → Screen → Display
-
-**Apply this to research documents too**: Research documents propose
-architectures based on analysis, but they're not gospel. Validate against
-codebase reality.
+```bash
+time go run cmd/k1/main.go -log-file /tmp/k1.log
+grep "duration" /tmp/k1.log
+```
 
 ## Quick Reference
 
-### Global Keybindings
-- `q` or `ctrl+c`: Quit
-- **Type any character**: Enter filter mode (fuzzy search with negation support)
-- `:`: Open navigation palette (screens, namespaces)
-- `/`: Open command palette (resource operations, includes `/ai` for AI commands)
-- `/ai`: Natural language AI commands (type `/ai ` followed by prompt)
-- `esc`: Exit filter mode or dismiss palette
-- `↑/↓`: Navigate lists (when filter active) or palette items (when palette active)
-- `enter`: Apply filter or execute selected command
+### Bubble Tea Concepts
 
-### Adding a New Screen
-1. Create file in `internal/screens/`
-2. Implement `types.Screen` interface
-3. Register in `internal/app/app.go` `NewModel()`
-4. Add operations to screen's `Operations()` method
+- **Model**: State container
+- **Update**: Message handler → (new model, commands)
+- **View**: Render state → string
+- **Cmd**: Function returning message (async ops)
+- **Init**: Initial command on startup
 
-### Understanding Bubble Tea in This Project
-- **Model**: State container (app state, screen state, UI state)
-- **Update**: Message handler that returns new model and commands
-- **View**: Renders current state to string
-- **Cmd**: Function that returns a message (for async operations)
-- **Init**: Returns initial command to run on startup
+### Lipgloss Patterns
 
-### Common Lipgloss Patterns
 ```go
-// Create styled text
-style := lipgloss.NewStyle().
-    Foreground(lipgloss.Color("63")).
-    Background(lipgloss.Color("235")).
-    Bold(true).
-    Padding(1, 2)
-styledText := style.Render("Hello")
-
-// Join vertically/horizontally
+style := lipgloss.NewStyle().Foreground(color).Bold(true).Padding(1, 2)
 content := lipgloss.JoinVertical(lipgloss.Left, line1, line2)
-
-// Use theme colors
-theme.Primary        // Main accent color
-theme.Success       // Green for success states
-theme.Error         // Red for error states
+theme.Primary / theme.Success / theme.Error
 ```
 
-### Commit Message Format
+### Commit Format
 
-Use semantic commit messages:
 ```
-feat: add hat wobble
-^--^  ^------------^
-|     |
-|     +-> Summary in present tense.
-|
-+-------> Type: chore, docs, feat, fix, refactor, style, or test.
+<type>: <summary>
 ```
 
-**Types:**
-- `feat`: New feature for the user
-- `fix`: Bug fix for the user
-- `docs`: Documentation changes
-- `style`: Formatting, missing semi colons (no production code change)
-- `refactor`: Refactoring production code (e.g., renaming a variable)
-- `test`: Adding missing tests, refactoring tests (no production code change)
-- `chore`: Updating build tasks, etc. (no production code change)
-
-**Note:** Skip generated signatures like "🤖 Generated with Claude Code" or "Co-Authored-By: Claude"
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+**No** "🤖 Generated with Claude Code" or "Co-Authored-By: Claude"
 
 ## Design Documents
 
-Store design decisions in `design/` folder:
-- Follow the `design/TEMPLATE.md` structure if it exists
-- Use descriptive filenames that explain the design topic
-- Update `design/README.md` index if it exists
-- The author should not be @claude and by default should be @renato0307
-- IMPORTANT: Designs, research and plans should be formated to less than 80 characters per line
-- CRITICAL: Designs and research should not include implementations plans
+Store in `design/` folder:
+- Follow `design/TEMPLATE.md` if exists
+- Author: @renato0307 (not @claude)
+- **Format <80 chars/line**
+- **NO implementation plans in designs/research**
 
-## Implementation plan documents
+## Implementation Plans
 
-- Store implementation plans in `thoughts/shared/plans/` folder
-- Use `/create_plan_generic` slash command to create plans (see `.claude/commands/create_plan_generic.md` for instructions)
-- Plans should be **high-level and strategic**, not detailed step-by-step instructions
-- **Progress Tracking**:
-  - Update the plan's TODO section after completing significant work (phase completion, major features)
-  - Mark items as complete `[x]` when done
-  - Add new items discovered during implementation
-  - DO NOT use TodoWrite tool - track progress directly in the plan markdown file
-  - Update plan status at top of file to reflect current phase
+Store in `thoughts/shared/plans/`:
+- Use `/create_plan_generic` slash command
+- High-level and strategic, not step-by-step
+- Track progress in plan markdown (not TodoWrite tool)
+- Update TODO section after major work (phase completion)
+- Update plan status at top to reflect current phase

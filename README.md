@@ -1,11 +1,11 @@
 # k1 💨
 
-The supersonic Kubernetes TUI. Built with Go and Bubble Tea for blazing-fast cluster management at Mach 1 speed.
+A blazing-fast terminal UI for Kubernetes cluster management at Mach 1 speed.
 
 ## Features
 
-- **⚡ Blazing Fast**: Powered by Kubernetes informers with protobuf encoding for near-instant resource viewing
-- **🔍 Fuzzy Search**: Type to filter resources with intelligent fuzzy matching and negation support
+- **⚡ Lightning Fast**: Near-instant resource viewing with real-time cluster updates
+- **🔍 Fuzzy Search**: Type to filter resources with intelligent matching and negation support
 - **🎨 8 Beautiful Themes**: charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai
 - **📊 11 Resource Types**: Pods, Deployments, StatefulSets, DaemonSets, Jobs, CronJobs, Services, ConfigMaps, Secrets, Nodes, Namespaces
 - **⌨️ Vim-style Navigation**: Intuitive keybindings for power users
@@ -29,10 +29,53 @@ make build
 sudo mv k1 /usr/local/bin/
 ```
 
-Or quick build:
-```bash
-go build -o k1 cmd/k1/main.go
-```
+For detailed build instructions and development setup, see [CLAUDE.md](CLAUDE.md).
+
+## Quick Start Tutorial
+
+Your first 5 minutes with k1:
+
+1. **Start k1**: Run `k1` to connect to your current Kubernetes context
+   ```bash
+   k1
+   ```
+
+2. **View resources**: k1 starts on the Pods screen showing all pods in your current namespace
+
+3. **Filter resources**: Type any text to start filtering
+   ```
+   Type: nginx    # Shows only pods matching "nginx"
+   Type: !prod    # Excludes pods containing "prod"
+   Press Esc      # Clear filter
+   ```
+
+4. **Navigate screens**: Press `:` to open navigation palette
+   ```
+   :deployments   # Switch to Deployments screen
+   :services      # Switch to Services screen
+   :nodes         # View cluster nodes
+   ```
+
+5. **Run commands**: Press `/` to open command palette
+   ```
+   /scale 3       # Scale selected deployment to 3 replicas
+   /restart       # Restart selected deployment
+   /yaml          # View resource YAML (or press Ctrl+Y)
+   ```
+
+6. **View details**: Navigate to a resource and press:
+   ```
+   Ctrl+Y         # View YAML
+   Ctrl+D         # Describe with events
+   Ctrl+L         # Get logs command (pods only)
+   ```
+
+7. **Change theme**: Restart with your preferred theme
+   ```bash
+   k1 -theme dracula
+   ```
+
+That's it! Explore the command palette (`/`) to discover more operations.
 
 ## Usage
 
@@ -50,9 +93,6 @@ k1 -kubeconfig /path/to/kubeconfig
 
 # Run with specific theme
 k1 -theme dracula
-
-# Run with dummy data (no cluster connection)
-k1 -dummy
 ```
 
 ### Keybindings
@@ -115,59 +155,183 @@ Press `:` to open the navigation palette:
 
 ## Available Themes
 
-k1 includes 8 carefully crafted themes:
-
-1. **charm** (default) - Charming pink and purple pastels
-2. **dracula** - Dark theme with vibrant colors
-3. **catppuccin** - Soothing pastel theme
-4. **nord** - Arctic, north-bluish color palette
-5. **gruvbox** - Retro groove colors
-6. **tokyo-night** - Clean, elegant dark theme
-7. **solarized** - Precision colors for machines and people
-8. **monokai** - Sublime Text's iconic color scheme
-
-Try them with: `k1 -theme <name>`
+k1 includes 8 carefully crafted themes. See the Configuration section for details on how to use them.
 
 ## Configuration
 
-k1 uses your existing kubeconfig:
-- Default location: `~/.kube/config`
-- Respects `KUBECONFIG` environment variable
-- Switch contexts with `-context` flag
+### Kubeconfig
 
-## Architecture
+k1 uses your existing Kubernetes configuration:
 
-k1 uses Kubernetes informers with client-side caching for blazing-fast performance:
-- **Initial sync**: 1-2 seconds (one-time per session)
-- **Subsequent queries**: Microsecond-fast from local cache
-- **Real-time updates**: Automatic via watch connections
-- **Protobuf encoding**: Reduced network transfer vs JSON
+**Config location (in order of precedence)**:
+1. `-kubeconfig` flag: `k1 -kubeconfig /path/to/config`
+2. `KUBECONFIG` environment variable
+3. Default: `~/.kube/config`
 
-### Quick Start
-
+**Context switching**:
 ```bash
-# Run tests
-make test
+# Use specific context
+k1 -context production
 
-# Run with live cluster
-make run
+# List available contexts
+kubectl config get-contexts
 
-# Run with dummy data
-make run-dummy
-
-# Build binary
-make build
+# Set default context (k1 will use it)
+kubectl config use-context staging
 ```
+
+### Themes
+
+k1 includes 8 built-in themes:
+
+| Theme | Description |
+|-------|-------------|
+| charm (default) | Charming pink and purple pastels |
+| dracula | Dark theme with vibrant colors |
+| catppuccin | Soothing pastel theme |
+| nord | Arctic, north-bluish color palette |
+| gruvbox | Retro groove colors |
+| tokyo-night | Clean, elegant dark theme |
+| solarized | Precision colors for machines and people |
+| monokai | Sublime Text's iconic color scheme |
+
+**Usage**:
+```bash
+k1 -theme dracula
+k1 -theme nord
+```
+
+### Persistent Configuration (Future)
+
+Currently planned for `~/.config/k1/config.yaml`:
+- Default theme
+- Preferred namespace
+- Window layout preferences
+- Command aliases
+
+## Troubleshooting
+
+### Connection Issues
+
+**k1 won't start or shows connection errors**
+- Verify kubeconfig is valid: `kubectl cluster-info`
+- Check current context: `kubectl config current-context`
+- Try specifying context explicitly: `k1 -context my-cluster`
+- If using custom kubeconfig: `k1 -kubeconfig /path/to/config`
+- Check cluster API server is reachable from your network
+
+**RBAC / Permission errors**
+- Verify you have list permissions: `kubectl auth can-i list pods`
+- Check namespace access: `kubectl auth can-i list pods -n <namespace>`
+- Some resources require cluster-level permissions (nodes, namespaces)
+- Contact your cluster admin if permissions are missing
+
+### UI / Display Issues
+
+**Filter not working or typing doesn't filter**
+- Make sure you're not in command palette mode (`:` or `/`)
+- Press `Esc` to exit any active mode and try again
+- Filter is fuzzy - try partial matches (e.g., "ngx" matches "nginx")
+
+**Commands don't show up in palette**
+- Commands are context-sensitive (e.g., `/scale` only for deployments/statefulsets)
+- Make sure you have a resource selected (highlighted row)
+- Press `/` (not `:`) for command palette
+
+**Theme looks weird or colors are wrong**
+- Check your terminal supports 256 colors
+- Try a different theme: `k1 -theme nord`
+- Some terminals may not display all themes correctly
+
+**Resources not showing up**
+- Check namespace: k1 shows resources from current context's namespace
+- Switch namespaces via navigation palette (`:`)
+- Verify resources exist: `kubectl get pods -n <namespace>`
+- Check RBAC permissions (see above)
+
+### Performance Issues
+
+**Initial startup is slow (>5 seconds)**
+- First sync loads all resources into cache (one-time cost)
+- On very large clusters (5000+ resources), this can take longer
+- Subsequent starts in same session are instant (cached)
+
+**High memory usage**
+- k1 caches all resources locally for speed
+- Large clusters (10000+ resources) may use 500MB-1GB RAM
+- This is normal - informer caching trades memory for speed
+
+**Screen updates are slow**
+- Check network connection to API server
+- Very large resource lists (1000+ rows) may render slower
+- Try filtering to reduce visible rows
+
+## FAQ
+
+### How is k1 different from k9s?
+
+k1 is inspired by k9s but focuses on simplicity and speed:
+- **Simpler UI**: Fewer modes, clearer command palette
+- **Faster startup**: Optimized informer usage, protobuf encoding
+- **Modern stack**: Built with Bubble Tea (Go's modern TUI framework)
+- **AI integration**: Experimental `/ai` commands for natural language operations
+
+Both are excellent tools - try both and use what feels better!
+
+### Do I need kubectl installed?
+
+No! k1 uses the Kubernetes Go client directly. However, some generated commands (logs, shell) are designed to work with kubectl for convenience.
+
+### Does k1 modify my cluster?
+
+k1 only modifies your cluster when you explicitly run a command:
+- Read operations (view, describe, yaml) are completely safe
+- Write operations (scale, restart, delete, drain) require confirmation
+- k1 never modifies resources without your explicit action
+
+### Where does k1 store configuration?
+
+Currently, k1 is stateless - it doesn't persist any configuration between runs. Settings like theme and context must be specified via flags each time.
+
+Future versions will support persistent configuration in `~/.config/k1/`.
+
+### Can I use k1 with multiple clusters?
+
+Yes! Use the `-context` flag to switch between contexts:
+```bash
+k1 -context production
+k1 -context staging
+```
+
+k1 respects your kubeconfig contexts just like kubectl.
+
+### How do I report bugs or request features?
+
+- **Bugs**: Open an issue at https://github.com/yourusername/k1/issues
+- **Features**: Open a discussion or issue describing your use case
+- **Security issues**: Email security@yourdomain.com (do not open public issues)
+
+### Can I contribute to k1?
+
+Absolutely! See [CLAUDE.md](CLAUDE.md) for development setup and contribution guidelines.
+
+### What's the license?
+
+k1 is licensed under GNU General Public License v3.0 - you're free to use, modify, and distribute it under the GPL terms.
+
+## Contributing
+
+See [CLAUDE.md](CLAUDE.md) for development setup and architecture documentation.
 
 ## Roadmap
 
-- [ ] Configuration persistence (~/.config/k1/)
-- [ ] Resource editing
-- [ ] Log streaming in TUI
-- [ ] AI based commands
-- [ ] Search on yaml and describe
-- [ ] Copy screen to clipboard
-- [ ] Shell into pod
+- [ ] **Save preferences**: Theme, default namespace, window layout
+- [ ] **Edit resources**: Modify YAML directly in the TUI
+- [ ] **Live log streaming**: View pod logs without leaving k1
+- [ ] **Enhanced AI commands**: More powerful natural language operations
+- [ ] **Advanced search**: Find text in YAML and describe output
+- [ ] **Copy to clipboard**: Export entire screen or selected resources
+- [ ] **Interactive shell**: Execute commands in pods without copying
 
 ## Inspiration
 
