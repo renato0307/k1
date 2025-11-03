@@ -445,7 +445,7 @@ func (cb *CommandBar) handlePaletteEnter() (*CommandBar, tea.Cmd) {
 	// Execute command
 	var cmd tea.Cmd
 	if selected.Execute != nil {
-		ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "")
+		ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "", commandStr)
 		cmd = selected.Execute(ctx)
 	}
 
@@ -601,7 +601,7 @@ func (cb *CommandBar) handleInputEnter() (*CommandBar, tea.Cmd) {
 		category = commands.CategoryAction
 	}
 
-	ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, args)
+	ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, args, inputStr)
 	cmd, needsConfirm := cb.executor.Execute(cmdName, category, ctx)
 
 	if needsConfirm {
@@ -639,10 +639,11 @@ func (cb *CommandBar) handleConfirmationState(msg tea.KeyMsg) (*CommandBar, tea.
 
 	case "enter":
 		// Add to history
-		cb.history.Add(cb.input.Get())
+		originalCmd := cb.input.Get()
+		cb.history.Add(originalCmd)
 
 		// Execute pending command
-		ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "")
+		ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "", originalCmd)
 		cmd := cb.executor.ExecutePending(ctx)
 
 		// Return to hidden
@@ -783,7 +784,19 @@ func (cb *CommandBar) ViewPaletteItems() string {
 
 // ExecuteCommand executes a command by name and category.
 func (cb *CommandBar) ExecuteCommand(name string, category commands.CommandCategory) (*CommandBar, tea.Cmd) {
-	ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "")
+	// Construct original command string from name and category
+	var prefix string
+	switch category {
+	case commands.CategoryResource:
+		prefix = ":"
+	case commands.CategoryAction:
+		prefix = "/"
+	case commands.CategoryLLMAction:
+		prefix = "/ai "
+	}
+	originalCmd := prefix + name
+
+	ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, "", originalCmd)
 	cmd, needsConfirm := cb.executor.Execute(name, category, ctx)
 
 	if needsConfirm {

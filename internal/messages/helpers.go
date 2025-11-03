@@ -65,3 +65,27 @@ func WrapError(err error, format string, args ...any) error {
 	context := fmt.Sprintf(format, args...)
 	return fmt.Errorf("%s: %w", context, err)
 }
+
+// WithHistory adds history tracking to a StatusMsg command.
+// Use this to make commands trackable in the :output screen.
+//
+// Example:
+//
+//	metadata := &types.CommandMetadata{
+//	    Command:   "/scale deployment nginx 3",
+//	    Context:   contextName,
+//	    Duration:  time.Since(start),
+//	    Timestamp: time.Now(),
+//	}
+//	return messages.WithHistory(messages.SuccessCmd("Scaled to %d", replicas), metadata)
+func WithHistory(cmd tea.Cmd, metadata *types.CommandMetadata) tea.Cmd {
+	return func() tea.Msg {
+		msg := cmd()
+		if statusMsg, ok := msg.(types.StatusMsg); ok {
+			statusMsg.TrackInHistory = true
+			statusMsg.HistoryMetadata = metadata
+			return statusMsg
+		}
+		return msg
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/renato0307/k1/internal/components"
 	"github.com/renato0307/k1/internal/k8s"
 	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/types"
@@ -543,5 +544,36 @@ func GetContextsScreenConfig() ScreenConfig {
 		EnablePeriodicRefresh: true,                       // Auto-refresh to update loading status
 		RefreshInterval:       ContextsRefreshInterval,    // Refresh every 30 seconds (contexts don't change often)
 		CustomUpdate:          getPeriodicRefreshUpdate(), // Handle tick messages for refresh
+	}
+}
+
+// GetOutputScreenConfig returns the config for the Command Output History screen
+func GetOutputScreenConfig(buffer *components.OutputBuffer) ScreenConfig {
+	return ScreenConfig{
+		ID:    "output",
+		Title: "Command Output History",
+		Columns: []ColumnConfig{
+			{Field: "Timestamp", Title: "Time", MinWidth: 8, MaxWidth: 10, Weight: 0.5, Priority: 1, Format: FormatTime},
+			{Field: "Context", Title: "Context", MinWidth: 12, MaxWidth: 25, Weight: 1.0, Priority: 1},
+			{Field: "Command", Title: "Command", MinWidth: 12, MaxWidth: 20, Weight: 0.8, Priority: 1},
+			{Field: "KubectlCommand", Title: "Kubectl", MinWidth: 25, MaxWidth: 80, Weight: 2.5, Priority: 2},
+			{Field: "Status", Title: "Status", MinWidth: 6, MaxWidth: 8, Weight: 0.3, Priority: 1, Format: FormatStatus},
+			{Field: "Output", Title: "Output", MinWidth: 35, MaxWidth: 120, Weight: 3.5, Priority: 1}, // Grows most, shows more before truncation
+		},
+		SearchFields: []string{"Context", "Command", "KubectlCommand", "Output"},
+		Operations:   []OperationConfig{},
+		CustomRefresh: func(s *ConfigScreen) tea.Cmd {
+			return func() tea.Msg {
+				entries := buffer.GetAll()
+				items := make([]interface{}, len(entries))
+				for i, entry := range entries {
+					items[i] = entry
+				}
+				s.items = items
+				s.applyFilter()
+				return types.RefreshCompleteMsg{Duration: 0}
+			}
+		},
+		TrackSelection: false,
 	}
 }
