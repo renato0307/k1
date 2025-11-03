@@ -1,5 +1,7 @@
 package commandbar
 
+import "time"
+
 // CommandType represents the type of command being entered.
 type CommandType int
 
@@ -22,3 +24,6 @@ const (
 	StateLLMPreview                        // /ai command preview
 	StateResult                            // Success/error message
 )
+
+// tipRotationMsg triggers rotation to next tip
+type tipRotationMsg time.Time

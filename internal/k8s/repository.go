@@ -66,8 +66,8 @@ type Repository interface {
 	GetResourcesByGVR(gvr schema.GroupVersionResource, transform TransformFunc) ([]any, error)
 	EnsureCRInformer(gvr schema.GroupVersionResource) error
 	IsInformerSynced(gvr schema.GroupVersionResource) bool
-	AreTypedInformersReady() bool // Check if typed informers (pods, deployments, services, etc.) are synced
-	GetTypedInformersSyncError() error // Get error if typed informers failed to sync
+	AreTypedInformersReady() bool                                      // Check if typed informers (pods, deployments, services, etc.) are synced
+	GetTypedInformersSyncError() error                                 // Get error if typed informers failed to sync
 	GetDynamicInformerSyncError(gvr schema.GroupVersionResource) error // Get error if dynamic informer failed to sync
 	// Ensure informer for resource type is loaded (for on-demand Tier 0 resources)
 	EnsureResourceTypeInformer(resourceType ResourceType) error

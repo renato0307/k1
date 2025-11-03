@@ -28,8 +28,8 @@ type startConfigLoadingMsg struct{}
 
 // ColumnConfig defines a column in the resource list table
 type ColumnConfig struct {
-	Field    string                   // Field name in resource struct
-	Title    string                   // Column display title
+	Field string // Field name in resource struct
+	Title string // Column display title
 
 	// Width fields (backward compatible):
 	// NEW: Set MinWidth/MaxWidth/Weight for weighted distribution

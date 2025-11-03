@@ -8,8 +8,8 @@ type Context struct {
 	Cluster   string
 	User      string
 	Namespace string
-	Status    string    // "Loaded", "Loading", "Failed", "Not Loaded"
-	Current   string    // "✓" if current, "" otherwise
-	Error     string    // Error message if failed
+	Status    string // "Loaded", "Loading", "Failed", "Not Loaded"
+	Current   string // "✓" if current, "" otherwise
+	Error     string // Error message if failed
 	LoadedAt  time.Time
 }

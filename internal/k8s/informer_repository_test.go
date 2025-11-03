@@ -68,74 +68,74 @@ func TestInformerRepository_GetPods_EmptyCluster(t *testing.T) {
 
 func TestInformerRepository_GetPods_PodStates(t *testing.T) {
 	tests := []struct {
-		name            string
-		podName         string
-		containerName   string
-		phase           corev1.PodPhase
-		containerReady  bool
-		restartCount    int32
-		nodeIP          string
-		expectedStatus  string
-		expectedReady   string
+		name             string
+		podName          string
+		containerName    string
+		phase            corev1.PodPhase
+		containerReady   bool
+		restartCount     int32
+		nodeIP           string
+		expectedStatus   string
+		expectedReady    string
 		expectedRestarts int32
-		expectedNode    string
-		expectedIP      string
+		expectedNode     string
+		expectedIP       string
 	}{
 		{
-			name:            "running pod with ready container",
-			podName:         "test-pod",
-			containerName:   "nginx",
-			phase:           corev1.PodRunning,
-			containerReady:  true,
-			restartCount:    0,
-			nodeIP:          "10.0.0.1",
-			expectedStatus:  "Running",
-			expectedReady:   "1/1",
+			name:             "running pod with ready container",
+			podName:          "test-pod",
+			containerName:    "nginx",
+			phase:            corev1.PodRunning,
+			containerReady:   true,
+			restartCount:     0,
+			nodeIP:           "10.0.0.1",
+			expectedStatus:   "Running",
+			expectedReady:    "1/1",
 			expectedRestarts: 0,
-			expectedNode:    "test-node",
-			expectedIP:      "10.0.0.1",
+			expectedNode:     "test-node",
+			expectedIP:       "10.0.0.1",
 		},
 		{
-			name:            "crash loop pod with high restarts",
-			podName:         "crash-pod",
-			containerName:   "failing-app",
-			phase:           corev1.PodRunning,
-			containerReady:  false,
-			restartCount:    15,
-			nodeIP:          "10.0.0.2",
-			expectedStatus:  "Running",
-			expectedReady:   "0/1",
+			name:             "crash loop pod with high restarts",
+			podName:          "crash-pod",
+			containerName:    "failing-app",
+			phase:            corev1.PodRunning,
+			containerReady:   false,
+			restartCount:     15,
+			nodeIP:           "10.0.0.2",
+			expectedStatus:   "Running",
+			expectedReady:    "0/1",
 			expectedRestarts: 15,
-			expectedNode:    "test-node",
-			expectedIP:      "10.0.0.2",
+			expectedNode:     "test-node",
+			expectedIP:       "10.0.0.2",
 		},
 		{
-			name:            "pending pod",
-			podName:         "pending-pod",
-			containerName:   "app",
-			phase:           corev1.PodPending,
-			containerReady:  false,
-			restartCount:    0,
-			nodeIP:          "",
-			expectedStatus:  "Pending",
-			expectedReady:   "0/1",
+			name:             "pending pod",
+			podName:          "pending-pod",
+			containerName:    "app",
+			phase:            corev1.PodPending,
+			containerReady:   false,
+			restartCount:     0,
+			nodeIP:           "",
+			expectedStatus:   "Pending",
+			expectedReady:    "0/1",
 			expectedRestarts: 0,
-			expectedNode:    "test-node",
-			expectedIP:      "",
+			expectedNode:     "test-node",
+			expectedIP:       "",
 		},
 		{
-			name:            "pod with multiple restarts",
-			podName:         "restart-pod",
-			containerName:   "app",
-			phase:           corev1.PodRunning,
-			containerReady:  true,
-			restartCount:    3,
-			nodeIP:          "10.0.0.3",
-			expectedStatus:  "Running",
-			expectedReady:   "1/1",
+			name:             "pod with multiple restarts",
+			podName:          "restart-pod",
+			containerName:    "app",
+			phase:            corev1.PodRunning,
+			containerReady:   true,
+			restartCount:     3,
+			nodeIP:           "10.0.0.3",
+			expectedStatus:   "Running",
+			expectedReady:    "1/1",
 			expectedRestarts: 3,
-			expectedNode:    "test-node",
-			expectedIP:      "10.0.0.3",
+			expectedNode:     "test-node",
+			expectedIP:       "10.0.0.3",
 		},
 	}
 
@@ -324,15 +324,15 @@ func TestInformerRepository_GetServices_EmptyCluster(t *testing.T) {
 
 func TestInformerRepository_GetServices_ServiceTypes(t *testing.T) {
 	tests := []struct {
-		name              string
-		serviceType       corev1.ServiceType
-		ports             []corev1.ServicePort
-		externalIPs       []string
-		loadBalancerIP    string
-		loadBalancerHost  string
-		expectedType      string
-		expectedExtIP     string
-		checkPorts        func(t *testing.T, ports string)
+		name             string
+		serviceType      corev1.ServiceType
+		ports            []corev1.ServicePort
+		externalIPs      []string
+		loadBalancerIP   string
+		loadBalancerHost string
+		expectedType     string
+		expectedExtIP    string
+		checkPorts       func(t *testing.T, ports string)
 	}{
 		{
 			name:        "ClusterIP service with regular ports",
@@ -361,13 +361,13 @@ func TestInformerRepository_GetServices_ServiceTypes(t *testing.T) {
 			},
 		},
 		{
-			name:           "Service with external IPs from spec",
-			serviceType:    corev1.ServiceTypeClusterIP,
-			ports:          []corev1.ServicePort{{Port: 443, Protocol: corev1.ProtocolTCP}},
-			externalIPs:    []string{"203.0.113.1", "203.0.113.2"},
-			expectedType:   "ClusterIP",
-			expectedExtIP:  "203.0.113.1,203.0.113.2",
-			checkPorts:     func(t *testing.T, ports string) { assert.Equal(t, "443/TCP", ports) },
+			name:          "Service with external IPs from spec",
+			serviceType:   corev1.ServiceTypeClusterIP,
+			ports:         []corev1.ServicePort{{Port: 443, Protocol: corev1.ProtocolTCP}},
+			externalIPs:   []string{"203.0.113.1", "203.0.113.2"},
+			expectedType:  "ClusterIP",
+			expectedExtIP: "203.0.113.1,203.0.113.2",
+			checkPorts:    func(t *testing.T, ports string) { assert.Equal(t, "443/TCP", ports) },
 		},
 		{
 			name:           "LoadBalancer with IP in status",
@@ -755,7 +755,7 @@ func TestSortByAge_UsesAgeField(t *testing.T) {
 			ResourceMetadata: ResourceMetadata{
 				Name:      "restarted-pod",
 				CreatedAt: now.Add(-10 * time.Hour), // Created 10h ago
-				Age:       5 * time.Minute,           // But Age shows 5m (restarted)
+				Age:       5 * time.Minute,          // But Age shows 5m (restarted)
 			},
 		},
 		// Recent CreatedAt and Age match

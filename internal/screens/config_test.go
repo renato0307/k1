@@ -1279,10 +1279,10 @@ func TestConfigScreen_FuzzySearchSubstring(t *testing.T) {
 
 	// Test substring matching (not just prefix)
 	tests := []struct {
-		name           string
-		filter         string
-		expectedCount  int
-		shouldContain  []string
+		name          string
+		filter        string
+		expectedCount int
+		shouldContain []string
 	}{
 		{
 			name:          "substring in middle matches",

@@ -30,7 +30,8 @@ type InputField struct {
 
 // GenerateInputFields reads struct tags and creates InputField slice
 // Struct tags format:
-//   Field type `form:"name" title:"Display" type:"input|select|confirm" validate:"rules" default:"val" optional:"true"`
+//
+//	Field type `form:"name" title:"Display" type:"input|select|confirm" validate:"rules" default:"val" optional:"true"`
 func GenerateInputFields(argsStruct interface{}) ([]InputField, error) {
 	if argsStruct == nil {
 		return nil, nil

@@ -13,19 +13,19 @@ import (
 // navigationRegistry maps screen IDs to their names
 // This table-driven approach eliminates 11 nearly-identical functions
 var navigationRegistry = map[string]string{
-	"pods":                        "pods",
-	"deployments":                 "deployments",
-	"services":                    "services",
-	"configmaps":                  "configmaps",
-	"secrets":                     "secrets",
-	"namespaces":                  "namespaces",
-	"statefulsets":                "statefulsets",
-	"daemonsets":                  "daemonsets",
-	"jobs":                        "jobs",
-	"cronjobs":                    "cronjobs",
-	"nodes":                       "nodes",
-	"customresourcedefinitions":   "customresourcedefinitions",
-	"crds":                        "customresourcedefinitions", // Alias
+	"pods":                      "pods",
+	"deployments":               "deployments",
+	"services":                  "services",
+	"configmaps":                "configmaps",
+	"secrets":                   "secrets",
+	"namespaces":                "namespaces",
+	"statefulsets":              "statefulsets",
+	"daemonsets":                "daemonsets",
+	"jobs":                      "jobs",
+	"cronjobs":                  "cronjobs",
+	"nodes":                     "nodes",
+	"customresourcedefinitions": "customresourcedefinitions",
+	"crds":                      "customresourcedefinitions", // Alias
 }
 
 // NavigationCommand returns execute function for switching to a screen

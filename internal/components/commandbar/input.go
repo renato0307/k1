@@ -149,7 +149,8 @@ func (i *Input) ParseCommand() (prefix, cmdName, args string) {
 
 // GetArgumentHint returns the argument pattern hint for the current input.
 // Shows remaining args as user types: "/logs " → "[container] [tail] [follow]"
-//                                      "/logs nginx " → "[tail] [follow]"
+//
+//	"/logs nginx " → "[tail] [follow]"
 func (i *Input) GetArgumentHint(cmdType CommandType) string {
 	// Only show hints for command inputs (: or /)
 	if len(i.buffer) == 0 {
