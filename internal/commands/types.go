@@ -50,13 +50,13 @@ type ExecuteFunc func(ctx CommandContext) tea.Cmd
 
 // Command represents a command in the palette
 type Command struct {
-	Name              string              // Short command name (e.g., "pods", "yaml")
-	Description       string              // Human-readable description
-	Category          CommandCategory     // Command category
-	NeedsConfirmation bool                // Whether the command requires confirmation
-	Execute           ExecuteFunc         // Execution function
-	ResourceTypes     []k8s.ResourceType  // Resource types this command applies to (empty = all)
-	Shortcut          string              // Keyboard shortcut (e.g., "ctrl+y")
-	ArgsType          any                 // Pointer to args struct (e.g., &ScaleArgs{}) for reflection
-	ArgPattern        string              // Display pattern for palette (e.g., " <replicas>" or " [grace] [force]")
+	Name              string             // Short command name (e.g., "pods", "yaml")
+	Description       string             // Human-readable description
+	Category          CommandCategory    // Command category
+	NeedsConfirmation bool               // Whether the command requires confirmation
+	Execute           ExecuteFunc        // Execution function
+	ResourceTypes     []k8s.ResourceType // Resource types this command applies to (empty = all)
+	Shortcut          string             // Keyboard shortcut (e.g., "ctrl+y")
+	ArgsType          any                // Pointer to args struct (e.g., &ScaleArgs{}) for reflection
+	ArgPattern        string             // Display pattern for palette (e.g., " <replicas>" or " [grace] [force]")
 }

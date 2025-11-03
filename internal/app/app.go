@@ -152,6 +152,7 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.currentScreen.Init(),
+		m.commandBar.Init(), // Start tip rotation
 		tea.Tick(DisplayUpdateInterval, func(t time.Time) tea.Msg {
 			return displayTickMsg(t)
 		}),
@@ -159,6 +160,23 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// Route all messages to command bar for timer handling (including tipRotationMsg)
+	// Key messages will be handled in their respective cases below (no double processing)
+	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+		updatedBar, barCmd := m.commandBar.Update(msg)
+		m.commandBar = updatedBar
+		if barCmd != nil {
+			logging.Debug("App.Update: CommandBar returned cmd for non-key message",
+				"msgType", fmt.Sprintf("%T", msg),
+				"cmdsBefore", len(cmds))
+			cmds = append(cmds, barCmd)
+			logging.Debug("App.Update: Added cmd to batch",
+				"cmdsAfter", len(cmds))
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.state.Width = msg.Width
@@ -173,7 +191,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			screenWithSize.SetSize(msg.Width, bodyHeight)
 		}
 
-		return m, nil
+		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		// Handle global shortcuts
@@ -352,7 +370,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				screenWithSize.SetSize(m.state.Width, bodyHeight)
 			}
 
-			return m, tea.Batch(screen.Init(), restoreFilterCmd)
+			cmds = append(cmds, screen.Init())
+			if restoreFilterCmd != nil {
+				cmds = append(cmds, restoreFilterCmd)
+			}
+			return m, tea.Batch(cmds...)
 		}
 
 	case types.RefreshCompleteMsg:
@@ -371,7 +393,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		model, cmd := m.currentScreen.Update(msg)
 		m.currentScreen = model.(types.Screen)
-		return m, cmd
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
 
 	case types.StatusMsg:
 		m.messageID++ // Increment to invalidate any pending clear timers
@@ -397,16 +420,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			statusCmd := tea.Tick(StatusBarDisplayDuration, func(t time.Time) tea.Msg {
 				return types.ClearStatusMsg{MessageID: currentID}
 			})
-			return m, tea.Batch(cmd, statusCmd, spinnerCmd)
+			cmds = append(cmds, cmd, statusCmd, spinnerCmd)
+			return m, tea.Batch(cmds...)
 		}
-		return m, tea.Batch(cmd, spinnerCmd)
+		cmds = append(cmds, cmd, spinnerCmd)
+		return m, tea.Batch(cmds...)
 
 	case types.ClearStatusMsg:
 		// Only clear if this timer belongs to the current message
 		if msg.MessageID == m.messageID {
 			m.userMessage.ClearMessage()
 		}
-		return m, nil
+		return m, tea.Batch(cmds...)
 
 	case displayTickMsg:
 		// Update display elements (refresh time) without refreshing data
@@ -420,7 +445,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tickCmd := tea.Tick(DisplayUpdateInterval, func(t time.Time) tea.Msg {
 			return displayTickMsg(t)
 		})
-		return m, tea.Batch(tickCmd)
+		cmds = append(cmds, tickCmd)
+		return m, tea.Batch(cmds...)
 
 	case types.ContextLoadProgressMsg:
 		// Check if loading is complete (Phase == 3 is PhaseComplete)
@@ -577,12 +603,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Forward messages to status bar for spinner tick handling
 	updatedUserMessage, userMessageCmd := m.userMessage.Update(msg)
 	m.userMessage = updatedUserMessage
+	if userMessageCmd != nil {
+		cmds = append(cmds, userMessageCmd)
+	}
 
 	// Forward messages to current screen
 	var screenCmd tea.Cmd
 	model, screenCmd := m.currentScreen.Update(msg)
 	m.currentScreen = model.(types.Screen)
-	return m, tea.Batch(userMessageCmd, screenCmd)
+	if screenCmd != nil {
+		cmds = append(cmds, screenCmd)
+	}
+
+	logging.Debug("App.Update: End of function, returning batch",
+		"totalCmds", len(cmds))
+
+	return m, tea.Batch(cmds...)
 }
 
 // pushNavigationHistory saves the current screen state to history

@@ -511,7 +511,7 @@ func GetCRDsScreenConfig() ScreenConfig {
 			{Field: "Scope", Title: "Scope", Width: 12, Priority: 3},
 			{Field: "Age", Title: "Age", Width: 10, Format: FormatDuration, Priority: 1},
 		},
-		SearchFields:          []string{"Name", "Group", "Kind"},
+		SearchFields: []string{"Name", "Group", "Kind"},
 		Operations: []OperationConfig{
 			{ID: "describe", Name: "Describe", Description: "Describe selected CRD", Shortcut: "d"},
 			{ID: "yaml", Name: "View YAML", Description: "View CRD YAML", Shortcut: "y"},

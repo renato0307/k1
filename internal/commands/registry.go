@@ -25,330 +25,330 @@ func getPrevContextShortcut() string {
 // NewRegistry creates a new command registry with default commands
 func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 	commands := []Command{
-			// Navigation commands (: prefix)
-			{
-				Name:        "pods",
-				Description: "Switch to Pods screen",
-				Category:    CategoryResource,
-				Execute:     PodsCommand(),
-			},
-			{
-				Name:        "deployments",
-				Description: "Switch to Deployments screen",
-				Category:    CategoryResource,
-				Execute:     DeploymentsCommand(),
-			},
-			{
-				Name:        "services",
-				Description: "Switch to Services screen",
-				Category:    CategoryResource,
-				Execute:     ServicesCommand(),
-			},
-			{
-				Name:        "configmaps",
-				Description: "Switch to ConfigMaps screen",
-				Category:    CategoryResource,
-				Execute:     ConfigMapsCommand(),
-			},
-			{
-				Name:        "secrets",
-				Description: "Switch to Secrets screen",
-				Category:    CategoryResource,
-				Execute:     SecretsCommand(),
-			},
-			{
-				Name:        "namespaces",
-				Description: "Switch to Namespaces screen",
-				Category:    CategoryResource,
-				Execute:     NamespacesCommand(),
-			},
-			{
-				Name:        "statefulsets",
-				Description: "Switch to StatefulSets screen",
-				Category:    CategoryResource,
-				Execute:     StatefulSetsCommand(),
-			},
-			{
-				Name:        "daemonsets",
-				Description: "Switch to DaemonSets screen",
-				Category:    CategoryResource,
-				Execute:     DaemonSetsCommand(),
-			},
-			{
-				Name:        "jobs",
-				Description: "Switch to Jobs screen",
-				Category:    CategoryResource,
-				Execute:     JobsCommand(),
-			},
-			{
-				Name:        "cronjobs",
-				Description: "Switch to CronJobs screen",
-				Category:    CategoryResource,
-				Execute:     CronJobsCommand(),
-			},
-			{
-				Name:        "nodes",
-				Description: "Switch to Nodes screen",
-				Category:    CategoryResource,
-				Execute:     NodesCommand(),
-			},
-			{
-				Name:        "replicasets",
-				Description: "Switch to ReplicaSets screen",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("replicasets"),
-			},
-			{
-				Name:        "persistentvolumeclaims",
-				Description: "Switch to PersistentVolumeClaims screen",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("persistentvolumeclaims"),
-			},
-			{
-				Name:        "pvcs",
-				Description: "Switch to PersistentVolumeClaims screen (alias)",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("persistentvolumeclaims"),
-			},
-			{
-				Name:        "ingresses",
-				Description: "Switch to Ingresses screen",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("ingresses"),
-			},
-			{
-				Name:        "endpoints",
-				Description: "Switch to Endpoints screen",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("endpoints"),
-			},
-			{
-				Name:        "horizontalpodautoscalers",
-				Description: "Switch to HorizontalPodAutoscalers screen",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("horizontalpodautoscalers"),
-			},
-			{
-				Name:        "hpas",
-				Description: "Switch to HorizontalPodAutoscalers screen (alias)",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("horizontalpodautoscalers"),
-			},
-			{
-				Name:        "customresourcedefinitions",
-				Description: "Switch to Custom Resource Definitions screen",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("customresourcedefinitions"),
-			},
-			{
-				Name:        "crds",
-				Description: "Switch to Custom Resource Definitions screen (alias)",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("customresourcedefinitions"),
-			},
-			{
-				Name:        "system-resources",
-				Description: "View system resource statistics",
-				Category:    CategoryResource,
-				Execute:     NavigationCommand("system-resources"),
-			},
-			{
-				Name:        "ns",
-				Description: "Filter by namespace",
-				Category:    CategoryResource,
-				Execute:     NamespaceFilterCommand(),
-			},
+		// Navigation commands (: prefix)
+		{
+			Name:        "pods",
+			Description: "Switch to Pods screen",
+			Category:    CategoryResource,
+			Execute:     PodsCommand(),
+		},
+		{
+			Name:        "deployments",
+			Description: "Switch to Deployments screen",
+			Category:    CategoryResource,
+			Execute:     DeploymentsCommand(),
+		},
+		{
+			Name:        "services",
+			Description: "Switch to Services screen",
+			Category:    CategoryResource,
+			Execute:     ServicesCommand(),
+		},
+		{
+			Name:        "configmaps",
+			Description: "Switch to ConfigMaps screen",
+			Category:    CategoryResource,
+			Execute:     ConfigMapsCommand(),
+		},
+		{
+			Name:        "secrets",
+			Description: "Switch to Secrets screen",
+			Category:    CategoryResource,
+			Execute:     SecretsCommand(),
+		},
+		{
+			Name:        "namespaces",
+			Description: "Switch to Namespaces screen",
+			Category:    CategoryResource,
+			Execute:     NamespacesCommand(),
+		},
+		{
+			Name:        "statefulsets",
+			Description: "Switch to StatefulSets screen",
+			Category:    CategoryResource,
+			Execute:     StatefulSetsCommand(),
+		},
+		{
+			Name:        "daemonsets",
+			Description: "Switch to DaemonSets screen",
+			Category:    CategoryResource,
+			Execute:     DaemonSetsCommand(),
+		},
+		{
+			Name:        "jobs",
+			Description: "Switch to Jobs screen",
+			Category:    CategoryResource,
+			Execute:     JobsCommand(),
+		},
+		{
+			Name:        "cronjobs",
+			Description: "Switch to CronJobs screen",
+			Category:    CategoryResource,
+			Execute:     CronJobsCommand(),
+		},
+		{
+			Name:        "nodes",
+			Description: "Switch to Nodes screen",
+			Category:    CategoryResource,
+			Execute:     NodesCommand(),
+		},
+		{
+			Name:        "replicasets",
+			Description: "Switch to ReplicaSets screen",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("replicasets"),
+		},
+		{
+			Name:        "persistentvolumeclaims",
+			Description: "Switch to PersistentVolumeClaims screen",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("persistentvolumeclaims"),
+		},
+		{
+			Name:        "pvcs",
+			Description: "Switch to PersistentVolumeClaims screen (alias)",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("persistentvolumeclaims"),
+		},
+		{
+			Name:        "ingresses",
+			Description: "Switch to Ingresses screen",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("ingresses"),
+		},
+		{
+			Name:        "endpoints",
+			Description: "Switch to Endpoints screen",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("endpoints"),
+		},
+		{
+			Name:        "horizontalpodautoscalers",
+			Description: "Switch to HorizontalPodAutoscalers screen",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("horizontalpodautoscalers"),
+		},
+		{
+			Name:        "hpas",
+			Description: "Switch to HorizontalPodAutoscalers screen (alias)",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("horizontalpodautoscalers"),
+		},
+		{
+			Name:        "customresourcedefinitions",
+			Description: "Switch to Custom Resource Definitions screen",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("customresourcedefinitions"),
+		},
+		{
+			Name:        "crds",
+			Description: "Switch to Custom Resource Definitions screen (alias)",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("customresourcedefinitions"),
+		},
+		{
+			Name:        "system-resources",
+			Description: "View system resource statistics",
+			Category:    CategoryResource,
+			Execute:     NavigationCommand("system-resources"),
+		},
+		{
+			Name:        "ns",
+			Description: "Filter by namespace",
+			Category:    CategoryResource,
+			Execute:     NamespaceFilterCommand(),
+		},
 
-			// Resource commands (/ prefix)
-			{
-				Name:          "yaml",
-				Description:   "View resource YAML",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
-				Shortcut:      "ctrl+y",
-				Execute:       YamlCommand(pool),
-			},
-			{
-				Name:          "describe",
-				Description:   "View kubectl describe output",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
-				Shortcut:      "ctrl+d",
-				Execute:       DescribeCommand(pool),
-			},
-			{
-				Name:              "delete",
-				Description:       "Delete selected resource",
-				Category:          CategoryAction,
-				ResourceTypes:     []k8s.ResourceType{}, // Applies to all resource types
-				Shortcut:          "ctrl+x",
-				NeedsConfirmation: true,
-				Execute:           DeleteCommand(pool),
-			},
-			{
-				Name:          "edit",
-				Description:   "Edit resource (clipboard)",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
-				Shortcut:      "ctrl+e",
-				Execute:       EditCommand(pool),
-			},
-			{
-				Name:          "logs",
-				Description:   "View pod logs (clipboard)",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				Shortcut:      "ctrl+l",
-				ArgsType:      &LogsArgs{},
-				ArgPattern:    " [container] [tail] [follow]",
-				Execute:       LogsCommand(pool),
-			},
-			{
-				Name:          "logs-previous",
-				Description:   "View previous pod logs",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				Execute:       LogsPreviousCommand(pool),
-			},
-			{
-				Name:          "port-forward",
-				Description:   "Port forward to pod (clipboard)",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				ArgsType:      &PortForwardArgs{},
-				ArgPattern:    " <local:remote>",
-				Execute:       PortForwardCommand(pool),
-			},
-			{
-				Name:          "shell",
-				Description:   "Open shell in pod (clipboard)",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				ArgsType:      &ShellArgs{},
-				ArgPattern:    " [container] [shell]",
-				Execute:       ShellCommand(pool),
-			},
-			{
-				Name:          "jump-owner",
-				Description:   "Jump to owner resource",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				Execute:       JumpOwnerCommand(pool),
-			},
-			{
-				Name:          "show-node",
-				Description:   "Show node details",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-				Execute:       ShowNodeCommand(pool),
-			},
-			{
-				Name:          "scale",
-				Description:   "Scale replicas",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment, k8s.ResourceTypeStatefulSet}, // For deployments and statefulsets
-				ArgsType:      &ScaleArgs{},
-				ArgPattern:    " <replicas>",
-				Execute:       ScaleCommand(pool),
-			},
-			{
-				Name:          "cordon",
-				Description:   "Cordon node (mark unschedulable)",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeNode}, // Only for nodes
-				Execute:       CordonCommand(pool),
-			},
-			{
-				Name:              "drain",
-				Description:       "Drain node (evict all pods)",
-				Category:          CategoryAction,
-				ResourceTypes:     []k8s.ResourceType{k8s.ResourceTypeNode}, // Only for nodes
-				ArgsType:          &DrainArgs{},
-				ArgPattern:        " [grace] [force] [ignore-daemonsets]",
-				NeedsConfirmation: true,
-				Execute:           DrainCommand(pool),
-			},
-			{
-				Name:          "endpoints",
-				Description:   "Show service endpoints",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeService}, // Only for services
-				Execute:       EndpointsCommand(pool),
-			},
-			{
-				Name:          "restart",
-				Description:   "Restart deployment",
-				Category:      CategoryAction,
-				ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment}, // Only for deployments
-				Execute:       RestartCommand(pool),
-			},
+		// Resource commands (/ prefix)
+		{
+			Name:          "yaml",
+			Description:   "View resource YAML",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
+			Shortcut:      "ctrl+y",
+			Execute:       YamlCommand(pool),
+		},
+		{
+			Name:          "describe",
+			Description:   "View kubectl describe output",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
+			Shortcut:      "ctrl+d",
+			Execute:       DescribeCommand(pool),
+		},
+		{
+			Name:              "delete",
+			Description:       "Delete selected resource",
+			Category:          CategoryAction,
+			ResourceTypes:     []k8s.ResourceType{}, // Applies to all resource types
+			Shortcut:          "ctrl+x",
+			NeedsConfirmation: true,
+			Execute:           DeleteCommand(pool),
+		},
+		{
+			Name:          "edit",
+			Description:   "Edit resource (clipboard)",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
+			Shortcut:      "ctrl+e",
+			Execute:       EditCommand(pool),
+		},
+		{
+			Name:          "logs",
+			Description:   "View pod logs (clipboard)",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
+			Shortcut:      "ctrl+l",
+			ArgsType:      &LogsArgs{},
+			ArgPattern:    " [container] [tail] [follow]",
+			Execute:       LogsCommand(pool),
+		},
+		{
+			Name:          "logs-previous",
+			Description:   "View previous pod logs",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
+			Execute:       LogsPreviousCommand(pool),
+		},
+		{
+			Name:          "port-forward",
+			Description:   "Port forward to pod (clipboard)",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
+			ArgsType:      &PortForwardArgs{},
+			ArgPattern:    " <local:remote>",
+			Execute:       PortForwardCommand(pool),
+		},
+		{
+			Name:          "shell",
+			Description:   "Open shell in pod (clipboard)",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
+			ArgsType:      &ShellArgs{},
+			ArgPattern:    " [container] [shell]",
+			Execute:       ShellCommand(pool),
+		},
+		{
+			Name:          "jump-owner",
+			Description:   "Jump to owner resource",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
+			Execute:       JumpOwnerCommand(pool),
+		},
+		{
+			Name:          "show-node",
+			Description:   "Show node details",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
+			Execute:       ShowNodeCommand(pool),
+		},
+		{
+			Name:          "scale",
+			Description:   "Scale replicas",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment, k8s.ResourceTypeStatefulSet}, // For deployments and statefulsets
+			ArgsType:      &ScaleArgs{},
+			ArgPattern:    " <replicas>",
+			Execute:       ScaleCommand(pool),
+		},
+		{
+			Name:          "cordon",
+			Description:   "Cordon node (mark unschedulable)",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeNode}, // Only for nodes
+			Execute:       CordonCommand(pool),
+		},
+		{
+			Name:              "drain",
+			Description:       "Drain node (evict all pods)",
+			Category:          CategoryAction,
+			ResourceTypes:     []k8s.ResourceType{k8s.ResourceTypeNode}, // Only for nodes
+			ArgsType:          &DrainArgs{},
+			ArgPattern:        " [grace] [force] [ignore-daemonsets]",
+			NeedsConfirmation: true,
+			Execute:           DrainCommand(pool),
+		},
+		{
+			Name:          "endpoints",
+			Description:   "Show service endpoints",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeService}, // Only for services
+			Execute:       EndpointsCommand(pool),
+		},
+		{
+			Name:          "restart",
+			Description:   "Restart deployment",
+			Category:      CategoryAction,
+			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypeDeployment}, // Only for deployments
+			Execute:       RestartCommand(pool),
+		},
 
-			// LLM commands (/ai prefix) - examples for natural language input
-			{
-				Name:              "delete failing pods",
-				Description:       "Delete all pods in Failed status",
-				Category:          CategoryLLMAction,
-				NeedsConfirmation: true,
-				Execute:           LLMDeleteFailingPodsCommand(pool),
-			},
-			{
-				Name:              "scale nginx to 3",
-				Description:       "Scale nginx deployment to 3 replicas",
-				Category:          CategoryLLMAction,
-				NeedsConfirmation: true,
-				Execute:           LLMScaleNginxCommand(pool),
-			},
-			{
-				Name:        "get pod logs",
-				Description: "Show logs for the selected pod",
-				Category:    CategoryLLMAction,
-				Execute:     LLMGetPodLogsCommand(pool),
-			},
-			{
-				Name:              "restart deployment",
-				Description:       "Restart the selected deployment",
-				Category:          CategoryLLMAction,
-				NeedsConfirmation: true,
-				Execute:           LLMRestartDeploymentCommand(pool),
-			},
-			{
-				Name:        "show pod events",
-				Description: "Show events for the selected pod",
-				Category:    CategoryLLMAction,
-				Execute:     LLMShowPodEventsCommand(pool),
-			},
+		// LLM commands (/ai prefix) - examples for natural language input
+		{
+			Name:              "delete failing pods",
+			Description:       "Delete all pods in Failed status",
+			Category:          CategoryLLMAction,
+			NeedsConfirmation: true,
+			Execute:           LLMDeleteFailingPodsCommand(pool),
+		},
+		{
+			Name:              "scale nginx to 3",
+			Description:       "Scale nginx deployment to 3 replicas",
+			Category:          CategoryLLMAction,
+			NeedsConfirmation: true,
+			Execute:           LLMScaleNginxCommand(pool),
+		},
+		{
+			Name:        "get pod logs",
+			Description: "Show logs for the selected pod",
+			Category:    CategoryLLMAction,
+			Execute:     LLMGetPodLogsCommand(pool),
+		},
+		{
+			Name:              "restart deployment",
+			Description:       "Restart the selected deployment",
+			Category:          CategoryLLMAction,
+			NeedsConfirmation: true,
+			Execute:           LLMRestartDeploymentCommand(pool),
+		},
+		{
+			Name:        "show pod events",
+			Description: "Show events for the selected pod",
+			Category:    CategoryLLMAction,
+			Execute:     LLMShowPodEventsCommand(pool),
+		},
 	}
 
 	// Context management commands
 	commands = append(commands, []Command{
-			{
-				Name:        "contexts",
-				Description: "Switch to Contexts screen",
-				Category:    CategoryResource,
-				Execute:     ContextsCommand(),
-			},
-			{
-				Name:          "context",
-				Description:   "Switch Kubernetes context",
-				Category:      CategoryAction,
-				ArgsType:      &ContextArgs{},
-				ArgPattern:    " <context-name>",
-				Execute:       ContextCommand(pool),
-			},
-			{
-				Name:        "next-context",
-				Description: "Switch to next context",
-				Category:    CategoryResource,
-				Execute:     NextContextCommand(pool),
-				Shortcut:    getNextContextShortcut(),
-			},
-			{
-				Name:        "prev-context",
-				Description: "Switch to previous context",
-				Category:    CategoryResource,
-				Execute:     PrevContextCommand(pool),
-				Shortcut:    getPrevContextShortcut(),
-			},
+		{
+			Name:        "contexts",
+			Description: "Switch to Contexts screen",
+			Category:    CategoryResource,
+			Execute:     ContextsCommand(),
+		},
+		{
+			Name:        "context",
+			Description: "Switch Kubernetes context",
+			Category:    CategoryAction,
+			ArgsType:    &ContextArgs{},
+			ArgPattern:  " <context-name>",
+			Execute:     ContextCommand(pool),
+		},
+		{
+			Name:        "next-context",
+			Description: "Switch to next context",
+			Category:    CategoryResource,
+			Execute:     NextContextCommand(pool),
+			Shortcut:    getNextContextShortcut(),
+		},
+		{
+			Name:        "prev-context",
+			Description: "Switch to previous context",
+			Category:    CategoryResource,
+			Execute:     PrevContextCommand(pool),
+			Shortcut:    getPrevContextShortcut(),
+		},
 	}...)
 
 	return &Registry{

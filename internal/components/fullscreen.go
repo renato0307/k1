@@ -166,8 +166,8 @@ func (fs *FullScreen) View() string {
 	if len(lines) > visibleHeight {
 		scrollInfo = hintStyle.Render(
 			"  " + intToString(fs.scrollOffset+1) + "-" +
-			intToString(min(fs.scrollOffset+visibleHeight, len(lines))) +
-			" of " + intToString(len(lines)),
+				intToString(min(fs.scrollOffset+visibleHeight, len(lines))) +
+				" of " + intToString(len(lines)),
 		)
 	}
 

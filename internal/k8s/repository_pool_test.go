@@ -28,16 +28,16 @@ func createTestKubeconfig(t *testing.T, contexts ...string) string {
 
 	// Add cluster
 	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{
-		Server:                testCfg.Host,
-		CertificateAuthority: testCfg.CAFile,
+		Server:                   testCfg.Host,
+		CertificateAuthority:     testCfg.CAFile,
 		CertificateAuthorityData: testCfg.CAData,
-		InsecureSkipTLSVerify: testCfg.Insecure,
+		InsecureSkipTLSVerify:    testCfg.Insecure,
 	}
 
 	// Add user
 	config.AuthInfos["test-user"] = &clientcmdapi.AuthInfo{
-		ClientCertificate: testCfg.CertFile,
-		ClientKey:         testCfg.KeyFile,
+		ClientCertificate:     testCfg.CertFile,
+		ClientKey:             testCfg.KeyFile,
 		ClientCertificateData: testCfg.CertData,
 		ClientKeyData:         testCfg.KeyData,
 		Token:                 testCfg.BearerToken,

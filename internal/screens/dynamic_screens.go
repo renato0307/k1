@@ -110,8 +110,12 @@ func GenerateScreenConfigForCR(crd k8s.CustomResourceDefinition) ScreenConfig {
 			fieldKey := "Fields." + col.Name
 
 			// Use CRD priority if specified, otherwise use inferred priority
-			priority := int(col.Priority) + 1 // CRD priority 0 = our priority 1
-			if col.Priority == 0 {
+			// CRD priority 0 = always visible (our priority 1)
+			// CRD priority 1+ = less important (our priority 2+)
+			priority := int(col.Priority) + 1
+			if col.Priority > 10 {
+				// If CRD doesn't specify priority (uses default large value),
+				// fall back to inferred priority
 				priority = inferredPriority
 			}
 

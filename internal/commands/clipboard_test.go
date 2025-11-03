@@ -366,9 +366,9 @@ func TestEditCommand_KubeconfigContext(t *testing.T) {
 	editCmd := EditCommand(newTestRepositoryPool(repo))
 
 	tests := []struct {
-		name         string
-		resourceType k8s.ResourceType
-		selected     map[string]any
+		name          string
+		resourceType  k8s.ResourceType
+		selected      map[string]any
 		expectedParts []string
 	}{
 		{

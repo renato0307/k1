@@ -89,7 +89,7 @@ func TestExecutor_ExecutePending(t *testing.T) {
 
 	// Execute pending
 	cmd := exec.ExecutePending(ctx)
-	assert.NotNil(t, cmd) // delete command should return error cmd
+	assert.NotNil(t, cmd)              // delete command should return error cmd
 	assert.False(t, exec.HasPending()) // Should clear after execution
 }
 

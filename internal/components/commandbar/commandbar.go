@@ -1,16 +1,39 @@
 package commandbar
 
 import (
+	"math/rand"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
 )
+
+// usageTips contains helpful tips about k1 features
+// First tip is the original static hint for familiarity
+var usageTips = []string{
+	"[type to filter  : resources  / commands]",
+	"[tip: press Enter on resources for actions]",
+	"[tip: press ctrl+y for YAML, ctrl+d for describe]",
+	"[tip: press 'q' to quit, ESC to go back]",
+	"[tip: press ctrl+n/p to switch contexts]",
+	"[tip: use :output to view command execution results]",
+	"[tip: use negation in filters: !Running]",
+	"[tip: filter matches any part of the name/namespace]",
+	"[tip: filter shows matching count in real-time]",
+	"[tip: start with -context to load specific context]",
+	"[tip: use multiple -context to load several contexts]",
+	"[tip: use -theme to choose from 8 available themes]",
+	"[tip: use -kubeconfig for custom kubeconfig path]",
+	"[tip: use -dummy to explore k1 without a cluster]",
+	"[tip: resources refresh automatically every 10 seconds]",
+}
 
 // CommandBar coordinates all command bar components and manages state machine.
 type CommandBar struct {
@@ -31,6 +54,10 @@ type CommandBar struct {
 	input    *Input
 	executor *Executor
 	registry *commands.Registry
+
+	// Tip rotation state
+	currentTipIndex int
+	lastTipRotation time.Time
 }
 
 // New creates a new command bar coordinator.
@@ -38,17 +65,28 @@ func New(pool *k8s.RepositoryPool, theme *ui.Theme) *CommandBar {
 	registry := commands.NewRegistry(pool)
 
 	return &CommandBar{
-		state:     StateHidden,
-		inputType: CommandTypeFilter,
-		width:     80,
-		height:    1,
-		theme:     theme,
-		history:   NewHistory(),
-		palette:   NewPalette(registry, theme, 80),
-		input:     NewInput(registry, theme, 80),
-		executor:  NewExecutor(registry, theme, 80),
-		registry:  registry,
+		state:           StateHidden,
+		inputType:       CommandTypeFilter,
+		width:           80,
+		height:          1,
+		theme:           theme,
+		history:         NewHistory(),
+		palette:         NewPalette(registry, theme, 80),
+		input:           NewInput(registry, theme, 80),
+		executor:        NewExecutor(registry, theme, 80),
+		registry:        registry,
+		currentTipIndex: 0,          // Start with first tip
+		lastTipRotation: time.Now(), // Track last rotation
 	}
+}
+
+// Init initializes the command bar and schedules first tip rotation
+func (cb *CommandBar) Init() tea.Cmd {
+	logging.Debug("CommandBar.Init: Scheduling first tip rotation",
+		"interval", TipRotationInterval.String())
+	return tea.Tick(TipRotationInterval, func(t time.Time) tea.Msg {
+		return tipRotationMsg(t)
+	})
 }
 
 // SetWidth updates component widths.
@@ -131,6 +169,36 @@ func (cb *CommandBar) Update(msg tea.Msg) (*CommandBar, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return cb.handleKeyMsg(msg)
+	case tipRotationMsg:
+		// Rotate to random tip (avoid showing same tip twice in a row)
+		oldIndex := cb.currentTipIndex
+
+		// Pick a random tip that's different from current
+		newIndex := oldIndex
+		if len(usageTips) > 1 {
+			// Keep picking until we get a different tip
+			for newIndex == oldIndex {
+				newIndex = rand.Intn(len(usageTips))
+			}
+		}
+
+		cb.currentTipIndex = newIndex
+		cb.lastTipRotation = time.Now()
+
+		logging.Debug("CommandBar.Update: Tip rotation triggered",
+			"oldIndex", oldIndex,
+			"newIndex", cb.currentTipIndex,
+			"newTip", usageTips[cb.currentTipIndex])
+
+		// Schedule next rotation
+		nextTick := tea.Tick(TipRotationInterval, func(t time.Time) tea.Msg {
+			return tipRotationMsg(t)
+		})
+
+		logging.Debug("CommandBar.Update: Scheduled next tip rotation",
+			"interval", TipRotationInterval.String())
+
+		return cb, nextTick
 	}
 
 	return cb, nil
@@ -694,7 +762,9 @@ func (cb *CommandBar) ViewHints() string {
 	separator := separatorStyle.Render(strings.Repeat("─", cb.width))
 
 	if cb.state == StateHidden {
-		hints := hintStyle.Render("[type to filter  : resources  / commands]")
+		// Select current tip from rotation
+		currentTip := usageTips[cb.currentTipIndex]
+		hints := hintStyle.Render(currentTip)
 		return lipgloss.JoinVertical(lipgloss.Left, separator, hints, separator)
 	}
 
