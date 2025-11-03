@@ -44,7 +44,7 @@ func main() {
 	flag.Set("v", "0")                   // Minimum verbosity
 
 	// Parse flags
-	themeFlag := flag.String("theme", "charm", "Theme to use (charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai)")
+	themeFlag := flag.String("theme", "charm", "Theme to use (dark: charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai | light: catppuccin-latte, solarized-light, gruvbox-light)")
 	kubeconfigFlag := flag.String("kubeconfig", "", "Path to kubeconfig file (default: $HOME/.kube/config)")
 	maxContexts := flag.Int("max-contexts", 10, "Maximum number of contexts to keep loaded (1-20)")
 	flag.Var(&contextFlags, "context", "Kubernetes context to use (can be specified multiple times)")

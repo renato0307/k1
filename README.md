@@ -6,7 +6,7 @@ A blazing-fast terminal UI for Kubernetes cluster management at Mach 1 speed.
 
 - **⚡ Lightning Fast**: Near-instant resource viewing with real-time cluster updates
 - **🔍 Fuzzy Search**: Type to filter resources with intelligent matching and negation support
-- **🎨 8 Beautiful Themes**: charm, dracula, catppuccin, nord, gruvbox, tokyo-night, solarized, monokai
+- **🎨 11 Beautiful Themes**: 8 dark themes + 3 light themes for any terminal preference
 - **📊 11 Resource Types**: Pods, Deployments, StatefulSets, DaemonSets, Jobs, CronJobs, Services, ConfigMaps, Secrets, Nodes, Namespaces
 - **⌨️ Vim-style Navigation**: Intuitive keybindings for power users
 - **🎯 Command Palette**: Quick access to operations like scale, restart, drain, cordon
@@ -182,23 +182,27 @@ kubectl config use-context staging
 
 ### Themes
 
-k1 includes 8 built-in themes:
+k1 includes 11 built-in themes with distinctive personalities:
 
-| Theme | Description |
-|-------|-------------|
-| charm (default) | Charming pink and purple pastels |
-| dracula | Dark theme with vibrant colors |
-| catppuccin | Soothing pastel theme |
-| nord | Arctic, north-bluish color palette |
-| gruvbox | Retro groove colors |
-| tokyo-night | Clean, elegant dark theme |
-| solarized | Precision colors for machines and people |
-| monokai | Sublime Text's iconic color scheme |
+**Dark Themes:**
+- **charm** (default) - Purple/teal accents, balanced and modern
+- **dracula** - Vibrant purple, high-energy aesthetic
+- **catppuccin** - Soft pastel mauve, cozy feel
+- **nord** - Cool arctic blues, minimalism
+- **gruvbox** - Warm retro brown/orange
+- **tokyo-night** - Deep blue urban, sleek
+- **solarized** - Scientific precision, balanced
+- **monokai** - Neon on black, high-contrast
+
+**Light Themes:**
+- **catppuccin-latte** - Soft pastels on cream
+- **solarized-light** - Precision colors with warm background
+- **gruvbox-light** - Warm retro on cream
 
 **Usage**:
 ```bash
-k1 -theme dracula
-k1 -theme nord
+k1 -theme dracula           # Dark theme
+k1 -theme gruvbox-light     # Light theme
 ```
 
 ### Persistent Configuration (Future)

@@ -200,6 +200,22 @@ tail -f /tmp/k1.log  # in another terminal
 3. Test: `go run cmd/k1/main.go -theme mytheme`
 4. Update README.md and CLAUDE.md
 
+**WCAG AA Compliance Requirements**:
+- All themes MUST meet WCAG AA contrast standards (4.5:1 for normal text,
+  3:1 for large/bold text)
+- Terminal color guidelines for dark backgrounds (#000000 to #1c1c1c):
+  - "241"-"243": FAIL (2.5:1 to 3.1:1) - DO NOT USE for text
+  - "246": PASS minimum (4.7:1) - Acceptable for secondary text
+  - "248": PASS comfortable (5.5:1) - Preferred for readable text
+  - "250"+: PASS excellent (6.6:1+) - Best for primary text
+- Color property usage:
+  - `Primary`, `Secondary`, `Accent`: High contrast accent colors
+  - `Foreground`: Primary text (high contrast)
+  - `Muted`: Status text, hints (minimum "248" on dark)
+  - `Dimmed`: Secondary UI text (minimum "246" on dark)
+  - `Subtle`: Background highlights, borders (minimum "246" for text)
+- Visually test each theme on actual terminal to verify readability
+
 ## Code Patterns
 
 ### Structural Patterns
