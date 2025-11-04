@@ -184,16 +184,16 @@ func (p *Palette) View(prefix string) string {
 			padding := max(shortcutColumn-len(mainText), 2)
 			spacer := strings.Repeat(" ", padding)
 
-			// Style shortcut with dimmed color
+			// Style shortcut with slightly dimmed but still visible color
 			shortcutStyle := lipgloss.NewStyle().
-				Foreground(p.theme.Dimmed)
+				Foreground(p.theme.PaletteShortcut)
 			styledShortcut := shortcutStyle.Render(cmd.Shortcut)
 
 			itemContent := mainText + spacer + styledShortcut
 
 			if i == p.index {
 				selectedStyle := lipgloss.NewStyle().
-					Foreground(p.theme.Foreground).
+					Foreground(p.theme.PaletteSelectedForeground).
 					Background(p.theme.Subtle).
 					Width(p.width).
 					Padding(0, 1).
@@ -201,6 +201,8 @@ func (p *Palette) View(prefix string) string {
 				line = selectedStyle.Render("▶ " + itemContent)
 			} else {
 				paletteStyle := lipgloss.NewStyle().
+					Foreground(p.theme.PaletteForeground).
+					Background(p.theme.PaletteBackground).
 					Width(p.width).
 					Padding(0, 1)
 				line = paletteStyle.Render("  " + itemContent)
@@ -209,7 +211,7 @@ func (p *Palette) View(prefix string) string {
 			// No shortcut, simple rendering
 			if i == p.index {
 				selectedStyle := lipgloss.NewStyle().
-					Foreground(p.theme.Foreground).
+					Foreground(p.theme.PaletteSelectedForeground).
 					Background(p.theme.Subtle).
 					Width(p.width).
 					Padding(0, 1).
@@ -217,6 +219,8 @@ func (p *Palette) View(prefix string) string {
 				line = selectedStyle.Render("▶ " + mainText)
 			} else {
 				paletteStyle := lipgloss.NewStyle().
+					Foreground(p.theme.PaletteForeground).
+					Background(p.theme.PaletteBackground).
 					Width(p.width).
 					Padding(0, 1)
 				line = paletteStyle.Render("  " + mainText)
