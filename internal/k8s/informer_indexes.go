@@ -24,7 +24,20 @@ func (r *InformerRepository) setupPodIndexes() {
 			r.trackStats(podGVR, eventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
-			pod := obj.(*corev1.Pod)
+			// Handle DeletedFinalStateUnknown wrapper
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					// Unable to get object from tombstone
+					return
+				}
+				pod, ok = tombstone.Obj.(*corev1.Pod)
+				if !ok {
+					// Tombstone contained object that is not a Pod
+					return
+				}
+			}
 			r.removePodFromIndexes(pod)
 			r.trackStats(podGVR, eventTypeDelete)
 		},
@@ -224,9 +237,17 @@ func (r *InformerRepository) setupJobIndexes() {
 			r.trackStats(jobGVR, eventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
+			// Handle DeletedFinalStateUnknown wrapper
 			unstr, ok := obj.(*unstructured.Unstructured)
 			if !ok {
-				return
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				unstr, ok = tombstone.Obj.(*unstructured.Unstructured)
+				if !ok {
+					return
+				}
 			}
 			r.removeJobFromIndexes(unstr)
 			r.trackStats(jobGVR, eventTypeDelete)
@@ -307,9 +328,17 @@ func (r *InformerRepository) setupReplicaSetIndexes() {
 			// But we still track the event for statistics
 		},
 		DeleteFunc: func(obj interface{}) {
+			// Handle DeletedFinalStateUnknown wrapper
 			unstr, ok := obj.(*unstructured.Unstructured)
 			if !ok {
-				return
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				unstr, ok = tombstone.Obj.(*unstructured.Unstructured)
+				if !ok {
+					return
+				}
 			}
 			r.removeReplicaSetFromIndexes(unstr)
 		},
