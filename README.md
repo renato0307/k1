@@ -105,7 +105,7 @@ k1 -theme dracula
 - **`Enter`**: Apply filter or execute command
 - **`Esc`**: Clear filter or dismiss palette
 - **`Tab`**: Auto-complete selected command in palette
-- **`q`** or **`Ctrl+C`**: Quit
+- **`Ctrl+C`**: Quit
 
 #### Resource Operations
 - **`Ctrl+Y`**: View YAML for selected resource
@@ -301,9 +301,12 @@ Future versions will support persistent configuration in `~/.config/k1/`.
 
 ### Can I use k1 with multiple clusters?
 
-Yes! Use the `-context` flag to switch between contexts:
+Yes! You can switch between clusters by specifying different contexts. Each k1 instance connects to one context at a time:
 ```bash
+# Terminal 1: Connect to production
 k1 -context production
+
+# Terminal 2: Connect to staging
 k1 -context staging
 ```
 
