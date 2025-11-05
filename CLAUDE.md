@@ -336,6 +336,168 @@ time go run cmd/k1/main.go -log-file /tmp/k1.log
 grep "duration" /tmp/k1.log
 ```
 
+### E2E Testing
+
+k1 uses Go-based E2E testing following Bubble Tea's native testing
+patterns. Tests run against a real kind cluster to validate complete user
+workflows.
+
+**Quick Start**:
+```bash
+# One-time setup
+make setup-test-cluster  # Create kind cluster + fixtures
+
+# Run tests
+make test-e2e            # Fast (assumes cluster exists)
+
+# Cleanup
+make teardown-test-cluster  # When done
+```
+
+**Test Organization**:
+- `internal/app/*_e2e_test.go` - E2E test files (20 tests total)
+  - `navigation_e2e_test.go` - Screen switching, ESC navigation, context
+    cycling (5 tests)
+  - `filter_e2e_test.go` - Filter mode, negation, persistence (3 tests)
+  - `command_palette_e2e_test.go` - Command execution, confirmation,
+    arguments (4 tests)
+  - `fullscreen_e2e_test.go` - YAML view, describe view (2 tests)
+  - `operations_e2e_test.go` - Scale, delete, jump-owner (3 tests)
+  - `system_e2e_test.go` - Output history, refresh, edge cases (3 tests)
+
+- `internal/testutil/teatest.go` - Test helpers
+  - `NewTestProgram()` - Create test instance with controlled I/O
+  - `WaitForOutput()` - Poll for text with timeout
+  - `Type()` / `SendKey()` - Simulate keyboard input
+  - `AssertContains()` - Verify output contains text
+
+- `e2e/fixtures/test-resources.yaml` - Predictable K8s resources in
+  `test-app` namespace (covers 9+ resource types for testing)
+
+**Running Tests**:
+```bash
+# Local development (persistent cluster)
+make setup-test-cluster  # Once
+make test-e2e           # Many times (fast: ~1min)
+
+# Full test cycle (ephemeral)
+make test-e2e-with-cluster  # Setup + test + teardown
+
+# Specific test files
+go test -v -tags=e2e ./internal/app -run TestNavigation
+go test -v -tags=e2e ./internal/app -run TestFilter
+```
+
+**Writing E2E Tests**:
+```go
+//go:build e2e
+
+package app
+
+import (
+    "testing"
+    "time"
+
+    tea "github.com/charmbracelet/bubbletea"
+    "github.com/renato0307/k1/internal/k8s"
+    "github.com/renato0307/k1/internal/testutil"
+    "github.com/renato0307/k1/internal/ui"
+)
+
+func TestFeatureName(t *testing.T) {
+    // Setup repository pool
+    pool, err := k8s.NewRepositoryPool("", 10)
+    if err != nil {
+        t.Fatalf("Failed to create pool: %v", err)
+    }
+
+    progress := make(chan k8s.ContextLoadProgress, 100)
+    go func() { for range progress {} }()
+
+    err = pool.LoadContext("kind-k1-test", progress)
+    if err != nil {
+        t.Fatalf("Failed to load context: %v", err)
+    }
+
+    // Create app and test program
+    app := NewModel(pool, ui.GetTheme("charm"))
+    tp := testutil.NewTestProgram(t, app, 120, 40)
+    defer tp.Quit()
+
+    // Wait for initial screen
+    if !tp.WaitForScreen("Pods", 5*time.Second) {
+        t.Fatal("Timeout waiting for Pods screen")
+    }
+
+    // Test interactions
+    tp.Type(":deployments")
+    tp.SendKey(tea.KeyEnter)
+
+    if !tp.WaitForScreen("Deployments", 3*time.Second) {
+        t.Fatal("Failed to navigate to Deployments")
+    }
+
+    // Assertions
+    tp.AssertContains("nginx-deployment")
+}
+```
+
+**Best Practices**:
+- Use `//go:build e2e` tag to separate from unit tests
+- Wait for screens/messages with appropriate timeouts (2-5s)
+- Use descriptive test names: `TestFeature_Behavior`
+- Clean up with `defer tp.Quit()`
+- Add debug output on failures: `t.Logf("Output:\n%s", tp.Output())`
+- Use `tea.KeyMsg{Type: tea.KeyCtrlX}` for control keys, not ASCII codes
+
+**Keyboard Shortcuts in Tests**:
+```go
+// Single keys - just type them
+tp.Type("y")  // YAML view
+tp.Type("d")  // Describe view
+tp.Type("/")  // Filter mode
+tp.Type(":")  // Resource navigation
+tp.Type(">")  // Command palette
+
+// Control keys - use tea.KeyMsg
+tp.Send(tea.KeyMsg{Type: tea.KeyCtrlX})  // Delete (ctrl+x)
+tp.Send(tea.KeyMsg{Type: tea.KeyCtrlR})  // Refresh (ctrl+r)
+
+// Special keys - use SendKey helper
+tp.SendKey(tea.KeyEnter)
+tp.SendKey(tea.KeyEsc)
+tp.SendKey(tea.KeyDown)
+```
+
+**Test Coverage**:
+- ✅ User workflows (navigation, filtering, commands)
+- ✅ Keyboard interactions (shortcuts, palette, typing)
+- ✅ Multi-context behavior
+- ✅ Real K8s API integration
+- ✅ Full-screen views (YAML, describe)
+
+**Complementary to Unit Tests**:
+- **Unit tests**: Fast feedback (5-10s), TDD, code coverage (76.7%)
+- **E2E tests**: User workflows (1min), integration, real cluster
+
+**Troubleshooting**:
+
+*Tests fail with "cluster not found"*:
+```bash
+make setup-test-cluster
+kubectl config use-context kind-k1-test
+```
+
+*Tests timeout*:
+- Check cluster health: `kubectl get nodes`
+- Verify resources exist: `kubectl get pods -n test-app`
+- Increase test timeouts if cluster is slow
+
+*Flaky tests*:
+- Increase wait timeouts (network latency varies)
+- Check for timing assumptions in assertions
+- Verify cluster has sufficient resources
+
 ## Quick Reference
 
 ### Bubble Tea Concepts
