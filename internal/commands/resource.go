@@ -161,12 +161,18 @@ func DescribeCommand(pool *k8s.RepositoryPool) ExecuteFunc {
 			)
 		}
 
-		// Success: Send status message with history tracking, then show full screen
+		// Success: Show full screen (no status message - user sees the result directly)
+		// Track in history silently for output screen
 		return tea.Batch(
-			messages.WithHistory(
-				messages.InfoCmd("Showing describe for %s", displayName),
-				metadata,
-			),
+			func() tea.Msg {
+				return types.StatusMsg{
+					Type:            types.MessageTypeSuccess,
+					Message:         describeContent, // Full output for history
+					TrackInHistory:  true,
+					HistoryMetadata: metadata,
+					Silent:          true, // Don't display to user
+				}
+			},
 			func() tea.Msg {
 				return types.ShowFullScreenMsg{
 					ViewType:     1, // Describe

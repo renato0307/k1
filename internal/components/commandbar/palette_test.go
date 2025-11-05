@@ -8,12 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/keyboard"
 	"github.com/renato0307/k1/internal/ui"
 )
 
 func TestNewPalette(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -25,7 +27,8 @@ func TestNewPalette(t *testing.T) {
 
 func TestPalette_Filter_Resource(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -49,7 +52,8 @@ func TestPalette_Filter_Resource(t *testing.T) {
 
 func TestPalette_Filter_Action(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -71,7 +75,8 @@ func TestPalette_Filter_Action(t *testing.T) {
 
 func TestPalette_NavigateUpDown(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -115,7 +120,8 @@ func TestPalette_NavigateUpDown(t *testing.T) {
 
 func TestPalette_GetSelected(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -143,7 +149,8 @@ func TestPalette_GetSelected(t *testing.T) {
 
 func TestPalette_Reset(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -160,7 +167,8 @@ func TestPalette_Reset(t *testing.T) {
 
 func TestPalette_SetWidth(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -172,7 +180,8 @@ func TestPalette_SetWidth(t *testing.T) {
 
 func TestPalette_View(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -190,7 +199,8 @@ func TestPalette_View(t *testing.T) {
 
 func TestPalette_ScrollingBehavior(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -255,7 +265,8 @@ func TestPalette_ScrollingBehavior(t *testing.T) {
 
 func TestPalette_ScrollResetOnFilter(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -291,7 +302,8 @@ func TestPalette_ScrollResetOnFilter(t *testing.T) {
 
 func TestPalette_BoundaryConditions(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)
@@ -329,7 +341,8 @@ func TestPalette_BoundaryConditions(t *testing.T) {
 
 func TestPalette_ViewRenderingWithScroll(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	p := NewPalette(registry, theme, 80)

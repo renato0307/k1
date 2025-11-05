@@ -11,7 +11,6 @@ A blazing-fast terminal UI for Kubernetes cluster management at Mach 1 speed.
 - **⌨️ Vim-style Navigation**: Intuitive keybindings for power users
 - **🎯 Command Palette**: Quick access to operations like scale, restart, drain, cordon
 - **📋 Clipboard Integration**: Generate kubectl commands and copy to clipboard
-- **🤖 AI-Powered Commands**: Natural language interface with `/ai` (experimental)
 
 ## Installation
 
@@ -42,8 +41,9 @@ Your first 5 minutes with k1:
 
 2. **View resources**: k1 starts on the Pods screen showing all pods in your current namespace
 
-3. **Filter resources**: Type any text to start filtering
+3. **Filter resources**: Press `/` then type to filter
    ```
+   Press: /       # Enter filter mode
    Type: nginx    # Shows only pods matching "nginx"
    Type: !prod    # Excludes pods containing "prod"
    Press Esc      # Clear filter
@@ -56,18 +56,19 @@ Your first 5 minutes with k1:
    :nodes         # View cluster nodes
    ```
 
-5. **Run commands**: Press `/` to open command palette
+5. **Run commands**: Press `>` or `ctrl+p` to open command palette
    ```
-   /scale 3       # Scale selected deployment to 3 replicas
-   /restart       # Restart selected deployment
-   /yaml          # View resource YAML (or press Ctrl+Y)
+   >scale 3       # Scale selected deployment to 3 replicas
+   >restart       # Restart selected deployment
+   >yaml          # View resource YAML (or press y)
    ```
 
 6. **View details**: Navigate to a resource and press:
    ```
-   Ctrl+Y         # View YAML
-   Ctrl+D         # Describe with events
-   Ctrl+L         # Get logs command (pods only)
+   y              # View YAML
+   d              # Describe with events
+   l              # Get logs command (pods only)
+   e              # Edit resource (copies to clipboard)
    ```
 
 7. **Change theme**: Restart with your preferred theme
@@ -75,7 +76,7 @@ Your first 5 minutes with k1:
    k1 -theme dracula
    ```
 
-That's it! Explore the command palette (`/`) to discover more operations.
+That's it! Press `?` for help or explore the command palette (`>`) to discover more operations.
 
 ## Usage
 
@@ -97,54 +98,70 @@ k1 -theme dracula
 
 ### Keybindings
 
-#### Global
-- **Type any character**: Enter filter mode with fuzzy search
+k1 uses k9s-inspired keyboard shortcuts for familiar navigation:
+
+#### Core Navigation
+- **`/`**: Enter filter/search mode
 - **`:`**: Open navigation palette (switch screens, namespaces)
-- **`/`**: Open command palette (resource operations)
-- **`↑`/`↓`**: Navigate lists or palette items
-- **`Enter`**: Apply filter or execute command
-- **`Esc`**: Clear filter or dismiss palette
-- **`Tab`**: Auto-complete selected command in palette
-- **`Ctrl+C`**: Quit
+- **`>` or `ctrl+p`**: Open command palette (resource operations)
+- **`?`**: Show help screen with all shortcuts
+- **`esc`**: Back/clear filter/dismiss palette
+- **`:q` or `ctrl+c`**: Quit application
+
+#### List Navigation
+- **`↑`/`↓` or `j`/`k`**: Move selection up/down (vim-style)
+- **`g`**: Jump to top of list
+- **`G`**: Jump to bottom (shift+g)
+- **`PgUp`/`PgDn` or `ctrl+b`/`ctrl+f`**: Page up/down
+- **`enter`**: Apply filter or execute command
+- **`tab`**: Auto-complete selected command in palette
 
 #### Resource Operations
-- **`Ctrl+Y`**: View YAML for selected resource
-- **`Ctrl+D`**: Describe selected resource (with on-demand events)
-- **`Ctrl+L`**: View logs (pods only, copies kubectl command to clipboard)
-- **`Ctrl+X`**: Shell into container (pods only, copies kubectl command to clipboard)
+- **`d`**: Describe selected resource (with on-demand events)
+- **`e`**: Edit resource (copies YAML to clipboard)
+- **`l`**: View logs (pods only, copies kubectl command to clipboard)
+- **`y`**: View YAML for selected resource
+- **`n`**: Filter by namespace
+- **`ctrl+x`**: Delete resource (with confirmation)
+
+#### Context Switching
+- **`[`**: Switch to previous Kubernetes context
+- **`]`**: Switch to next Kubernetes context
+
+#### Global
+- **`ctrl+r`**: Refresh current screen data
 
 ### Filter Mode
 
-Start typing to filter the current resource list:
+Press `/` to enter filter mode, then type to filter the current resource list:
 - **Fuzzy matching**: `depngx` matches `deployment-nginx`
 - **Negation**: `!prod` excludes resources containing "prod"
 - **Paste support**: Paste text directly to filter
+- **Real-time updates**: See matching count as you type
+- **Clear filter**: Press `esc` to clear, or `enter` to keep filter active
 
 ### Command Palette
 
-Press `/` to open the command palette and access resource operations:
+Press `>` or `ctrl+p` to open the command palette and access resource operations:
 
 #### Common Commands
-- `/scale [replicas]` - Scale deployment/statefulset (default: prompt for replicas)
-- `/restart` - Restart deployment (kubectl rollout restart)
-- `/delete` - Delete selected resource (with confirmation)
-- `/yaml` - View resource YAML
-- `/describe` - Describe resource with events
+- `>scale [replicas]` - Scale deployment/statefulset (default: prompt for replicas)
+- `>restart` - Restart deployment (kubectl rollout restart)
+- `>delete` - Delete selected resource (with confirmation)
+- `>yaml` - View resource YAML (or press `y`)
+- `>describe` - Describe resource with events (or press `d`)
 
 #### Node Commands
-- `/cordon` - Mark node as unschedulable
-- `/drain [grace] [force] [ignore-daemonsets]` - Drain node (defaults: 30s, false, true)
+- `>cordon` - Mark node as unschedulable
+- `>drain [grace] [force] [ignore-daemonsets]` - Drain node (defaults: 30s, false, true)
 
 #### Service Commands
-- `/endpoints` - View service endpoints
+- `>endpoints` - View service endpoints
 
 #### Pod Commands
-- `/logs [container] [tail] [follow]` - Generate logs command (copies to clipboard)
-- `/shell [container] [shell]` - Generate shell command (copies to clipboard)
-- `/port-forward <ports>` - Generate port-forward command (e.g., `8080:80`)
-
-#### AI Commands (Experimental)
-- `/ai <prompt>` - Natural language command generation with local LLM
+- `>logs [container] [tail] [follow]` - Generate logs command (copies to clipboard, or press `l`)
+- `>shell [container] [shell]` - Generate shell command (copies to clipboard)
+- `>port-forward <ports>` - Generate port-forward command (e.g., `8080:80`)
 
 ### Navigation Palette
 
@@ -233,14 +250,15 @@ Currently planned for `~/.config/k1/config.yaml`:
 ### UI / Display Issues
 
 **Filter not working or typing doesn't filter**
-- Make sure you're not in command palette mode (`:` or `/`)
-- Press `Esc` to exit any active mode and try again
+- Make sure to press `/` first to enter filter mode
+- Check you're not in command palette mode (`:` or `>`)
+- Press `esc` to exit any active mode and try again
 - Filter is fuzzy - try partial matches (e.g., "ngx" matches "nginx")
 
 **Commands don't show up in palette**
-- Commands are context-sensitive (e.g., `/scale` only for deployments/statefulsets)
+- Commands are context-sensitive (e.g., `>scale` only for deployments/statefulsets)
 - Make sure you have a resource selected (highlighted row)
-- Press `/` (not `:`) for command palette
+- Press `>` or `ctrl+p` (not `:`) for command palette
 
 **Theme looks weird or colors are wrong**
 - Check your terminal supports 256 colors
@@ -278,7 +296,7 @@ k1 is inspired by k9s but focuses on simplicity and speed:
 - **Simpler UI**: Fewer modes, clearer command palette
 - **Faster startup**: Optimized informer usage, protobuf encoding
 - **Modern stack**: Built with Bubble Tea (Go's modern TUI framework)
-- **AI integration**: Experimental `/ai` commands for natural language operations
+- **k9s-aligned shortcuts**: Familiar keyboard shortcuts for k9s users
 
 Both are excellent tools - try both and use what feels better!
 
@@ -335,10 +353,10 @@ See [CLAUDE.md](CLAUDE.md) for development setup and architecture documentation.
 - [ ] **Save preferences**: Theme, default namespace, window layout
 - [ ] **Edit resources**: Modify YAML directly in the TUI
 - [ ] **Live log streaming**: View pod logs without leaving k1
-- [ ] **Enhanced AI commands**: More powerful natural language operations
 - [ ] **Advanced search**: Find text in YAML and describe output
 - [ ] **Copy to clipboard**: Export entire screen or selected resources
 - [ ] **Interactive shell**: Execute commands in pods without copying
+- [ ] **Batch operations**: Mark/select multiple resources for bulk actions
 
 ## Inspiration
 

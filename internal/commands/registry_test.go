@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/keyboard"
 )
 
 // createTestPool creates a repository pool for testing
@@ -49,7 +50,8 @@ users:
 
 func TestNewRegistry(t *testing.T) {
 	pool := createTestPool(t)
-	registry := NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := NewRegistry(pool, keys)
 
 	require.NotNil(t, registry)
 	assert.NotEmpty(t, registry.commands)
@@ -71,7 +73,8 @@ func TestNewRegistry(t *testing.T) {
 
 func TestRegistry_GetByCategory(t *testing.T) {
 	pool := createTestPool(t)
-	registry := NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := NewRegistry(pool, keys)
 
 	tests := []struct {
 		name     string
@@ -122,7 +125,8 @@ func TestRegistry_GetByCategory(t *testing.T) {
 
 func TestRegistry_Filter(t *testing.T) {
 	pool := createTestPool(t)
-	registry := NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := NewRegistry(pool, keys)
 
 	tests := []struct {
 		name     string
@@ -180,7 +184,8 @@ func TestRegistry_Filter(t *testing.T) {
 
 func TestRegistry_FilterByResourceType(t *testing.T) {
 	pool := createTestPool(t)
-	registry := NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := NewRegistry(pool, keys)
 
 	allActions := registry.GetByCategory(CategoryAction)
 
@@ -233,7 +238,8 @@ func TestRegistry_FilterByResourceType(t *testing.T) {
 
 func TestRegistry_Get(t *testing.T) {
 	pool := createTestPool(t)
-	registry := NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := NewRegistry(pool, keys)
 
 	tests := []struct {
 		name     string

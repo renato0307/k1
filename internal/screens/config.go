@@ -142,6 +142,11 @@ func (s *ConfigScreen) Title() string {
 	return s.config.Title
 }
 
+// GetResourceType returns the resource type for this screen
+func (s *ConfigScreen) GetResourceType() k8s.ResourceType {
+	return s.config.ResourceType
+}
+
 func (s *ConfigScreen) HelpText() string {
 	return "↑/↓: navigate • type: filter • esc: clear filter • q: quit"
 }
@@ -161,6 +166,7 @@ func (s *ConfigScreen) Operations() []types.Operation {
 }
 
 func (s *ConfigScreen) Init() tea.Cmd {
+	logging.Debug("Init called", "screen", s.config.ID, "items", len(s.items), "filtered", len(s.filtered))
 	// Reset initialized flag to allow fresh tick scheduling
 	// This prevents multiple concurrent ticks from previous screen visits
 	s.initialized = false
@@ -236,6 +242,22 @@ func (s *ConfigScreen) DefaultUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if s.config.TrackSelection && s.filter == "" {
 			s.restoreCursorPosition()
 		}
+
+		// Workaround for Bubble Tea viewport bug with instant-data screens:
+		// When CustomRefresh returns synchronously (same tick as Init), the viewport
+		// renders with extra padding. Detect this by checking if data arrived on first
+		// render AND we have a CustomRefresh (which means non-repository data source).
+		// Force viewport sync by sending key events to trigger recalculation.
+		if !s.initialized && s.config.CustomRefresh != nil {
+			logging.Debug("Applying viewport workaround", "screen", s.config.ID, "rows", len(s.table.Rows()), "height", s.height)
+			s.initialized = true
+			// Send actual key events to force viewport recalculation
+			s.table.Update(tea.KeyMsg{Type: tea.KeyDown})
+			s.table.Update(tea.KeyMsg{Type: tea.KeyUp})
+			// Re-apply height to ensure viewport is correct after key events
+			s.table.SetHeight(s.height)
+		}
+
 		return s, nil
 
 	case types.FilterUpdateMsg:
@@ -268,6 +290,24 @@ func (s *ConfigScreen) DefaultUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Handle vim navigation: g (jump to top) and G (jump to bottom)
+		switch msg.String() {
+		case "g":
+			// Jump to top
+			s.table.GotoTop()
+			if s.config.TrackSelection {
+				s.updateSelectedKey()
+			}
+			return s, nil
+		case "G":
+			// Jump to bottom
+			s.table.GotoBottom()
+			if s.config.TrackSelection {
+				s.updateSelectedKey()
+			}
+			return s, nil
+		}
+
 		// Track if this is a page navigation key
 		isPageNav := msg.Type == tea.KeyPgUp || msg.Type == tea.KeyPgDown
 
@@ -295,6 +335,7 @@ func (s *ConfigScreen) DefaultUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *ConfigScreen) View() string {
+	logging.Debug("View called", "screen", s.config.ID, "width", s.width, "height", s.height, "tableRows", len(s.table.Rows()), "filtered", len(s.filtered))
 	if s.config.CustomView != nil {
 		return s.config.CustomView(s)
 	}
@@ -343,6 +384,7 @@ func (s *ConfigScreen) renderEmptyFilteredView() string {
 
 // SetSize updates dimensions and recalculates dynamic column widths
 func (s *ConfigScreen) SetSize(width, height int) {
+	logging.Debug("SetSize called", "screen", s.config.ID, "width", width, "height", height, "items", len(s.items), "filtered", len(s.filtered))
 	s.width = width
 	s.height = height
 	s.table.SetHeight(height)
@@ -373,6 +415,8 @@ func (s *ConfigScreen) SetSize(width, height int) {
 
 	// Now rebuild rows with correct number of columns
 	s.updateTable()
+
+	logging.Debug("SetSize complete", "screen", s.config.ID, "visibleColumns", len(s.visibleColumns), "tableRows", len(s.table.Rows()))
 }
 
 // calculateWeightedWidths implements weighted proportional distribution
@@ -620,6 +664,7 @@ func (s *ConfigScreen) restoreColumnOrder(visible []ColumnConfig) []ColumnConfig
 
 // Refresh fetches resources and updates the table
 func (s *ConfigScreen) Refresh() tea.Cmd {
+	logging.Debug("Refresh called", "screen", s.config.ID, "hasCustomRefresh", s.config.CustomRefresh != nil)
 	if s.config.CustomRefresh != nil {
 		return s.config.CustomRefresh(s)
 	}

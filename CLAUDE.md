@@ -379,3 +379,5 @@ Store in `thoughts/shared/plans/`:
 - Track progress in plan markdown (not TodoWrite tool)
 - Update TODO section after major work (phase completion)
 - Update plan status at top to reflect current phase
+- You can add log debug statements to troubleshoot UI issues
+- CRITICAL: avoid workarounds; give priority to clean solutions; if no other option, ask before implementing workarounds

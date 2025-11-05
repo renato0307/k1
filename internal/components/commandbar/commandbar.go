@@ -10,6 +10,7 @@ import (
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/keyboard"
 	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/types"
 	"github.com/renato0307/k1/internal/ui"
@@ -18,11 +19,12 @@ import (
 // usageTips contains helpful tips about k1 features
 // First tip is the original static hint for familiarity
 var usageTips = []string{
-	"[type to filter  : resources  / commands]",
+	"[/ search  : resources  > palette  ? help]",
 	"[tip: press Enter on resources for actions]",
-	"[tip: press ctrl+y for YAML, ctrl+d for describe]",
-	"[tip: press 'q' to quit, ESC to go back]",
-	"[tip: press ctrl+n/p to switch contexts]",
+	"[tip: press y for YAML, d for describe]",
+	"[tip: press e to edit, l for logs]",
+	"[tip: press :q or ctrl+c to quit, ESC to go back]",
+	"[tip: press [ / ] to switch contexts]",
 	"[tip: use :output to view command execution results]",
 	"[tip: use negation in filters: !Running]",
 	"[tip: filter matches any part of the name/namespace]",
@@ -58,11 +60,14 @@ type CommandBar struct {
 	// Tip rotation state
 	currentTipIndex int
 	lastTipRotation time.Time
+
+	// Keyboard config
+	keys *keyboard.Keys
 }
 
 // New creates a new command bar coordinator.
-func New(pool *k8s.RepositoryPool, theme *ui.Theme) *CommandBar {
-	registry := commands.NewRegistry(pool)
+func New(pool *k8s.RepositoryPool, theme *ui.Theme, keys *keyboard.Keys) *CommandBar {
+	registry := commands.NewRegistry(pool, keys)
 
 	return &CommandBar{
 		state:           StateHidden,
@@ -77,6 +82,7 @@ func New(pool *k8s.RepositoryPool, theme *ui.Theme) *CommandBar {
 		registry:        registry,
 		currentTipIndex: 0,          // Start with first tip
 		lastTipRotation: time.Now(), // Track last rotation
+		keys:            keys,
 	}
 }
 
@@ -229,7 +235,7 @@ func (cb *CommandBar) handleKeyMsg(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 // handleHiddenState handles input when command bar is hidden.
 func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 	// Handle ESC when there's an active filter (clear it)
-	if msg.String() == "esc" && cb.input.Get() != "" {
+	if msg.String() == cb.keys.Back && cb.input.Get() != "" {
 		cb.input.Clear()
 		return cb, func() tea.Msg {
 			return types.ClearFilterMsg{}
@@ -249,23 +255,26 @@ func (cb *CommandBar) handleHiddenState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case ":":
-		cb.transitionToPalette(":", CommandTypeResource)
+	case cb.keys.ResourceNav: // ":"
+		cb.transitionToPalette(cb.keys.ResourceNav, CommandTypeResource)
 		return cb, nil
-	case "/":
-		cb.transitionToPalette("/", CommandTypeAction)
-		return cb, nil
-	default:
-		// Any other character starts filter mode
-		if len(msg.String()) == 1 && msg.String() != " " {
-			cb.state = StateFilter
-			cb.input.Set(msg.String())
-			cb.inputType = CommandTypeFilter
-			cb.height = 1
-			return cb, func() tea.Msg {
-				return types.FilterUpdateMsg{Filter: cb.input.Get()}
-			}
+
+	case cb.keys.FilterActivate: // "/"
+		cb.state = StateFilter
+		cb.input.Set(cb.keys.FilterActivate)
+		cb.inputType = CommandTypeFilter
+		cb.height = 1
+		return cb, func() tea.Msg {
+			return types.FilterUpdateMsg{Filter: ""}
 		}
+
+	case cb.keys.PaletteActivate, ">": // "ctrl+p" or ">"
+		cb.transitionToPalette(">", CommandTypeAction)
+		return cb, nil
+
+	default:
+		// REMOVED: type-to-filter behavior
+		// No longer accept single chars to start filtering
 	}
 
 	return cb, nil
@@ -278,14 +287,18 @@ func (cb *CommandBar) handleFilterState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 	switch result.Action {
 	case InputActionPaste:
 		cb.input.AddText(result.Text)
+		// Strip the leading "/" from filter text
+		filterText := strings.TrimPrefix(cb.input.Get(), "/")
 		return cb, func() tea.Msg {
-			return types.FilterUpdateMsg{Filter: cb.input.Get()}
+			return types.FilterUpdateMsg{Filter: filterText}
 		}
 
 	case InputActionChar:
 		cb.input.AddChar(result.Text)
+		// Strip the leading "/" from filter text
+		filterText := strings.TrimPrefix(cb.input.Get(), "/")
 		return cb, func() tea.Msg {
-			return types.FilterUpdateMsg{Filter: cb.input.Get()}
+			return types.FilterUpdateMsg{Filter: filterText}
 		}
 
 	case InputActionBackspace:
@@ -296,8 +309,10 @@ func (cb *CommandBar) handleFilterState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 				return types.ClearFilterMsg{}
 			}
 		}
+		// Strip the leading "/" from filter text
+		filterText := strings.TrimPrefix(cb.input.Get(), "/")
 		return cb, func() tea.Msg {
-			return types.FilterUpdateMsg{Filter: cb.input.Get()}
+			return types.FilterUpdateMsg{Filter: filterText}
 		}
 	}
 
@@ -327,7 +342,11 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 	switch result.Action {
 	case InputActionPaste:
 		cb.input.AddText(result.Text)
-		query := cb.input.Get()[1:] // Remove prefix
+		// Remove prefix if present (: or / or >)
+		query := cb.input.Get()
+		if len(query) > 0 && (query[0] == ':' || query[0] == '/' || query[0] == '>') {
+			query = query[1:]
+		}
 		cb.palette.Filter(query, cb.inputType, cb.screenID)
 		cb.height = 1 + cb.palette.GetHeight()
 		return cb, nil
@@ -345,7 +364,11 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		}
 
 		// Re-filter palette
-		query := cb.input.Get()[1:]
+		// Remove prefix if present (: or / or >)
+		query := cb.input.Get()
+		if len(query) > 0 && (query[0] == ':' || query[0] == '/' || query[0] == '>') {
+			query = query[1:]
+		}
 		cb.palette.Filter(query, cb.inputType, cb.screenID)
 		cb.height = 1 + cb.palette.GetHeight()
 		return cb, nil
@@ -359,8 +382,9 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 			return cb, nil
 		}
 
-		// If only prefix left, dismiss palette
-		if len(cb.input.Get()) == 1 {
+		input := cb.input.Get()
+		// If only prefix left (: or / or >), dismiss palette
+		if len(input) == 1 && (input[0] == ':' || input[0] == '/' || input[0] == '>') {
 			cb.state = StateHidden
 			cb.input.Clear()
 			cb.height = 1
@@ -369,7 +393,11 @@ func (cb *CommandBar) handlePaletteState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) 
 		}
 
 		// Re-filter palette
-		query := cb.input.Get()[1:]
+		// Remove prefix if present (: or / or >)
+		query := input
+		if len(query) > 0 && (query[0] == ':' || query[0] == '/' || query[0] == '>') {
+			query = query[1:]
+		}
 		cb.palette.Filter(query, cb.inputType, cb.screenID)
 		cb.height = 1 + cb.palette.GetHeight()
 		return cb, nil
@@ -425,8 +453,12 @@ func (cb *CommandBar) handlePaletteEnter() (*CommandBar, tea.Cmd) {
 		return cb, nil
 	}
 
-	// Build command string
-	prefix := cb.input.Get()[:1]
+	// Build command string with prefix if present
+	input := cb.input.Get()
+	prefix := ""
+	if len(input) > 0 && (input[0] == ':' || input[0] == '/') {
+		prefix = input[:1]
+	}
 	commandStr := prefix + selected.Name
 
 	// Check if needs confirmation
@@ -465,7 +497,11 @@ func (cb *CommandBar) handlePaletteTab() (*CommandBar, tea.Cmd) {
 		return cb, nil
 	}
 
-	prefix := cb.input.Get()[:1]
+	input := cb.input.Get()
+	prefix := ""
+	if len(input) > 0 && (input[0] == ':' || input[0] == '/' || input[0] == '>') {
+		prefix = input[:1]
+	}
 
 	// Special handling for /ai
 	if selected.Category == commands.CategoryLLMAction && selected.Name == "ai" {
@@ -480,6 +516,7 @@ func (cb *CommandBar) handlePaletteTab() (*CommandBar, tea.Cmd) {
 	// Build command string with space for arguments
 	commandStr := prefix + selected.Name + " "
 	cb.input.Set(commandStr)
+	logging.Debug("Tab completion", "commandStr", commandStr, "selectedName", selected.Name, "selectedCategory", selected.Category)
 
 	// Transition to input mode
 	cb.state = StateInput
@@ -559,6 +596,7 @@ func (cb *CommandBar) handleInputState(msg tea.KeyMsg) (*CommandBar, tea.Cmd) {
 // handleInputEnter handles enter key in input state.
 func (cb *CommandBar) handleInputEnter() (*CommandBar, tea.Cmd) {
 	inputStr := cb.input.Get()
+	logging.Debug("handleInputEnter", "inputStr", inputStr, "state", cb.state)
 
 	// Handle LLM commands
 	if strings.HasPrefix(inputStr, "/ai ") {
@@ -585,7 +623,9 @@ func (cb *CommandBar) handleInputEnter() (*CommandBar, tea.Cmd) {
 
 	// Parse and execute other commands
 	prefix, cmdName, args := cb.input.ParseCommand()
+	logging.Debug("ParseCommand result", "prefix", prefix, "cmdName", cmdName, "args", args)
 	if len(prefix) == 0 || len(cmdName) == 0 {
+		logging.Debug("Empty prefix or cmdName, hiding command bar")
 		cb.state = StateHidden
 		cb.input.Clear()
 		cb.height = 1
@@ -597,12 +637,13 @@ func (cb *CommandBar) handleInputEnter() (*CommandBar, tea.Cmd) {
 	switch prefix {
 	case ":":
 		category = commands.CategoryResource
-	case "/":
+	case "/", ">":
 		category = commands.CategoryAction
 	}
 
 	ctx := cb.executor.BuildContext(k8s.ResourceType(cb.screenID), cb.selectedResource, args, inputStr)
 	cmd, needsConfirm := cb.executor.Execute(cmdName, category, ctx)
+	logging.Debug("Execute result", "cmdName", cmdName, "category", category, "needsConfirm", needsConfirm, "cmdIsNil", cmd == nil)
 
 	if needsConfirm {
 		cb.executor.pendingArgs = args
@@ -616,10 +657,12 @@ func (cb *CommandBar) handleInputEnter() (*CommandBar, tea.Cmd) {
 		cb.state = StateHidden
 		cb.input.Clear()
 		cb.height = 1
+		logging.Debug("Executing command", "cmdName", cmdName)
 		return cb, cmd
 	}
 
 	// Unknown command
+	logging.Debug("Unknown command, hiding", "cmdName", cmdName)
 	cb.state = StateHidden
 	cb.input.Clear()
 	cb.height = 1
@@ -778,7 +821,13 @@ func (cb *CommandBar) ViewPaletteItems() string {
 		return ""
 	}
 
-	prefix := cb.input.Get()[:1]
+	// Get prefix - only if it's an actual prefix character (: or /)
+	// For ctrl+p palette, there's no prefix
+	prefix := ""
+	input := cb.input.Get()
+	if len(input) > 0 && (input[0] == ':' || input[0] == '/') {
+		prefix = input[:1]
+	}
 	return cb.palette.View(prefix)
 }
 
