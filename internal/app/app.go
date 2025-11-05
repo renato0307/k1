@@ -11,6 +11,7 @@ import (
 	"github.com/renato0307/k1/internal/components"
 	"github.com/renato0307/k1/internal/components/commandbar"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/keyboard"
 	"github.com/renato0307/k1/internal/logging"
 	"github.com/renato0307/k1/internal/messages"
 	"github.com/renato0307/k1/internal/screens"
@@ -33,16 +34,6 @@ const (
 	// DisplayUpdateInterval is how often we update the display (spinner, refresh time)
 	DisplayUpdateInterval = 100 * time.Millisecond
 )
-
-// prevContextKey returns the previous context shortcut
-func prevContextKey() string {
-	return "ctrl+p"
-}
-
-// nextContextKey returns the next context shortcut
-func nextContextKey() string {
-	return "ctrl+n"
-}
 
 // displayTickMsg triggers display updates (spinner animation, refresh time)
 type displayTickMsg time.Time
@@ -69,6 +60,7 @@ type Model struct {
 	theme             *ui.Theme
 	messageID         int // Track current message to prevent old timers from clearing new messages
 	outputBuffer      *components.OutputBuffer
+	keys              *keyboard.Keys // Keyboard configuration
 }
 
 func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
@@ -106,6 +98,9 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 	// System screen
 	registry.Register(screens.NewSystemScreen(repo, theme))
 
+	// Help screen
+	registry.Register(screens.NewConfigScreen(screens.GetHelpScreenConfig(), repo, theme))
+
 	// Output screen (special - uses outputBuffer)
 	outputBuffer := components.NewOutputBuffer()
 	registry.Register(screens.NewConfigScreen(screens.GetOutputScreenConfig(outputBuffer), pool, theme))
@@ -124,7 +119,9 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 		header.SetRefreshInterval(configScreen.GetRefreshInterval())
 	}
 
-	cmdBar := commandbar.New(pool, theme)
+	keys := keyboard.GetKeys()
+
+	cmdBar := commandbar.New(pool, theme, keys)
 	cmdBar.SetWidth(80)
 	cmdBar.SetScreen("pods") // Set initial screen context
 
@@ -156,6 +153,7 @@ func NewModel(pool *k8s.RepositoryPool, theme *ui.Theme) Model {
 		repoPool:          pool,
 		theme:             theme,
 		outputBuffer:      outputBuffer,
+		keys:              keys,
 	}
 }
 
@@ -204,49 +202,102 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
-		// Handle global shortcuts
-		switch msg.String() {
-		case "ctrl+c", "q":
-			return m, tea.Quit
+		logging.Debug("Key pressed", "key", msg.String(), "type", msg.Type, "currentScreen", m.currentScreen.ID())
+		// If command bar is active (filter/palette mode), let it handle all keys first
+		// This prevents global shortcuts from interfering with typing in filter mode
+		if !m.commandBar.IsActive() {
+			// Handle global shortcuts only when command bar is hidden
+			switch msg.String() {
+			case m.keys.Quit:
+				return m, tea.Quit
 
-		case prevContextKey():
-			// Previous context (ctrl+p)
-			updatedBar, barCmd := m.commandBar.ExecuteCommand("prev-context", commands.CategoryResource)
-			m.commandBar = updatedBar
-			return m, barCmd
+			case m.keys.PrevContext:
+				// Previous context ([)
+				updatedBar, barCmd := m.commandBar.ExecuteCommand("prev-context", commands.CategoryResource)
+				m.commandBar = updatedBar
+				return m, barCmd
 
-		case nextContextKey():
-			// Next context (ctrl+n)
-			updatedBar, barCmd := m.commandBar.ExecuteCommand("next-context", commands.CategoryResource)
-			m.commandBar = updatedBar
-			return m, barCmd
+			case m.keys.NextContext:
+				// Next context (])
+				updatedBar, barCmd := m.commandBar.ExecuteCommand("next-context", commands.CategoryResource)
+				m.commandBar = updatedBar
+				return m, barCmd
 
-		case "ctrl+r":
-			// Global refresh - trigger current screen refresh
-			if screen, ok := m.currentScreen.(interface{ Refresh() tea.Cmd }); ok {
-				return m, screen.Refresh()
+			case m.keys.Refresh:
+				// Global refresh - trigger current screen refresh
+				if screen, ok := m.currentScreen.(interface{ Refresh() tea.Cmd }); ok {
+					return m, screen.Refresh()
+				}
+				return m, nil
+
+			case m.keys.NamespaceFilter:
+				// Namespace filter (n)
+				updatedBar, barCmd := m.commandBar.ExecuteCommand("ns", commands.CategoryResource)
+				m.commandBar = updatedBar
+				return m, barCmd
+
+			case m.keys.Help:
+				// Show help screen (?) - ignore if already on help screen
+				if m.currentScreen.ID() != screens.HelpScreenID {
+					return m.Update(types.ScreenSwitchMsg{
+						ScreenID:    screens.HelpScreenID,
+						PushHistory: true,
+					})
+				}
+				return m, nil
+
+			case m.keys.Down:
+				// Vim navigation: j -> down arrow
+				return m.Update(tea.KeyMsg{Type: tea.KeyDown})
+
+			case m.keys.Up:
+				// Vim navigation: k -> up arrow
+				return m.Update(tea.KeyMsg{Type: tea.KeyUp})
+
+			case m.keys.JumpTop:
+				// Vim navigation: g -> jump to top
+				model, cmd := m.currentScreen.Update(tea.KeyMsg{
+					Type:  tea.KeyRunes,
+					Runes: []rune{'g'},
+				})
+				m.currentScreen = model.(types.Screen)
+				return m, cmd
+
+			case m.keys.JumpBottom:
+				// Vim navigation: G -> jump to bottom
+				model, cmd := m.currentScreen.Update(tea.KeyMsg{
+					Type:  tea.KeyRunes,
+					Runes: []rune{'G'},
+				})
+				m.currentScreen = model.(types.Screen)
+				return m, cmd
 			}
-			return m, nil
-		}
 
-		// Try to find command by shortcut dynamically
-		if cmd := m.commandBar.GetCommandByShortcut(msg.String()); cmd != nil {
-			// Update selection context before executing command
-			if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
-				m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+			// Try to find command by shortcut dynamically (only when command bar is hidden)
+			if cmd := m.commandBar.GetCommandByShortcut(msg.String()); cmd != nil {
+				// Check if command is applicable to current screen's resource type
+				if !m.isCommandApplicable(cmd) {
+					// Don't execute command if not applicable to this resource type
+					// Let the key pass through to the screen (for navigation, etc.)
+				} else {
+					// Update selection context before executing command
+					if screenWithSel, ok := m.currentScreen.(types.ScreenWithSelection); ok {
+						m.commandBar.SetSelectedResource(screenWithSel.GetSelectedResource())
+					}
+
+					// Execute command
+					updatedBar, barCmd := m.commandBar.ExecuteCommand(cmd.Name, cmd.Category)
+					m.commandBar = updatedBar
+
+					// Recalculate body height if command bar expanded (e.g., for confirmation)
+					bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
+					if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
+						screenWithSize.SetSize(m.state.Width, bodyHeight)
+					}
+
+					return m, barCmd
+				}
 			}
-
-			// Execute command
-			updatedBar, barCmd := m.commandBar.ExecuteCommand(cmd.Name, cmd.Category)
-			m.commandBar = updatedBar
-
-			// Recalculate body height if command bar expanded (e.g., for confirmation)
-			bodyHeight := m.layout.CalculateBodyHeightWithCommandBar(m.commandBar.GetTotalHeight())
-			if screenWithSize, ok := m.currentScreen.(interface{ SetSize(int, int) }); ok {
-				screenWithSize.SetSize(m.state.Width, bodyHeight)
-			}
-
-			return m, barCmd
 		}
 
 		// If in full-screen mode, handle ESC to return to list
@@ -410,17 +461,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case types.StatusMsg:
-		m.messageID++ // Increment to invalidate any pending clear timers
-		currentID := m.messageID
-
-		// Log error messages for debugging (preserves full message before truncation)
-		if msg.Type == types.MessageTypeError {
-			logging.Error("User error message", "message", msg.Message)
-		}
-
-		m.userMessage.SetMessage(msg.Message, msg.Type)
-
-		// Capture command output for history
+		// Capture command output for history (always, even for silent messages)
 		if msg.TrackInHistory && msg.HistoryMetadata != nil {
 			entry := components.CommandOutput{
 				Command:        msg.HistoryMetadata.Command,
@@ -445,6 +486,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				"buffer_count", m.outputBuffer.Count(),
 			)
 		}
+
+		// If silent, skip showing message to user
+		if msg.Silent {
+			// Forward to screen so it can schedule periodic refresh if needed
+			model, cmd := m.currentScreen.Update(msg)
+			m.currentScreen = model.(types.Screen)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+		}
+
+		// Show message to user
+		m.messageID++ // Increment to invalidate any pending clear timers
+		currentID := m.messageID
+
+		// Log error messages for debugging (preserves full message before truncation)
+		if msg.Type == types.MessageTypeError {
+			logging.Error("User error message", "message", msg.Message)
+		}
+
+		m.userMessage.SetMessage(msg.Message, msg.Type)
 
 		// Forward to screen so it can schedule periodic refresh if needed
 		model, cmd := m.currentScreen.Update(msg)
@@ -722,6 +785,7 @@ func (m Model) View() string {
 	// Build main layout
 	header := m.header.View()
 	body := m.currentScreen.View()
+	logging.Debug("App.View rendering", "screen", m.currentScreen.ID(), "headerLen", len(header), "bodyLen", len(body))
 	userMessage := m.userMessage.View()
 	commandBar := m.commandBar.View()
 	paletteItems := m.commandBar.ViewPaletteItems()
@@ -839,11 +903,52 @@ func (m *Model) initializeScreens() {
 	// System screen
 	m.registry.Register(screens.NewSystemScreen(repo, m.theme))
 
+	// Help screen
+	m.registry.Register(screens.NewConfigScreen(screens.GetHelpScreenConfig(), repo, m.theme))
+
 	// Output screen (special - uses outputBuffer from model)
 	m.registry.Register(screens.NewConfigScreen(screens.GetOutputScreenConfig(m.outputBuffer), m.repoPool, m.theme))
 
 	// Contexts screen (special - uses pool directly)
 	m.registry.Register(screens.NewConfigScreen(screens.GetContextsScreenConfig(), m.repoPool, m.theme))
+}
+
+// isCommandApplicable checks if a command is applicable to the current screen's resource type
+func (m Model) isCommandApplicable(cmd *commands.Command) bool {
+	// Non-action commands (navigation, etc.) are always applicable
+	if cmd.Category != commands.CategoryAction {
+		return true
+	}
+
+	// Get current screen's resource type
+	var currentResourceType k8s.ResourceType
+	if screenWithResourceType, ok := m.currentScreen.(interface{ GetResourceType() k8s.ResourceType }); ok {
+		currentResourceType = screenWithResourceType.GetResourceType()
+	} else {
+		// Screen doesn't have a resource type (e.g., SystemScreen) - not applicable
+		return false
+	}
+
+	// Empty ResourceTypes means command applies to all resource types
+	if len(cmd.ResourceTypes) == 0 {
+		// But still need to check if this is a real K8s resource, not help/system/output/contexts
+		nonK8sResources := map[k8s.ResourceType]bool{
+			k8s.ResourceType("help"):     true,
+			k8s.ResourceType("system"):   true,
+			k8s.ResourceType("output"):   true,
+			k8s.ResourceType("contexts"): true,
+		}
+		return !nonK8sResources[currentResourceType]
+	}
+
+	// Check if current resource type is in the command's ResourceTypes list
+	for _, rt := range cmd.ResourceTypes {
+		if rt == currentResourceType {
+			return true
+		}
+	}
+
+	return false
 }
 
 // messageTypeToStatus converts MessageType to status string for history

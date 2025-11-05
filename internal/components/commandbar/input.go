@@ -152,13 +152,13 @@ func (i *Input) ParseCommand() (prefix, cmdName, args string) {
 //
 //	"/logs nginx " → "[tail] [follow]"
 func (i *Input) GetArgumentHint(cmdType CommandType) string {
-	// Only show hints for command inputs (: or /)
+	// Only show hints for command inputs (: or / or >)
 	if len(i.buffer) == 0 {
 		return ""
 	}
 
 	prefix := i.buffer[:1]
-	if prefix != ":" && prefix != "/" {
+	if prefix != ":" && prefix != "/" && prefix != ">" {
 		return ""
 	}
 
@@ -172,6 +172,7 @@ func (i *Input) GetArgumentHint(cmdType CommandType) string {
 	cmdNameWithPrefix := parts[0]
 	cmdName := strings.TrimPrefix(cmdNameWithPrefix, ":")
 	cmdName = strings.TrimPrefix(cmdName, "/")
+	cmdName = strings.TrimPrefix(cmdName, ">")
 
 	// Determine command category
 	var category commands.CommandCategory

@@ -65,12 +65,9 @@ func (e *Executor) Execute(cmdName string, category commands.CommandCategory, ct
 		return nil, true // Needs confirmation
 	}
 
-	// Execute command with loading message
+	// Execute command (command decides whether to show loading message)
 	if cmd.Execute != nil {
-		loadingMsg := func() tea.Msg {
-			return types.LoadingMsg("Running " + ctx.OriginalCommand + "…")
-		}
-		return tea.Batch(loadingMsg, cmd.Execute(ctx)), false
+		return cmd.Execute(ctx), false
 	}
 
 	return nil, false
@@ -86,16 +83,13 @@ func (e *Executor) ExecutePending(ctx commands.CommandContext) tea.Cmd {
 	// Use stored args
 	ctx.Args = e.pendingArgs
 
-	// Execute command with loading message
-	loadingMsg := func() tea.Msg {
-		return types.LoadingMsg("Running " + ctx.OriginalCommand + "…")
-	}
-	cmd := e.pendingCommand.Execute(ctx)
+	// Execute command (command decides whether to show loading message)
+	result := e.pendingCommand.Execute(ctx)
 
 	// Clear pending state
 	e.ClearPending()
 
-	return tea.Batch(loadingMsg, cmd)
+	return result
 }
 
 // CancelPending cancels the pending command.

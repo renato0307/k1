@@ -6,24 +6,27 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/renato0307/k1/internal/keyboard"
 	"github.com/renato0307/k1/internal/ui"
 )
 
 func TestCommandBar_ViewHints_ShowsTipWhenHidden(t *testing.T) {
 	pool := createTestPool(t)
 	theme := ui.GetTheme("charm")
-	cb := New(pool, theme)
+	keys := keyboard.GetKeys()
+	cb := New(pool, theme, keys)
 
 	// Should show first tip when StateHidden
 	hints := cb.ViewHints()
 	assert.NotEqual(t, "", hints)
-	assert.Contains(t, hints, "type to filter")
+	assert.Contains(t, hints, "search")
 }
 
 func TestCommandBar_ViewHints_EmptyWhenActive(t *testing.T) {
 	pool := createTestPool(t)
 	theme := ui.GetTheme("charm")
-	cb := New(pool, theme)
+	keys := keyboard.GetKeys()
+	cb := New(pool, theme, keys)
 
 	// Set to active state
 	cb.state = StateFilter
@@ -35,7 +38,8 @@ func TestCommandBar_ViewHints_EmptyWhenActive(t *testing.T) {
 func TestCommandBar_TipRotation(t *testing.T) {
 	pool := createTestPool(t)
 	theme := ui.GetTheme("charm")
-	cb := New(pool, theme)
+	keys := keyboard.GetKeys()
+	cb := New(pool, theme, keys)
 
 	// Initial tip index should be 0
 	assert.Equal(t, 0, cb.currentTipIndex)
@@ -56,7 +60,8 @@ func TestCommandBar_TipRotation(t *testing.T) {
 func TestCommandBar_TipRotation_AvoidsDuplicate(t *testing.T) {
 	pool := createTestPool(t)
 	theme := ui.GetTheme("charm")
-	cb := New(pool, theme)
+	keys := keyboard.GetKeys()
+	cb := New(pool, theme, keys)
 
 	// Set to a specific tip
 	cb.currentTipIndex = 5
@@ -78,25 +83,27 @@ func TestCommandBar_TipContent(t *testing.T) {
 		tipIndex      int
 		shouldContain string
 	}{
-		{"original hint", 0, "type to filter"},
+		{"original hint", 0, "search"},
 		{"actions tip", 1, "Enter on resources"},
-		{"yaml shortcut tip", 2, "ctrl+y"},
-		{"quit tip", 3, "quit"},
-		{"context switching tip", 4, "ctrl+n/p"},
-		{"output tip", 5, ":output"},
-		{"filter negation tip", 6, "!Running"},
-		{"filter fuzzy match tip", 7, "matches any part"},
-		{"context flag tip", 9, "-context to load"},
-		{"multiple contexts tip", 10, "multiple -context"},
-		{"theme flag tip", 11, "-theme"},
-		{"refresh tip", 14, "refresh automatically"},
+		{"yaml shortcut tip", 2, "y for YAML"},
+		{"edit tip", 3, "e to edit"},
+		{"quit tip", 4, ":q or ctrl+c to quit"},
+		{"context switching tip", 5, "[ / ] to switch contexts"},
+		{"output tip", 6, ":output"},
+		{"filter negation tip", 7, "!Running"},
+		{"filter fuzzy match tip", 8, "matches any part"},
+		{"context flag tip", 10, "-context to load"},
+		{"multiple contexts tip", 11, "multiple -context"},
+		{"theme flag tip", 12, "-theme"},
+		{"refresh tip", 15, "refresh automatically"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pool := createTestPool(t)
 			theme := ui.GetTheme("charm")
-			cb := New(pool, theme)
+			keys := keyboard.GetKeys()
+	cb := New(pool, theme, keys)
 
 			cb.currentTipIndex = tt.tipIndex
 
@@ -111,7 +118,7 @@ func TestCommandBar_TipsArrayValid(t *testing.T) {
 	assert.Greater(t, len(usageTips), 0, "Tips array should not be empty")
 
 	// Ensure first tip is original hint
-	assert.Contains(t, usageTips[0], "type to filter")
+	assert.Contains(t, usageTips[0], "search")
 
 	// Ensure all tips are non-empty
 	for i, tip := range usageTips {

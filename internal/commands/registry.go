@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/keyboard"
 	"github.com/sahilm/fuzzy"
 )
 
@@ -12,18 +13,8 @@ type Registry struct {
 	commands []Command
 }
 
-// getNextContextShortcut returns the next context shortcut
-func getNextContextShortcut() string {
-	return "ctrl+n"
-}
-
-// getPrevContextShortcut returns the prev context shortcut
-func getPrevContextShortcut() string {
-	return "ctrl+p"
-}
-
 // NewRegistry creates a new command registry with default commands
-func NewRegistry(pool *k8s.RepositoryPool) *Registry {
+func NewRegistry(pool *k8s.RepositoryPool, keys *keyboard.Keys) *Registry {
 	commands := []Command{
 		// Navigation commands (: prefix)
 		{
@@ -158,6 +149,12 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Category:    CategoryResource,
 			Execute:     NamespaceFilterCommand(),
 		},
+		{
+			Name:        "q",
+			Description: "Quit application",
+			Category:    CategoryResource,
+			Execute:     QuitCommand(),
+		},
 
 		// Resource commands (/ prefix)
 		{
@@ -165,7 +162,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Description:   "View resource YAML",
 			Category:      CategoryAction,
 			ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
-			Shortcut:      "ctrl+y",
+			Shortcut:      keys.YAML,
 			Execute:       YamlCommand(pool),
 		},
 		{
@@ -173,7 +170,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Description:   "View kubectl describe output",
 			Category:      CategoryAction,
 			ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
-			Shortcut:      "ctrl+d",
+			Shortcut:      keys.Describe,
 			Execute:       DescribeCommand(pool),
 		},
 		{
@@ -181,7 +178,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Description:       "Delete selected resource",
 			Category:          CategoryAction,
 			ResourceTypes:     []k8s.ResourceType{}, // Applies to all resource types
-			Shortcut:          "ctrl+x",
+			Shortcut:          keys.Delete,
 			NeedsConfirmation: true,
 			Execute:           DeleteCommand(pool),
 		},
@@ -190,7 +187,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Description:   "Edit resource (clipboard)",
 			Category:      CategoryAction,
 			ResourceTypes: []k8s.ResourceType{}, // Applies to all resource types
-			Shortcut:      "ctrl+e",
+			Shortcut:      keys.Edit,
 			Execute:       EditCommand(pool),
 		},
 		{
@@ -198,7 +195,7 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Description:   "View pod logs (clipboard)",
 			Category:      CategoryAction,
 			ResourceTypes: []k8s.ResourceType{k8s.ResourceTypePod}, // Only for pods
-			Shortcut:      "ctrl+l",
+			Shortcut:      keys.Logs,
 			ArgsType:      &LogsArgs{},
 			ArgPattern:    " [container] [tail] [follow]",
 			Execute:       LogsCommand(pool),
@@ -346,14 +343,14 @@ func NewRegistry(pool *k8s.RepositoryPool) *Registry {
 			Description: "Switch to next context",
 			Category:    CategoryResource,
 			Execute:     NextContextCommand(pool),
-			Shortcut:    getNextContextShortcut(),
+			Shortcut:    keys.NextContext,
 		},
 		{
 			Name:        "prev-context",
 			Description: "Switch to previous context",
 			Category:    CategoryResource,
 			Execute:     PrevContextCommand(pool),
-			Shortcut:    getPrevContextShortcut(),
+			Shortcut:    keys.PrevContext,
 		},
 	}...)
 

@@ -562,6 +562,8 @@ func GetOutputScreenConfig(buffer *components.OutputBuffer) ScreenConfig {
 		},
 		SearchFields: []string{"Context", "Command", "KubectlCommand", "Output"},
 		Operations:   []OperationConfig{},
+
+		// CustomRefresh populates data asynchronously (like resource screens)
 		CustomRefresh: func(s *ConfigScreen) tea.Cmd {
 			return func() tea.Msg {
 				entries := buffer.GetAll()

@@ -145,8 +145,9 @@ type CommandMetadata struct {
 type StatusMsg struct {
 	Message         string
 	Type            MessageType
-	TrackInHistory  bool              // Explicit opt-in flag for history tracking
-	HistoryMetadata *CommandMetadata  // Optional rich metadata for history
+	TrackInHistory  bool             // Explicit opt-in flag for history tracking
+	HistoryMetadata *CommandMetadata // Optional rich metadata for history
+	Silent          bool             // Don't display to user (only track in history)
 }
 
 type ClearStatusMsg struct {

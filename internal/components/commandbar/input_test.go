@@ -7,12 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/renato0307/k1/internal/commands"
+	"github.com/renato0307/k1/internal/keyboard"
 	"github.com/renato0307/k1/internal/ui"
 )
 
 func TestNewInput(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -23,7 +25,8 @@ func TestNewInput(t *testing.T) {
 
 func TestInput_AddChar(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -38,7 +41,8 @@ func TestInput_AddChar(t *testing.T) {
 
 func TestInput_AddText(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -49,7 +53,8 @@ func TestInput_AddText(t *testing.T) {
 
 func TestInput_Backspace(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -75,7 +80,8 @@ func TestInput_Backspace(t *testing.T) {
 
 func TestInput_Clear(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -90,7 +96,8 @@ func TestInput_Clear(t *testing.T) {
 
 func TestInput_Set(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -102,7 +109,8 @@ func TestInput_Set(t *testing.T) {
 
 func TestInput_HandleKeyMsg(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -127,7 +135,8 @@ func TestInput_HandleKeyMsg(t *testing.T) {
 
 func TestInput_ParseCommand(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	tests := []struct {
@@ -189,7 +198,8 @@ func TestInput_ParseCommand(t *testing.T) {
 
 func TestInput_GetArgumentHint(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -211,7 +221,8 @@ func TestInput_GetArgumentHint(t *testing.T) {
 
 func TestInput_View(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)
@@ -224,7 +235,8 @@ func TestInput_View(t *testing.T) {
 
 func TestInput_SetWidth(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	input := NewInput(registry, theme, 80)

@@ -7,12 +7,14 @@ import (
 
 	"github.com/renato0307/k1/internal/commands"
 	"github.com/renato0307/k1/internal/k8s"
+	"github.com/renato0307/k1/internal/keyboard"
 	"github.com/renato0307/k1/internal/ui"
 )
 
 func TestNewExecutor(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -22,7 +24,8 @@ func TestNewExecutor(t *testing.T) {
 
 func TestExecutor_BuildContext(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -41,7 +44,8 @@ func TestExecutor_BuildContext(t *testing.T) {
 
 func TestExecutor_Execute(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -60,7 +64,8 @@ func TestExecutor_Execute(t *testing.T) {
 
 func TestExecutor_Execute_NeedsConfirmation(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -77,7 +82,8 @@ func TestExecutor_Execute_NeedsConfirmation(t *testing.T) {
 
 func TestExecutor_ExecutePending(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -96,7 +102,8 @@ func TestExecutor_ExecutePending(t *testing.T) {
 
 func TestExecutor_CancelPending(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -114,7 +121,8 @@ func TestExecutor_CancelPending(t *testing.T) {
 
 func TestExecutor_LLMTranslation(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -134,7 +142,8 @@ func TestExecutor_LLMTranslation(t *testing.T) {
 
 func TestExecutor_ViewConfirmation(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -155,7 +164,8 @@ func TestExecutor_ViewConfirmation(t *testing.T) {
 
 func TestExecutor_ViewLLMPreview(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -181,7 +191,8 @@ func TestExecutor_ViewLLMPreview(t *testing.T) {
 
 func TestExecutor_ViewResult(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -199,7 +210,8 @@ func TestExecutor_ViewResult(t *testing.T) {
 
 func TestExecutor_SetWidth(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
@@ -212,7 +224,8 @@ func TestExecutor_SetWidth(t *testing.T) {
 // Test that executor properly handles command execution with tea.Cmd
 func TestExecutor_ExecuteReturnsCmd(t *testing.T) {
 	pool := createTestPool(t)
-	registry := commands.NewRegistry(pool)
+	keys := keyboard.GetKeys()
+	registry := commands.NewRegistry(pool, keys)
 	theme := ui.GetTheme("charm")
 
 	exec := NewExecutor(registry, theme, 80)
