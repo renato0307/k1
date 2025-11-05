@@ -10,3 +10,6 @@ test-output/
 
 # GoReleaser
 dist/
+
+# E2E test artifacts
+e2e/*.log
