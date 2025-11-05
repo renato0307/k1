@@ -77,6 +77,36 @@ func NewRepositoryPool(kubeconfig string, maxSize int) (*RepositoryPool, error) 
 	}, nil
 }
 
+// NewRepositoryPoolFromRepos creates a pool pre-populated with repositories (for testing)
+func NewRepositoryPoolFromRepos(repos map[string]Repository) (*RepositoryPool, error) {
+	if len(repos) == 0 {
+		return nil, fmt.Errorf("repos cannot be empty")
+	}
+
+	pool := &RepositoryPool{
+		repos:   make(map[string]*RepositoryEntry),
+		lru:     list.New(),
+		maxSize: len(repos),
+	}
+
+	// Add all repositories and set first as active
+	firstContext := ""
+	for contextName, repo := range repos {
+		if firstContext == "" {
+			firstContext = contextName
+			pool.active = contextName
+		}
+		pool.repos[contextName] = &RepositoryEntry{
+			Repo:     repo,
+			Status:   StatusLoaded,
+			LoadedAt: time.Now(),
+		}
+		pool.lru.PushBack(contextName)
+	}
+
+	return pool, nil
+}
+
 // LoadContext loads a context into the pool (blocking operation)
 func (p *RepositoryPool) LoadContext(contextName string, progress chan<- ContextLoadProgress) error {
 	loadCtx := logging.Start("LoadContext")

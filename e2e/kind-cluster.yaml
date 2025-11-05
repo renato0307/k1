@@ -1,0 +1,7 @@
+apiVersion: ctlptl.dev/v1alpha1
+kind: Cluster
+product: kind
+name: kind-k1-test
+registry: kind-k1-registry
+minCPUs: 2
+kubernetesVersion: v1.31.0
